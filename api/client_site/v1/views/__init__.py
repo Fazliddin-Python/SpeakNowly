@@ -1,1 +1,10 @@
-# This file is intentionally left blank.
+from .tests.listening import router as listening_tests_router
+from .tests.reading import router as reading_tests_router
+from .tests.writing import router as writing_tests_router
+from .tests.speaking import router as speaking_tests_router
+from .tests.grammar import router as grammar_tests_router
+from .analyses import router as analyses_router
+from .notifications import router as notifications_router
+from .tariffs import router as tariffs_router
+from .transactions import router as transactions_router
+from .users import router as users_router

@@ -1,0 +1,43 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[packages]
+fastapi = "*"
+uvicorn = { extras = ["standard"], version = "*" }
+tortoise-orm = "*"
+asyncpg = "*"
+python-dotenv = "*"
+fastapi-jwt-auth = "*"
+celery = "*"
+redis = "*"
+pillow = "*"
+requests = "*"
+openai = "*"
+python-decouple = "*"
+passlib = "*"
+pydantic = {extras = ["email"], version = "*"}
+
+[dev-packages]
+autoflake = "*"
+black = "*"
+isort = "*"
+flake8 = "*"
+flake8-bugbear = "*"
+flake8-comprehensions = "*"
+flake8-eradicate = "*"
+flake8-pie = "*"
+pyflakes = "*"
+pytest = "*"
+pytest-cov = "*"
+pytest-benchmark = "*"
+pytest-factoryboy = "*"
+pytest-pretty = "*"
+pytest-xdist = "*"
+psutil = "*"
+factory-boy = "*"
+Faker = "*"
+
+[requires]
+python_version = "3.12"

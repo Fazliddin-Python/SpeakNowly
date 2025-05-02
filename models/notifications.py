@@ -29,3 +29,12 @@ class ReadStatus(BaseModel):
 
     class Meta:
         table = "read_statuses"
+
+class Comment(BaseModel):
+    user = fields.ForeignKeyField("models.User", related_name="comments", description=_("User"))
+    message = fields.ForeignKeyField("models.Message", related_name="comments", null=True, description=_("Message"))
+    content = fields.TextField(description=_("Content"))
+    created_at = fields.DatetimeField(auto_now_add=True, description=_("Created at"))
+
+    class Meta:
+        table = "comments"

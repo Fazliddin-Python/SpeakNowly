@@ -1,6 +1,5 @@
 from tortoise import fields
 from .base import BaseModel
-from gettext import gettext as _
 
 class TokenTransaction(BaseModel):
     TEST_READING = "READING"
@@ -14,22 +13,27 @@ class TokenTransaction(BaseModel):
     REFUND = "REFUND"
 
     TRANSACTION_TYPES = (
-        (TEST_READING, _("Reading Test")),
-        (TEST_WRITING, _("Writing Test")),
-        (TEST_LISTENING, _("Listening Test")),
-        (TEST_SPEAKING, _("Speaking Test")),
-        (DAILY_BONUS, _("Daily Bonus")),
-        (REFERRAL_BONUS, _("Referral Bonus")),
-        (CUSTOM_DEDUCTION, _("Custom Deduction")),
-        (CUSTOM_ADDITION, _("Custom Addition")),
-        (REFUND, _("Refund")),
+        (TEST_READING, "Reading Test"),
+        (TEST_WRITING, "Writing Test"),
+        (TEST_LISTENING, "Listening Test"),
+        (TEST_SPEAKING, "Speaking Test"),
+        (DAILY_BONUS, "Daily Bonus"),
+        (REFERRAL_BONUS, "Referral Bonus"),
+        (CUSTOM_DEDUCTION, "Custom Deduction"),
+        (CUSTOM_ADDITION, "Custom Addition"),
+        (REFUND, "Refund"),
     )
 
-    user = fields.ForeignKeyField("models.User", related_name="token_transactions", description=_("User"))
-    transaction_type = fields.CharField(max_length=20, choices=TRANSACTION_TYPES, description=_("Transaction Type"))
-    amount = fields.IntField(description=_("Amount"))
-    balance_after_transaction = fields.IntField(description=_("Balance After Transaction"))
-    description = fields.TextField(null=True, description=_("Description"))
+    user = fields.ForeignKeyField("models.User", related_name="token_transactions", description="User")
+    transaction_type = fields.CharField(max_length=20, choices=TRANSACTION_TYPES, description="Transaction Type")
+    amount = fields.IntField(description="Amount")
+    balance_after_transaction = fields.IntField(description="Balance After Transaction")
+    description = fields.TextField(null=True, description="Description")
 
     class Meta:
         table = "token_transactions"
+        verbose_name = "Token Transaction"
+        verbose_name_plural = "Token Transactions"
+
+    def __str__(self):
+        return f"{self.transaction_type} - {self.amount} tokens"
