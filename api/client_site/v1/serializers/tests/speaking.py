@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional
 
+
 class SpeakingSerializer(BaseModel):
     id: int
     status: str
@@ -12,34 +13,22 @@ class SpeakingSerializer(BaseModel):
         from_attributes = True
 
 
-class SpeakingPart1Serializer(BaseModel):
+class SpeakingQuestionSerializer(BaseModel):
     id: int
     speaking_id: int
+    part: str
+    title: Optional[str]
     content: str
-    answer: Optional[str]
-    audio: Optional[str]
 
     class Config:
         from_attributes = True
 
 
-class SpeakingPart2Serializer(BaseModel):
+class SpeakingAnswerSerializer(BaseModel):
     id: int
-    speaking_id: int
-    content: str
-    answer: Optional[str]
-    audio: Optional[str]
-
-    class Config:
-        from_attributes = True
-
-
-class SpeakingPart3Serializer(BaseModel):
-    id: int
-    speaking_id: int
-    content: str
-    answer: Optional[str]
-    audio: Optional[str]
+    question_id: int
+    text_answer: Optional[str]
+    audio_answer: Optional[str]
 
     class Config:
         from_attributes = True

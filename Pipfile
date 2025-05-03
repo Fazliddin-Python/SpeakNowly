@@ -18,6 +18,7 @@ openai = "*"
 python-decouple = "*"
 passlib = "*"
 pydantic = {extras = ["email"], version = "*"}
+python-multipart = "*"
 
 [dev-packages]
 autoflake = "*"

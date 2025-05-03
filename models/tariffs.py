@@ -73,7 +73,9 @@ class Sale(BaseModel):
     tariff = fields.ForeignKeyField("models.Tariff", related_name="sales", description="Tariff")
     percent = fields.IntField(default=0, description="Percent")
     start_date = fields.DateField(description="Start Date")
+    start_time = fields.TimeField(description="Start Time")
     end_date = fields.DateField(description="End Date")
+    end_time = fields.TimeField(description="End Time")
     is_active = fields.BooleanField(default=True, description="Active")
 
     class Meta:
@@ -83,19 +85,3 @@ class Sale(BaseModel):
 
     def __str__(self):
         return f"Sale {self.percent}% for {self.tariff.name}"
-
-
-class Payment(BaseModel):
-    user = fields.ForeignKeyField("models.User", related_name="payments", description="User")
-    tariff = fields.ForeignKeyField("models.Tariff", related_name="payments", description="Tariff")
-    amount = fields.DecimalField(max_digits=10, decimal_places=2, description="Amount")
-    payment_date = fields.DatetimeField(auto_now_add=True, description="Payment Date")
-    status = fields.CharField(max_length=20, description="Status")
-
-    class Meta:
-        table = "payments"
-        verbose_name = "Payment"
-        verbose_name_plural = "Payments"
-
-    def __str__(self):
-        return f"Payment of {self.amount} by {self.user_id} for {self.tariff.name}"

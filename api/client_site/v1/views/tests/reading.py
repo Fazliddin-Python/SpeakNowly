@@ -1,78 +1,185 @@
-from fastapi import APIRouter, HTTPException
-from models.tests.reading import Reading, ReadingPart1, ReadingPart2, ReadingPart3
-from api.client_site.v1.serializers.tests.reading import (
+from fastapi import APIRouter, HTTPException, Depends, status, Query
+from typing import List, Optional
+from tortoise.exceptions import DoesNotExist
+from models.tests.reading import Reading, Passage, Question, Variant, Answer
+from ...serializers.tests.reading import (
     ReadingSerializer,
-    ReadingPart1Serializer,
-    ReadingPart2Serializer,
-    ReadingPart3Serializer,
+    PassageSerializer,
+    QuestionSerializer,
+    VariantSerializer,
+    AnswerSerializer,
 )
+from datetime import datetime
 
 router = APIRouter()
 
-# Reading endpoints
-@router.get("/", response_model=list[ReadingSerializer])
-async def get_reading_tests():
-    tests = await Reading.all()
-    return tests
+
+@router.get("/", response_model=List[ReadingSerializer])
+async def get_reading_tests(user_id: int):
+    """
+    Retrieve all reading tests for a specific user.
+    """
+    readings = await Reading.filter(user_id=user_id).all()
+    if not readings:
+        raise HTTPException(status_code=404, detail="No reading tests found for the user")
+    return readings
 
 
-@router.get("/{test_id}/", response_model=ReadingSerializer)
-async def get_reading_test(test_id: int):
-    test = await Reading.get_or_none(id=test_id)
-    if not test:
+@router.get("/{reading_id}/", response_model=ReadingSerializer)
+async def get_reading_test(reading_id: int):
+    """
+    Retrieve a specific reading test by ID.
+    """
+    reading = await Reading.get_or_none(id=reading_id).prefetch_related("passages")
+    if not reading:
         raise HTTPException(status_code=404, detail="Reading test not found")
-    return test
+    return reading
 
 
-@router.post("/", response_model=ReadingSerializer)
-async def create_reading_test(data: ReadingSerializer):
-    test = await Reading.create(**data.dict())
-    return test
+@router.post("/start/", response_model=ReadingSerializer, status_code=status.HTTP_201_CREATED)
+async def start_reading_test(user_id: int):
+    """
+    Start a new reading test for a user.
+    """
+    passages = await Passage.all()
+    if not passages:
+        raise HTTPException(status_code=404, detail="No passages available for the test")
+
+    reading = await Reading.create(
+        user_id=user_id,
+        start_time=datetime.utcnow(),
+        status="started",
+        duration=60,
+    )
+    await reading.passages.add(*passages[:3])  # Assign the first 3 passages to the test
+    return reading
 
 
-@router.delete("/{test_id}/")
-async def delete_reading_test(test_id: int):
-    test = await Reading.get_or_none(id=test_id)
-    if not test:
+@router.post("/{reading_id}/submit/", status_code=status.HTTP_201_CREATED)
+async def submit_reading_answers(reading_id: int, answers: List[AnswerSerializer]):
+    """
+    Submit answers for a reading test.
+    """
+    reading = await Reading.get_or_none(id=reading_id).prefetch_related("passages__questions")
+    if not reading:
         raise HTTPException(status_code=404, detail="Reading test not found")
-    await test.delete()
-    return {"message": "Reading test deleted successfully"}
+
+    if reading.status == "completed":
+        raise HTTPException(status_code=400, detail="This test has already been completed")
+
+    total_score = 0
+    for answer_data in answers:
+        question = await Question.get_or_none(id=answer_data.question_id)
+        if not question:
+            raise HTTPException(status_code=404, detail=f"Question {answer_data.question_id} not found")
+
+        is_correct = question.correct_answer == answer_data.text
+        score = question.score if is_correct else 0
+        total_score += score
+
+        await Answer.create(
+            user_id=reading.user_id,
+            question_id=answer_data.question_id,
+            text=answer_data.text,
+            is_correct=is_correct,
+            correct_answer=question.correct_answer,
+            explanation=answer_data.explanation,
+        )
+
+    reading.status = "completed"
+    reading.end_time = datetime.utcnow()
+    reading.score = total_score
+    await reading.save()
+
+    return {"message": "Answers submitted successfully", "total_score": total_score}
 
 
-# ReadingPart1 endpoints
-@router.get("/part1/", response_model=list[ReadingPart1Serializer])
-async def get_reading_part1():
-    parts = await ReadingPart1.all()
-    return parts
+@router.get("/passage/{passage_id}/", response_model=PassageSerializer)
+async def get_reading_passage(passage_id: int):
+    """
+    Retrieve a specific reading passage by ID.
+    """
+    passage = await Passage.get_or_none(id=passage_id).prefetch_related("questions")
+    if not passage:
+        raise HTTPException(status_code=404, detail="Passage not found")
+    return passage
 
 
-@router.post("/part1/", response_model=ReadingPart1Serializer)
-async def create_reading_part1(data: ReadingPart1Serializer):
-    part = await ReadingPart1.create(**data.dict())
-    return part
+@router.post("/{reading_id}/cancel/", status_code=status.HTTP_200_OK)
+async def cancel_reading_test(reading_id: int):
+    """
+    Cancel a reading test.
+    """
+    reading = await Reading.get_or_none(id=reading_id)
+    if not reading:
+        raise HTTPException(status_code=404, detail="Reading test not found")
+
+    if reading.status in ["completed", "cancelled"]:
+        raise HTTPException(status_code=400, detail="Test cannot be cancelled")
+
+    reading.status = "cancelled"
+    await reading.save()
+    return {"message": "Reading test cancelled successfully"}
 
 
-# ReadingPart2 endpoints
-@router.get("/part2/", response_model=list[ReadingPart2Serializer])
-async def get_reading_part2():
-    parts = await ReadingPart2.all()
-    return parts
+@router.post("/{reading_id}/restart/", response_model=ReadingSerializer)
+async def restart_reading_test(reading_id: int):
+    """
+    Restart a reading test.
+    """
+    reading = await Reading.get_or_none(id=reading_id).prefetch_related("passages")
+    if not reading:
+        raise HTTPException(status_code=404, detail="Reading test not found")
+
+    if reading.status != "completed":
+        raise HTTPException(status_code=400, detail="Only completed tests can be restarted")
+
+    reading.status = "started"
+    reading.start_time = datetime.utcnow()
+    reading.end_time = None
+    reading.score = 0
+    await reading.save()
+
+    # Reset answers
+    await Answer.filter(user_id=reading.user_id, question__in=[q.id for p in reading.passages for q in p.questions]).delete()
+
+    return reading
 
 
-@router.post("/part2/", response_model=ReadingPart2Serializer)
-async def create_reading_part2(data: ReadingPart2Serializer):
-    part = await ReadingPart2.create(**data.dict())
-    return part
+@router.get("/{reading_id}/analysis/", response_model=List[PassageSerializer])
+async def analyse_reading_test(reading_id: int):
+    """
+    Analyse a completed reading test.
+    """
+    reading = await Reading.get_or_none(id=reading_id).prefetch_related("passages__questions__answers")
+    if not reading:
+        raise HTTPException(status_code=404, detail="Reading test not found")
 
+    if reading.status != "completed":
+        raise HTTPException(status_code=400, detail="Only completed tests can be analysed")
 
-# ReadingPart3 endpoints
-@router.get("/part3/", response_model=list[ReadingPart3Serializer])
-async def get_reading_part3():
-    parts = await ReadingPart3.all()
-    return parts
+    data = []
+    for passage in reading.passages:
+        passage_data = {
+            "id": passage.id,
+            "level": passage.level,
+            "number": passage.number,
+            "title": passage.title,
+            "text": passage.text,
+            "skills": passage.skills,
+            "questions": [],
+        }
+        for question in passage.questions:
+            user_answer = await Answer.get_or_none(question_id=question.id, user_id=reading.user_id)
+            passage_data["questions"].append({
+                "id": question.id,
+                "text": question.text,
+                "type": question.type,
+                "score": question.score,
+                "correct_answer": question.correct_answer,
+                "user_answer": user_answer.text if user_answer else None,
+                "is_correct": user_answer.is_correct if user_answer else False,
+            })
+        data.append(passage_data)
 
-
-@router.post("/part3/", response_model=ReadingPart3Serializer)
-async def create_reading_part3(data: ReadingPart3Serializer):
-    part = await ReadingPart3.create(**data.dict())
-    return part
+    return data

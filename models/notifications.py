@@ -13,28 +13,23 @@ class Message(BaseModel):
         (MAIL_SITE, "Mail and Site"),
     )
 
-    user = fields.ForeignKeyField("models.User", related_name="messages", null=True, description=_("User"))
-    type = fields.CharField(max_length=20, choices=MESSAGE_TYPES, default=SITE, description=_("Type"))
-    title = fields.CharField(max_length=255, description=_("Title"))
-    description = fields.TextField(null=True, description=_("Description"))
-    content = fields.TextField(description=_("Content"))
+    user = fields.ForeignKeyField("models.User", related_name="messages", null=True, description="User")
+    type = fields.CharField(max_length=20, choices=MESSAGE_TYPES, default=SITE, description="Type")
+    title = fields.CharField(max_length=255, description="Title")
+    description = fields.TextField(null=True, description="Description")
+    content = fields.TextField(description="Content")
 
     class Meta:
         table = "messages"
+        verbose_name = "Message"
+        verbose_name_plural = "Messages"
 
 class ReadStatus(BaseModel):
-    message = fields.ForeignKeyField("models.Message", related_name="read_statuses", null=True, description=_("Message"))
-    user = fields.ForeignKeyField("models.User", related_name="read_statuses", description=_("User"))
-    read_at = fields.DatetimeField(null=True, description=_("Read at"))
+    message = fields.ForeignKeyField("models.Message", related_name="read_statuses", description="Message")
+    user = fields.ForeignKeyField("models.User", related_name="read_statuses", description="User")
+    read_at = fields.DatetimeField(null=True, description="Read at")
 
     class Meta:
         table = "read_statuses"
-
-class Comment(BaseModel):
-    user = fields.ForeignKeyField("models.User", related_name="comments", description=_("User"))
-    message = fields.ForeignKeyField("models.Message", related_name="comments", null=True, description=_("Message"))
-    content = fields.TextField(description=_("Content"))
-    created_at = fields.DatetimeField(auto_now_add=True, description=_("Created at"))
-
-    class Meta:
-        table = "comments"
+        verbose_name = "Read Status"
+        verbose_name_plural = "Read Statuses"

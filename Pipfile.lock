@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "6552f2fe185031970a5f9fef8346736154d7f4ae155d27e61035a5a82091829b"
+            "sha256": "8748be026e059cb9a59a07d5cb820842f4844258b83d85a9404e450f3c157fe8"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -479,12 +479,12 @@
         },
         "openai": {
             "hashes": [
-                "sha256:9c1d9ad59e6e3bea7205eedc9ca66eeebae18d47b527e505a2b0d2fb1538e26e",
-                "sha256:f430c8b848775907405c6eff54621254c96f6444c593c097e0cc3a9f8fdda96f"
+                "sha256:07706e91eb71631234996989a8ea991d5ee56f0744ef694c961e0824d4f39218",
+                "sha256:897969f927f0068b8091b4b041d1f8175bcf124f7ea31bab418bf720971223bc"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.8'",
-            "version": "==1.76.2"
+            "version": "==1.77.0"
         },
         "passlib": {
             "hashes": [
@@ -745,6 +745,15 @@
             "index": "pypi",
             "markers": "python_version >= '3.9'",
             "version": "==1.1.0"
+        },
+        "python-multipart": {
+            "hashes": [
+                "sha256:8a62d3a8335e06589fe01f2a3e178cdcc632f3fbe0d492ad9ee0ec35aab1f104",
+                "sha256:8dd0cab45b8e23064ae09147625994d090fa46f5b0d1e13af944c331a7fa9d13"
+            ],
+            "index": "pypi",
+            "markers": "python_version >= '3.8'",
+            "version": "==0.0.20"
         },
         "pytz": {
             "hashes": [

@@ -2,11 +2,13 @@ from tortoise import fields
 from .base import BaseModel
 
 class ListeningAnalyse(BaseModel):
-    listening = fields.OneToOneField('models.Listening', related_name='analyse', description="Related listening test")
+    session = fields.OneToOneField(
+        "models.UserListeningSession", related_name="analysis", description="Related listening session"
+    )
+    user = fields.ForeignKeyField("models.User", related_name="listening_analyses", description="User who took the test")
     correct_answers = fields.IntField(default=0, description="Number of correct answers")
     overall_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Overall score")
-    timing = fields.TimeField(description="Time taken")
-    feedback = fields.TextField(description="Feedback for the test")
+    timing = fields.TimeDeltaField(description="Time taken for the test")
 
     class Meta:
         table = "listening_analyses"
@@ -18,7 +20,9 @@ class ListeningAnalyse(BaseModel):
 
 
 class WritingAnalyse(BaseModel):
-    writing = fields.OneToOneField('models.Writing', related_name='analyse', description="Related writing test")
+    writing = fields.OneToOneField(
+        "models.Writing", related_name="analyse", description="Related writing test"
+    )
     task_achievement_feedback = fields.TextField(description="Feedback on task achievement")
     task_achievement_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Score for task achievement")
     lexical_resource_feedback = fields.TextField(description="Feedback on lexical resource")
@@ -27,6 +31,10 @@ class WritingAnalyse(BaseModel):
     coherence_and_cohesion_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Score for coherence and cohesion")
     grammatical_range_and_accuracy_feedback = fields.TextField(description="Feedback on grammar")
     grammatical_range_and_accuracy_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Score for grammar")
+    word_count_feedback = fields.TextField(description="Feedback on word count")
+    word_count_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Score for word count")
+    timing_feedback = fields.TextField(description="Feedback on timing")
+    timing_time = fields.TimeDeltaField(null=True, description="Time taken for the test")
     overall_band_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Overall band score")
     total_feedback = fields.TextField(description="Overall feedback")
 
@@ -40,17 +48,20 @@ class WritingAnalyse(BaseModel):
 
 
 class SpeakingAnalyse(BaseModel):
-    speaking = fields.OneToOneField('models.Speaking', related_name='analyse', description="Related speaking test")
-    fluency_and_coherence_feedback = fields.TextField(description="Feedback on fluency and coherence")
-    fluency_and_coherence_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Score for fluency and coherence")
-    lexical_resource_feedback = fields.TextField(description="Feedback on lexical resource")
-    lexical_resource_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Score for lexical resource")
-    grammatical_range_and_accuracy_feedback = fields.TextField(description="Feedback on grammar")
-    grammatical_range_and_accuracy_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Score for grammar")
-    pronunciation_feedback = fields.TextField(description="Feedback on pronunciation")
-    pronunciation_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Score for pronunciation")
-    overall_band_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Overall band score")
-    total_feedback = fields.TextField(description="Overall feedback")
+    speaking = fields.OneToOneField(
+        "models.Speaking", related_name="analyse", description="Analysis of the speaking test"
+    )
+    feedback = fields.TextField(null=True, description="Feedback for the user")
+    overall_band_score = fields.DecimalField(max_digits=3, decimal_places=1, null=True, description="Overall band score")
+    fluency_and_coherence_score = fields.DecimalField(max_digits=3, decimal_places=1, null=True, description="Fluency and coherence score")
+    fluency_and_coherence_feedback = fields.TextField(null=True, description="Feedback on fluency and coherence")
+    lexical_resource_score = fields.DecimalField(max_digits=3, decimal_places=1, null=True, description="Lexical resource score")
+    lexical_resource_feedback = fields.TextField(null=True, description="Feedback on lexical resource")
+    grammatical_range_and_accuracy_score = fields.DecimalField(max_digits=3, decimal_places=1, null=True, description="Grammatical range and accuracy score")
+    grammatical_range_and_accuracy_feedback = fields.TextField(null=True, description="Feedback on grammatical range and accuracy")
+    pronunciation_score = fields.DecimalField(max_digits=3, decimal_places=1, null=True, description="Pronunciation score")
+    pronunciation_feedback = fields.TextField(null=True, description="Feedback on pronunciation")
+    duration = fields.TimeDeltaField(null=True, description="Duration of the speaking test")
 
     class Meta:
         table = "speaking_analyses"
@@ -62,11 +73,12 @@ class SpeakingAnalyse(BaseModel):
 
 
 class ReadingAnalyse(BaseModel):
-    reading = fields.OneToOneField('models.Reading', related_name='analyse', description="Related reading test")
+    user = fields.ForeignKeyField("models.User", related_name="reading_analyses", description="User who took the test")
+    passage = fields.ForeignKeyField("models.Passage", related_name="analyses", description="Related reading passage")
     correct_answers = fields.IntField(default=0, description="Number of correct answers")
-    overall_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Overall score")
-    timing = fields.TimeField(description="Time taken")
-    feedback = fields.TextField(description="Feedback for the test")
+    overall_score = fields.DecimalField(max_digits=5, decimal_places=2, description="Overall score")
+    timing = fields.TimeField(description="Time taken for the test")
+    feedback = fields.TextField(description="Feedback for the user")
 
     class Meta:
         table = "reading_analyses"
@@ -74,20 +86,4 @@ class ReadingAnalyse(BaseModel):
         verbose_name_plural = "Reading Analyses"
 
     def __str__(self):
-        return f"Reading Analyse - Score: {self.overall_score}"
-
-
-class GrammarAnalyse(BaseModel):
-    grammar = fields.OneToOneField('models.Grammar', related_name='analyse', description="Related grammar test")
-    correct_answers = fields.IntField(default=0, description="Number of correct answers")
-    overall_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Overall score")
-    timing = fields.TimeField(description="Time taken")
-    feedback = fields.TextField(description="Feedback for the test")
-
-    class Meta:
-        table = "grammar_analyses"
-        verbose_name = "Grammar Analyse"
-        verbose_name_plural = "Grammar Analyses"
-
-    def __str__(self):
-        return f"Grammar Analyse - Score: {self.overall_score}"
+        return f"Analysis for {self.passage.title} by {self.user.email}"
