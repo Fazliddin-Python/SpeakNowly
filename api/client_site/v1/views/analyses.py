@@ -15,7 +15,7 @@ from ..serializers.analyses import (
     WritingAnalyseSerializer,
 )
 
-router = APIRouter(prefix="/api/v1/tests", tags=["Analyses"])
+router = APIRouter()
 
 
 @router.get("/listening/{session_id}/analyse/", response_model=ListeningAnalyseSerializer)

@@ -9,7 +9,7 @@ from ...serializers.users.users import (
 
 router = APIRouter()
 
-# Users
+
 @router.get("/", response_model=List[UserBaseSerializer])
 async def get_users(is_active: Optional[bool] = None):
     """

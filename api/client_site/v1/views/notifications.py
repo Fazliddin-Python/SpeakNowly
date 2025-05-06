@@ -9,7 +9,7 @@ from ..serializers.notifications import (
     ReadStatusSerializer,
 )
 
-router = APIRouter(prefix="/api/v1/notifications", tags=["Notifications"])
+router = APIRouter()
 
 
 @router.get("/", response_model=List[MessageListSerializer])

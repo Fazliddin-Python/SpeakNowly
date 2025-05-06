@@ -7,9 +7,9 @@ from .users import router as users_router
 from .verification_codes import router as verification_code_router
 
 router = APIRouter()
-router.include_router(email_update_router, prefix="/email-update", tags=["Email Update"])
-router.include_router(login_router, prefix="/login", tags=["Login"])
-router.include_router(profile_router, prefix="/profile", tags=["Profile"])
-router.include_router(register_router, prefix="/register", tags=["Register"])
-router.include_router(users_router, prefix="/users", tags=["Users"])
-router.include_router(verification_code_router, prefix="/verification-codes", tags=["Verification Codes"])
+router.include_router(email_update_router, tags=["Email Update"])
+router.include_router(login_router, tags=["Login"])
+router.include_router(profile_router, tags=["Profile"])
+router.include_router(register_router, tags=["Register"])
+router.include_router(users_router, tags=["Users"])
+router.include_router(verification_code_router, tags=["Verification Codes"])

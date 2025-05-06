@@ -9,7 +9,7 @@ from ..serializers.comments import (
     CommentListSerializer,
 )
 
-router = APIRouter(prefix="/api/v1/comments", tags=["Comments"])
+router = APIRouter()
 
 
 @router.get("/", response_model=List[CommentListSerializer])
