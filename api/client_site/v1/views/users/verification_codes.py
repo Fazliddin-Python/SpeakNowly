@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
 from typing import List
-from models.users import VerificationCode
-from ...serializers.users import VerificationCodeSerializer
+from models.users.verification_codes import VerificationCode
+from ...serializers.users.verification_codes import VerificationCodeSerializer
 
 router = APIRouter()
 

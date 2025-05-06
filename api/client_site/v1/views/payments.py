@@ -3,7 +3,7 @@ from typing import List
 from tortoise.exceptions import DoesNotExist
 from models.payments import Payment
 from models.tariffs import Tariff
-from models.users import User
+from models.users.users import User
 from ..serializers.payments import (
     PaymentSerializer,
     PaymentDetailSerializer,

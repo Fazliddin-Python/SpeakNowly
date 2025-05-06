@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.dashboard.v1.views import SomeView  # Импортируйте ваши представления
+from api.dashboard.v1.views import SomeView  # Импортируйте ваши представления
 
 router = APIRouter()
 

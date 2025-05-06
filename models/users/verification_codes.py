@@ -1,0 +1,57 @@
+from tortoise.validators import MinValueValidator, MaxValueValidator
+from tortoise import fields
+from ..base import BaseModel
+import random
+from datetime import datetime, timedelta
+
+class VerificationCode(BaseModel):
+    REGISTER = "register"
+    LOGIN = "login"
+    RESET_PASSWORD = "reset_password"
+    FORGET_PASSWORD = "forget_password"
+    UPDATE_EMAIL = "update_email"
+
+    VERIFICATION_TYPES = (
+        (REGISTER, "Register"),
+        (LOGIN, "Login"),
+        (RESET_PASSWORD, "Reset Password"),
+        (FORGET_PASSWORD, "Forget Password"),
+        (UPDATE_EMAIL, "Update Email"),
+    )
+
+    email = fields.CharField(max_length=255, null=True, description="Email")
+    user = fields.ForeignKeyField('models.User', related_name='verification_codes', null=True, description="User")
+    verification_type = fields.CharField(max_length=255, choices=VERIFICATION_TYPES, description="Verification Type")
+    code = fields.IntField(null=True, description="Code", validators=[MinValueValidator(999), MaxValueValidator(9999)])
+    is_used = fields.BooleanField(default=False, description="Used")
+    is_expired = fields.BooleanField(default=False, description="Expired")
+    created_at = fields.DatetimeField(auto_now_add=True, description="Created at")
+
+    class Meta:
+        table = "verification_codes"
+        verbose_name = "Verification Code"
+        verbose_name_plural = "Verification Codes"
+
+    def __str__(self):
+        user_name = self.user.get_full_name() if self.user else "Unknown User"
+        return f"{user_name} - {self.verification_type} - {self.code} - {self.is_used} - {self.is_expired}"
+
+    def is_code_expired(self) -> bool:
+        """Checks if the code has expired."""
+        return self.is_expired
+
+    @staticmethod
+    async def is_resend_blocked(email: str, verification_type: str) -> bool:
+        """Check if the resend limit is reached."""
+        time_limit = datetime.now() - timedelta(minutes=1)  # Example: 1-minute limit
+        recent_code = await VerificationCode.filter(
+            email=email,
+            verification_type=verification_type,
+            created_at__gte=time_limit,
+        ).first()
+        return recent_code is not None
+
+    @staticmethod
+    def generate_otp() -> int:
+        """Generates a 5-digit OTP."""
+        return random.randint(10000, 99999)

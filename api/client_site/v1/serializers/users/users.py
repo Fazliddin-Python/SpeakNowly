@@ -52,20 +52,6 @@ class UserResponseSerializer(UserBaseSerializer):
         from_attributes = True 
 
 
-class VerificationCodeSerializer(BaseModel):
-    """Serializer for verification codes."""
-    id: int = Field(..., description="Unique identifier of the code")
-    email: Optional[EmailStr] = Field(None, description="Email associated with the code")
-    user_id: Optional[int] = Field(None, description="User ID associated with the code")
-    verification_type: str = Field(..., description="Type of verification (e.g., email or SMS)")
-    code: int = Field(..., ge=100000, le=999999, description="Verification code (6 digits)")
-    is_used: bool = Field(..., description="Whether the code has been used")
-    is_expired: bool = Field(..., description="Whether the code has expired")
-
-    class Config:
-        from_attributes = True
-
-
 class UserActivityLogSerializer(BaseModel):
     """Serializer for user activity logs."""
     id: int = Field(..., description="Unique identifier of the log")

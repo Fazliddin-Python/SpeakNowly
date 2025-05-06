@@ -1,7 +1,6 @@
-from models.tariffs import Tariff
+from ..tariffs import Tariff
 from tortoise import fields
-from .base import BaseModel
-from gettext import gettext as _
+from ..base import BaseModel
 from passlib.hash import bcrypt  # For password hashing
 
 class User(BaseModel):
@@ -34,41 +33,18 @@ class User(BaseModel):
         """Checks the password."""
         return bcrypt.verify(raw_password, self.password)
 
+    @property
+    def is_premium(self):
+        """Checks if the user has a premium tariff."""
+        if self.tariff is None:
+            self.add_tariff(Tariff.get_default_tariff())
+        return not self.tariff.is_default
 
-class VerificationCode(BaseModel):
-    REGISTER = "register"
-    LOGIN = "login"
-    RESET_PASSWORD = "reset_password"
-    FORGET_PASSWORD = "forget_password"
-    UPDATE_EMAIL = "update_email"
+    def add_tariff(self, tariff):
+        """Assigns a tariff to the user."""
+        self.tariff = tariff
+        self.save()
 
-    VERIFICATION_TYPES = (
-        (REGISTER, "Register"),
-        (LOGIN, "Login"),
-        (RESET_PASSWORD, "Reset Password"),
-        (FORGET_PASSWORD, "Forget Password"),
-        (UPDATE_EMAIL, "Update Email"),
-    )
-
-    email = fields.CharField(max_length=255, null=True, description="Email")
-    user = fields.ForeignKeyField('models.User', related_name='verification_codes', null=True, description="User")
-    verification_type = fields.CharField(max_length=255, choices=VERIFICATION_TYPES, description="Verification Type")
-    code = fields.IntField(null=True, description="Code")
-    is_used = fields.BooleanField(default=False, description="Used")
-    is_expired = fields.BooleanField(default=False, description="Expired")
-
-    class Meta:
-        table = "verification_codes"
-        verbose_name = "Verification Code"
-        verbose_name_plural = "Verification Codes"
-
-    def __str__(self):
-        return f"{self.verification_type} - {self.email}"
-
-    def is_code_expired(self) -> bool:
-        """Checks if the code has expired."""
-        return self.is_expired
-    
 
 class UserActivityLog(BaseModel):
     user = fields.ForeignKeyField("models.User", related_name="activity_logs", description="User")

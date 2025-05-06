@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.mobile.v1.views import SomeView  # Импортируйте ваши представления
+from api.mobile.v1.views import SomeView  # Импортируйте ваши представления
 
 router = APIRouter()
 

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
 from typing import List, Optional
-from models.users import User
-from ...serializers.users import (
+from models.users.users import User
+from ...serializers.users.users import (
     UserBaseSerializer,
     UserCreateSerializer,
     UserUpdateSerializer,
