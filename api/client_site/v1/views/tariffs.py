@@ -1,5 +1,5 @@
-from fastapi import APIRouter, HTTPException, Query, Depends, status
-from typing import List, Optional
+from fastapi import APIRouter, HTTPException, Query, status
+from typing import List
 from tortoise.exceptions import DoesNotExist
 from models.tariffs import Tariff, TariffCategory, Feature, TariffFeature
 from ..serializers.tariffs import (
@@ -7,112 +7,80 @@ from ..serializers.tariffs import (
     TariffDetailSerializer,
     TariffCategorySerializer,
     FeatureSerializer,
-    TariffFeatureSerializer,
+    SaleSerializer,
 )
 
 router = APIRouter()
 
 
 @router.get("/", response_model=List[TariffSerializer])
-async def get_tariffs(
-    is_active: Optional[bool] = Query(None),
-    category: Optional[int] = Query(None),
-):
+async def list_tariffs(page: int = Query(1, ge=1), page_size: int = Query(10, ge=1)):
     """
-    Get a list of tariffs with optional filters.
+    List all tariffs with pagination.
     """
-    query = Tariff.all()
-    if is_active is not None:
-        query = query.filter(is_active=is_active)
-    if category:
-        query = query.filter(category_id=category)
-
-    tariffs = await query.all()
-    if not tariffs:
-        raise HTTPException(status_code=404, detail="No tariffs found")
+    offset = (page - 1) * page_size
+    tariffs = await Tariff.all().offset(offset).limit(page_size)
     return tariffs
 
 
-@router.get("/{id}/", response_model=TariffDetailSerializer)
-async def get_tariff_detail(id: int):
+@router.get("/{tariff_id}/", response_model=TariffDetailSerializer)
+async def get_tariff_detail(tariff_id: int):
     """
-    Get detailed information about a specific tariff.
+    Retrieve detailed information about a specific tariff.
     """
     try:
-        tariff = await Tariff.get(id=id).prefetch_related("category", "features__feature")
-        return {
-            "id": tariff.id,
-            "category": {
-                "id": tariff.category.id,
-                "name": tariff.category.name,
-                "name_uz": tariff.category.name_uz,
-                "name_ru": tariff.category.name_ru,
-                "name_en": tariff.category.name_en,
-                "sale": tariff.category.sale,
-                "is_active": tariff.category.is_active,
-            } if tariff.category else None,
-            "name": tariff.name,
-            "old_price": tariff.old_price,
-            "price": tariff.price,
-            "price_in_stars": tariff.price_in_stars,
-            "description": tariff.description,
-            "description_uz": tariff.description_uz,
-            "description_ru": tariff.description_ru,
-            "description_en": tariff.description_en,
-            "tokens": tariff.tokens,
-            "duration": tariff.duration,
-            "is_active": tariff.is_active,
-            "is_default": tariff.is_default,
-            "features": [
-                {
-                    "id": feature.feature.id,
-                    "name": feature.feature.name,
-                    "description": feature.feature.description,
-                }
-                for feature in tariff.features
-            ],
-        }
+        tariff = await Tariff.get(id=tariff_id).prefetch_related("features", "category")
+        return tariff
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Tariff not found")
 
 
 @router.get("/categories/", response_model=List[TariffCategorySerializer])
-async def get_tariff_categories():
+async def list_tariff_categories():
     """
-    Get a list of tariff categories.
+    List all tariff categories.
     """
-    categories = await TariffCategory.filter(is_active=True).all()
-    if not categories:
-        raise HTTPException(status_code=404, detail="No tariff categories found")
+    categories = await Tariff.category.all()
     return categories
 
 
 @router.get("/features/", response_model=List[FeatureSerializer])
-async def get_features():
+async def list_features():
     """
-    Get a list of all features.
+    List all features.
     """
     features = await Feature.all()
-    if not features:
-        raise HTTPException(status_code=404, detail="No features found")
     return features
 
 
-@router.get("/{tariff_id}/features/", response_model=List[TariffFeatureSerializer])
-async def get_tariff_features(tariff_id: int):
+@router.get("/{tariff_id}/features/", response_model=List[FeatureSerializer])
+async def list_tariff_features(tariff_id: int):
     """
-    Get a list of features for a specific tariff.
+    List all features for a specific tariff.
     """
     try:
-        tariff = await Tariff.get(id=tariff_id).prefetch_related("features__feature")
-        return [
-            {
-                "id": feature.id,
-                "tariff_id": tariff.id,
-                "feature_id": feature.feature.id,
-                "is_included": feature.is_included,
-            }
-            for feature in tariff.features
-        ]
+        tariff = await Tariff.get(id=tariff_id).prefetch_related("features")
+        return tariff.features
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Tariff not found")
+
+
+@router.get("/sales/", response_model=List[SaleSerializer])
+async def list_sales():
+    """
+    List all active sales.
+    """
+    sales = await Sale.filter(is_active=True)
+    return sales
+
+
+@router.get("/{tariff_id}/sales/", response_model=List[SaleSerializer])
+async def list_tariff_sales(tariff_id: int):
+    """
+    List all sales for a specific tariff.
+    """
+    try:
+        sales = await Sale.filter(tariff_id=tariff_id, is_active=True)
+        return sales
+    except DoesNotExist:
+        raise HTTPException(status_code=404, detail="No sales found for this tariff")

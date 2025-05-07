@@ -49,6 +49,9 @@ async def create_transaction(transaction_data: TokenTransactionCreateSerializer)
     current_balance = last_transaction.balance_after_transaction if last_transaction else 0
     new_balance = current_balance + transaction_data.amount
 
+    if new_balance < 0:
+        raise HTTPException(status_code=400, detail="Insufficient balance for this transaction")
+
     # Create transaction
     transaction = await TokenTransaction.create(
         user=user,

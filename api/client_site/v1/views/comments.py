@@ -4,9 +4,10 @@ from tortoise.exceptions import DoesNotExist
 
 from models.comments import Comment
 from ..serializers.comments import (
-    CommentSerializer,
     CommentCreateSerializer,
+    CommentUpdateSerializer,
     CommentListSerializer,
+    CommentDetailSerializer,
 )
 
 router = APIRouter()
@@ -31,21 +32,29 @@ async def get_comments(page: int = Query(1, ge=1), page_size: int = Query(10, ge
             },
             "rate": comment.rate,
             "status": comment.status,
+            "created_at": comment.created_at,
         }
         for comment in comments
     ]
 
 
-@router.post("/", response_model=CommentSerializer)
+@router.post("/", response_model=CommentDetailSerializer, status_code=201)
 async def create_comment(comment_data: CommentCreateSerializer):
     """
     Create a new comment.
     """
     comment = await Comment.create(**comment_data.dict())
-    return comment
+    return {
+        "id": comment.id,
+        "text": comment.text,
+        "user_id": comment.user_id,
+        "rate": comment.rate,
+        "status": comment.status,
+        "created_at": comment.created_at,
+    }
 
 
-@router.get("/{comment_id}/", response_model=CommentSerializer)
+@router.get("/{comment_id}/", response_model=CommentDetailSerializer)
 async def get_comment(comment_id: int):
     """
     Get a single comment by ID.
@@ -58,6 +67,33 @@ async def get_comment(comment_id: int):
             "user_id": comment.user.id,
             "rate": comment.rate,
             "status": comment.status,
+            "created_at": comment.created_at,
+            "updated_at": comment.updated_at,
+        }
+    except DoesNotExist:
+        raise HTTPException(status_code=404, detail="Comment not found")
+
+
+@router.put("/{comment_id}/", response_model=CommentDetailSerializer)
+async def update_comment(comment_id: int, comment_data: CommentUpdateSerializer):
+    """
+    Update an existing comment.
+    """
+    try:
+        comment = await Comment.get(id=comment_id)
+        if comment_data.text is not None:
+            comment.text = comment_data.text
+        if comment_data.rate is not None:
+            comment.rate = comment_data.rate
+        await comment.save()
+        return {
+            "id": comment.id,
+            "text": comment.text,
+            "user_id": comment.user_id,
+            "rate": comment.rate,
+            "status": comment.status,
+            "created_at": comment.created_at,
+            "updated_at": comment.updated_at,
         }
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Comment not found")

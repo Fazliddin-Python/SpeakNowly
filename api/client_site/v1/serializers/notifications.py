@@ -1,26 +1,29 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
+from datetime import datetime
 
 
 class MessageSerializer(BaseModel):
+    """Serializer for detailed notification."""
     id: int
     user_id: Optional[int]
     type: str
     title: str
     description: Optional[str]
     content: str
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: Optional[datetime]
 
     class Config:
         from_attributes = True
 
 
 class MessageListSerializer(BaseModel):
+    """Serializer for listing notifications."""
     id: int
     title: str
     description: Optional[str]
-    created_at: str
+    created_at: datetime
     is_read: bool
 
     @staticmethod
@@ -37,10 +40,11 @@ class MessageListSerializer(BaseModel):
 
 
 class ReadStatusSerializer(BaseModel):
+    """Serializer for read status of a notification."""
     id: int
     message_id: int
     user_id: int
-    read_at: Optional[str]
+    read_at: Optional[datetime]
 
     class Config:
         from_attributes = True

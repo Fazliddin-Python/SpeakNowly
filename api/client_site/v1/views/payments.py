@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Query
 from typing import List
 from tortoise.exceptions import DoesNotExist
 from models.payments import Payment
@@ -26,6 +26,11 @@ async def create_payment(payment_data: PaymentCreateSerializer):
         tariff = await Tariff.get(id=payment_data.tariff_id)
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="User or Tariff not found")
+
+    # Check for duplicate payments
+    existing_payment = await Payment.filter(user_id=payment_data.user_id, tariff_id=payment_data.tariff_id).first()
+    if existing_payment:
+        raise HTTPException(status_code=400, detail="Payment for this tariff already exists")
 
     # Calculate start and end dates
     start_date = payment_data.start_date or datetime.utcnow()
@@ -76,7 +81,7 @@ async def get_payment_info(payment_data: PaymentCreateSerializer):
 
 
 @router.get("/", response_model=List[PaymentListSerializer])
-async def list_payments(user_id: int):
+async def list_payments(user_id: int = Query(..., description="ID of the user")):
     """
     List all payments for a specific user.
     """

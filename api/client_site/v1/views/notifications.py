@@ -1,5 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends, Query
-from typing import List, Optional
+from fastapi import APIRouter, HTTPException, Query
+from typing import List
 from tortoise.exceptions import DoesNotExist
 
 from models.notifications import Message, ReadStatus
