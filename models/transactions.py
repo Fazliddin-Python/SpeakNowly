@@ -1,7 +1,8 @@
 from tortoise import fields
 from .base import BaseModel
+from enum import Enum
 
-class TokenTransaction(BaseModel):
+class TransactionType(str, Enum):
     TEST_READING = "READING"
     TEST_WRITING = "WRITING"
     TEST_LISTENING = "LISTENING"
@@ -12,20 +13,9 @@ class TokenTransaction(BaseModel):
     CUSTOM_ADDITION = "CUSTOM_ADDITION"
     REFUND = "REFUND"
 
-    TRANSACTION_TYPES = (
-        (TEST_READING, "Reading Test"),
-        (TEST_WRITING, "Writing Test"),
-        (TEST_LISTENING, "Listening Test"),
-        (TEST_SPEAKING, "Speaking Test"),
-        (DAILY_BONUS, "Daily Bonus"),
-        (REFERRAL_BONUS, "Referral Bonus"),
-        (CUSTOM_DEDUCTION, "Custom Deduction"),
-        (CUSTOM_ADDITION, "Custom Addition"),
-        (REFUND, "Refund"),
-    )
-
+class TokenTransaction(BaseModel):
     user = fields.ForeignKeyField("models.User", related_name="token_transactions", description="User")
-    transaction_type = fields.CharField(max_length=20, choices=TRANSACTION_TYPES, description="Transaction Type")
+    transaction_type = fields.CharEnumField(TransactionType, description="Transaction Type")
     amount = fields.IntField(description="Amount")
     balance_after_transaction = fields.IntField(description="Balance After Transaction")
     description = fields.TextField(null=True, description="Description")

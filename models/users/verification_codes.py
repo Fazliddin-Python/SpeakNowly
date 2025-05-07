@@ -3,25 +3,19 @@ from tortoise import fields
 from ..base import BaseModel
 import random
 from datetime import datetime, timedelta
+from enum import Enum
 
-class VerificationCode(BaseModel):
+class VerificationType(str, Enum):
     REGISTER = "register"
     LOGIN = "login"
     RESET_PASSWORD = "reset_password"
     FORGET_PASSWORD = "forget_password"
     UPDATE_EMAIL = "update_email"
 
-    VERIFICATION_TYPES = (
-        (REGISTER, "Register"),
-        (LOGIN, "Login"),
-        (RESET_PASSWORD, "Reset Password"),
-        (FORGET_PASSWORD, "Forget Password"),
-        (UPDATE_EMAIL, "Update Email"),
-    )
-
+class VerificationCode(BaseModel):
     email = fields.CharField(max_length=255, null=True, description="Email")
     user = fields.ForeignKeyField('models.User', related_name='verification_codes', null=True, description="User")
-    verification_type = fields.CharField(max_length=255, choices=VERIFICATION_TYPES, description="Verification Type")
+    verification_type = fields.CharEnumField(VerificationType, description="Verification Type")
     code = fields.IntField(null=True, description="Code", validators=[MinValueValidator(999), MaxValueValidator(9999)])
     is_used = fields.BooleanField(default=False, description="Used")
     is_expired = fields.BooleanField(default=False, description="Expired")

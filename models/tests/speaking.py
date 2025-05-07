@@ -1,11 +1,21 @@
 from tortoise import fields
 from ..base import BaseModel
+from enum import Enum
+
+class SpeakingStatus(str, Enum):
+    STARTED = "started"
+    PENDING = "pending"
+    CANCELLED = "cancelled"
+    COMPLETED = "completed"
+    EXPIRED = "expired"
+
+class SpeakingPart(str, Enum):
+    PART_1 = "Part 1"
+    PART_2 = "Part 2"
+    PART_3 = "Part 3"
 
 class Speaking(BaseModel):
-    status = fields.CharField(max_length=15, choices=[
-        ("started", "Started"), ("pending", "Pending"), ("cancelled", "Cancelled"),
-        ("completed", "Completed"), ("expired", "Expired")], default="", null=True,
-        blank=True, description="Status of the speaking test")
+    status = fields.CharEnumField(SpeakingStatus, default=SpeakingStatus.STARTED, null=True, description="Status")
     user = fields.ForeignKeyField("models.User", related_name="speaking_tests",
         description="User taking the test", on_delete=fields.CASCADE)
     start_time = fields.DatetimeField(null=True, blank=True, description="Start time of the test")
@@ -19,10 +29,7 @@ class Speaking(BaseModel):
 class SpeakingQuestions(BaseModel):
     speaking = fields.ForeignKeyField("models.Speaking", related_name="questions",
         description="Related speaking test", on_delete=fields.CASCADE)
-    part = fields.CharField(max_length=10, choices=[
-        ("Part 1", "Part 1 - Introduction"), ("Part 2", "Part 2 - Long Turn"),
-        ("Part 3", "Part 3 - Discussion")], null=True, blank=True,
-        description="Part of the speaking test")
+    part = fields.CharEnumField(SpeakingPart, null=True, description="Part of the speaking test")
     title = fields.TextField(null=True, blank=True, description="Title of the question")
     content = fields.TextField(description="Content of the question")
 

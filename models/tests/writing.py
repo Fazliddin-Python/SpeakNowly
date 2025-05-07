@@ -1,8 +1,22 @@
+from enum import Enum
 from tortoise import fields
 from ..base import BaseModel
 
+class WritingStatus(str, Enum):
+    STARTED = "started"
+    PENDING = "pending"
+    CANCELLED = "cancelled"
+    COMPLETED = "completed"
+    EXPIRED = "expired"
+
 class Writing(BaseModel):
-    status = fields.CharEnumField(enum_type=["started", "pending", "cancelled", "completed", "expired"], max_length=15, default="", null=True, description="Status of the test")
+    status = fields.CharEnumField(
+        enum_type=WritingStatus,
+        max_length=15,
+        default=WritingStatus.STARTED,
+        null=True,
+        description="Status of the test"
+    )
     user = fields.ForeignKeyField("models.User", related_name="writings", on_delete="CASCADE", description="Related user")
     start_time = fields.DatetimeField(null=True, description="Start time of the test")
     end_time = fields.DatetimeField(null=True, description="End time of the test")

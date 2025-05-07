@@ -19,16 +19,7 @@ EMAIL_PROVIDER_APIKEY = config("EMAIL_PROVIDER_APIKEY")
 # Database configuration
 DATABASE_CONFIG = {
     "connections": {
-        "default": {
-            "engine": "tortoise.backends.asyncpg",
-            "credentials": {
-                "host": config("DB_HOST"),
-                "port": config("DB_PORT", cast=int),
-                "user": config("DB_USER"),
-                "password": config("DB_PASSWORD"),
-                "database": config("DB_NAME"),
-            },
-        }
+        "default": config("DATABASE_URL"),
     },
     "apps": {
         "models": {

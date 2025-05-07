@@ -1,19 +1,16 @@
 from tortoise import fields
 from .base import BaseModel
+from enum import Enum
 
-class Comment(BaseModel):
+class CommentStatus(str, Enum):
     ACTIVE = "active"
     INACTIVE = "inactive"
 
-    STATUS = [
-        (ACTIVE, "Active"),
-        (INACTIVE, "Inactive"),
-    ]
-
+class Comment(BaseModel):
     text = fields.TextField(description="Comment text")
     user = fields.ForeignKeyField("models.User", related_name="comments", description="User")
     rate = fields.FloatField(default=0, description="Rating")
-    status = fields.CharField(max_length=255, choices=STATUS, default=ACTIVE, description="Status")
+    status = fields.CharEnumField(CommentStatus, default=CommentStatus.ACTIVE, description="Status")
 
     class Meta:
         table = "comments"

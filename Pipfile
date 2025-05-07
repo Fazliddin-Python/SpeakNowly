@@ -21,6 +21,7 @@ pydantic = {extras = ["email"], version = "*"}
 python-multipart = "*"
 
 [dev-packages]
+aerich = "*"
 autoflake = "*"
 black = "*"
 isort = "*"
@@ -39,6 +40,7 @@ pytest-xdist = "*"
 psutil = "*"
 factory-boy = "*"
 Faker = "*"
+tomlkit = "*"
 
 [requires]
 python_version = "3.12"

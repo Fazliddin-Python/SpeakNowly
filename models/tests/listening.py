@@ -1,5 +1,27 @@
 from tortoise import fields
 from ..base import BaseModel
+from enum import Enum
+
+class QuestionType(str, Enum):
+    FORM_COMPLETION = "form_completion"
+    CHOICE = "choice"
+    MULTIPLE_ANSWERS = "multiple_answers"
+    MATCHING = "matching"
+    SENTENCE_COMPLETION = "sentence_completion"
+    CLOZE_TEST = "cloze_test"
+
+class PartNumber(int, Enum):
+    PART_1 = 1
+    PART_2 = 2
+    PART_3 = 3
+    PART_4 = 4
+
+class ListeningSessionStatus(str, Enum):
+    STARTED = "started"
+    PENDING = "pending"
+    CANCELLED = "cancelled"
+    COMPLETED = "completed"
+    EXPIRED = "expired"
 
 class Listening(BaseModel):
     title = fields.CharField(max_length=255, description="Title of the listening test")
@@ -12,7 +34,7 @@ class Listening(BaseModel):
 
 class ListeningPart(BaseModel):
     listening = fields.ForeignKeyField("models.Listening", on_delete=fields.CASCADE, related_name="parts", description="Related listening test")
-    part_number = fields.IntField(choices=[(1, "Part 1"), (2, "Part 2"), (3, "Part 3"), (4, "Part 4")], description="Part number of the test")
+    part_number = fields.IntEnumField(PartNumber, description="Part number of the test")
     audio_file = fields.CharField(max_length=255, description="Audio file path")
 
     class Meta:
@@ -25,7 +47,7 @@ class ListeningSection(BaseModel):
     section_number = fields.IntField(description="Section number within the part")
     start_index = fields.IntField(description="Start index of the section")
     end_index = fields.IntField(description="End index of the section")
-    question_type = fields.CharField(max_length=50, choices=[("form_completion", "Form Completion"), ("choice", "Choice"), ("multiple_answers", "Multiple Answers"), ("matching", "Matching"), ("sentence_completion", "Sentence Completion"), ("cloze_test", "Cloze Test")], description="Type of questions in the section")
+    question_type = fields.CharEnumField(QuestionType, description="Type of questions in the section")
     question_text = fields.TextField(null=True, description="Question text for the section")
     options = fields.JSONField(null=True, description="Options for the questions in the section")
 
@@ -46,7 +68,7 @@ class ListeningQuestion(BaseModel):
         verbose_name_plural = "Listening Questions"
 
 class UserListeningSession(BaseModel):
-    status = fields.CharField(max_length=15, choices=[("started", "Started"), ("pending", "Pending"), ("cancelled", "Cancelled"), ("completed", "Completed"), ("expired", "Expired")], default="started", null=True, description="Status of the user's listening session")
+    status = fields.CharEnumField(ListeningSessionStatus, default=ListeningSessionStatus.STARTED, null=True, description="Status of the user's listening session")
     user = fields.ForeignKeyField("models.User", on_delete=fields.CASCADE, related_name="listening_sessions", description="Related user")
     exam = fields.ForeignKeyField("models.Listening", on_delete=fields.CASCADE, related_name="user_sessions", description="Related listening exam")
     start_time = fields.DatetimeField(auto_now_add=True, description="Start time of the session")
