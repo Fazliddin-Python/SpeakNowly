@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
 from typing import List
 from models.users.verification_codes import VerificationCode
+from models.users.users import User
 from ...serializers.users.verification_codes import VerificationCodeSerializer
 
 router = APIRouter()
@@ -24,6 +25,9 @@ async def create_verification_code(data: VerificationCodeSerializer):
     if await VerificationCode.filter(email=data.email, verification_type=data.verification_type, is_used=False).exists():
         raise HTTPException(status_code=400, detail="A verification code already exists for this email")
     code = await VerificationCode.create(**data.dict())
+    user = User(email=data.email)
+    user.set_password(data.password)
+    await user.save()
     return code
 
 

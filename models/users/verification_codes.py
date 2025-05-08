@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 from tortoise.validators import MinValueValidator, MaxValueValidator
 from tortoise import fields
 from ..base import BaseModel
@@ -16,7 +17,7 @@ class VerificationCode(BaseModel):
     email = fields.CharField(max_length=255, null=True, description="Email")
     user = fields.ForeignKeyField('models.User', related_name='verification_codes', null=True, description="User")
     verification_type = fields.CharEnumField(VerificationType, description="Verification Type")
-    code = fields.IntField(null=True, description="Code", validators=[MinValueValidator(999), MaxValueValidator(9999)])
+    code = fields.IntField(null=True, description="Code", validators=[MinValueValidator(10000), MaxValueValidator(99999)])
     is_used = fields.BooleanField(default=False, description="Used")
     is_expired = fields.BooleanField(default=False, description="Expired")
     created_at = fields.DatetimeField(auto_now_add=True, description="Created at")
@@ -35,7 +36,7 @@ class VerificationCode(BaseModel):
         return self.is_expired
 
     @staticmethod
-    async def is_resend_blocked(email: str, verification_type: str) -> bool:
+    async def is_resend_blocked(email: str, verification_type: VerificationType) -> bool:
         """Check if the resend limit is reached."""
         time_limit = datetime.now() - timedelta(minutes=1)  # Example: 1-minute limit
         recent_code = await VerificationCode.filter(
@@ -49,3 +50,17 @@ class VerificationCode(BaseModel):
     def generate_otp() -> int:
         """Generates a 5-digit OTP."""
         return random.randint(10000, 99999)
+
+    @staticmethod
+    async def update_or_create_verification_code(user, data, code):
+        if await VerificationCode.is_resend_blocked(data.email, VerificationType.REGISTER):
+            raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
+
+        # Generate and save the verification code
+        code = random.randint(10000, 99999)
+        await VerificationCode.update_or_create(
+            user_id=user.id,
+            email=data.email,
+            verification_type=VerificationType.REGISTER,
+            defaults={"code": code, "is_used": False, "is_expired": False},
+        )

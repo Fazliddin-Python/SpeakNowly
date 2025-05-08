@@ -8,13 +8,13 @@ router = APIRouter()
 @router.put("/profile/", status_code=status.HTTP_200_OK)
 async def manage_profile(
     data: ProfileSerializer,
-    user_id: int = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Manage user profile: update profile, change password, or retrieve profile data.
     """
     # Fetch the user
-    user = await User.get_or_none(id=user_id)
+    user = await User.get_or_none(id=current_user["user_id"])
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -25,10 +25,17 @@ async def manage_profile(
         user.age = data.age if data.age is not None else user.age
         user.photo = data.photo or user.photo
 
+    # Update email
+    if data.email and data.email != user.email:
+        existing_user = await User.get_or_none(email=data.email)
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Email is already in use")
+        user.email = data.email
+
     # Change password
     if data.new_password:
-        if not user.check_password(data.old_password):
-            raise HTTPException(status_code=400, detail="Old password is incorrect")
+        if not data.old_password or not user.check_password(data.old_password):
+            raise HTTPException(status_code=400, detail="Old password is incorrect or not provided")
         if data.old_password == data.new_password:
             raise HTTPException(status_code=400, detail="New password must be different from the old password")
         user.set_password(data.new_password)

@@ -20,12 +20,13 @@ class ProfileSerializer(BaseModel):
 
     @validator("new_password", always=True)
     def validate_password_change(cls, value, values):
-        if value and not values.get("old_password"):
-            raise ValueError("Old password is required to set a new password")
-        if value and not any(char.isdigit() for char in value):
-            raise ValueError("New password must contain at least one digit")
-        if value and not any(char.isalpha() for char in value):
-            raise ValueError("New password must contain at least one letter")
+        if value:
+            if not values.get("old_password"):
+                raise ValueError("Old password is required to set a new password")
+            if not any(char.isdigit() for char in value):
+                raise ValueError("New password must contain at least one digit")
+            if not any(char.isalpha() for char in value):
+                raise ValueError("New password must contain at least one letter")
         return value
 
     class Config:

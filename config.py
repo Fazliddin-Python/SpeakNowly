@@ -7,6 +7,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 # Core settings
 SECRET_KEY = config("SECRET_KEY")
+ALGORITHM = config("ALGORITHM", default="HS256")
 DEBUG = config("DEBUG", cast=bool, default=False)
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", cast=Csv(), default="*")
 

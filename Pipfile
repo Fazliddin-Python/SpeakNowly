@@ -19,6 +19,7 @@ python-decouple = "*"
 passlib = "*"
 pydantic = {extras = ["email"], version = "*"}
 python-multipart = "*"
+python-jose = "*"
 
 [dev-packages]
 aerich = "*"
