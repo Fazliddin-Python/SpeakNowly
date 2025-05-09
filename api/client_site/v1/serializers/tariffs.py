@@ -1,11 +1,11 @@
 from pydantic import BaseModel, Field, validator
 from typing import Optional, List
 from datetime import datetime
+from .base import SafeSerializer, BaseSerializer
 
 
-class TariffCategorySerializer(BaseModel):
+class TariffCategorySerializer(SafeSerializer):
     """Serializer for tariff categories."""
-    id: int
     name: str
     name_uz: Optional[str]
     name_ru: Optional[str]
@@ -13,34 +13,22 @@ class TariffCategorySerializer(BaseModel):
     sale: float
     is_active: bool
 
-    class Config:
-        from_attributes = True
 
-
-class FeatureSerializer(BaseModel):
+class FeatureSerializer(SafeSerializer):
     """Serializer for features."""
-    id: int
     name: str
     description: Optional[str]
 
-    class Config:
-        from_attributes = True
 
-
-class TariffFeatureSerializer(BaseModel):
+class TariffFeatureSerializer(SafeSerializer):
     """Serializer for tariff features."""
-    id: int
     tariff_id: int
     feature_id: int
     is_included: bool
 
-    class Config:
-        from_attributes = True
 
-
-class TariffSerializer(BaseModel):
+class TariffSerializer(SafeSerializer):
     """Serializer for basic tariff information."""
-    id: int
     category_id: Optional[int]
     name: str
     old_price: Optional[int]
@@ -61,13 +49,9 @@ class TariffSerializer(BaseModel):
             raise ValueError("Value must be non-negative")
         return value
 
-    class Config:
-        from_attributes = True
 
-
-class TariffDetailSerializer(BaseModel):
+class TariffDetailSerializer(SafeSerializer):
     """Serializer for detailed tariff information."""
-    id: int
     category: Optional[TariffCategorySerializer]
     name: str
     old_price: Optional[int]
@@ -83,13 +67,9 @@ class TariffDetailSerializer(BaseModel):
     is_default: bool
     features: List[FeatureSerializer]
 
-    class Config:
-        from_attributes = True
 
-
-class SaleSerializer(BaseModel):
+class SaleSerializer(SafeSerializer):
     """Serializer for sales."""
-    id: int
     tariff_id: int
     percent: int = Field(..., ge=0, le=100, description="Discount percentage (0-100)")
     start_date: str
@@ -105,6 +85,3 @@ class SaleSerializer(BaseModel):
         except ValueError:
             raise ValueError("Date must be in the format YYYY-MM-DD")
         return value
-
-    class Config:
-        from_attributes = True

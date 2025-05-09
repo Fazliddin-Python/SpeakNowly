@@ -1,9 +1,10 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import Field, validator
 from typing import Optional, Dict
 from datetime import datetime
+from .base import SafeSerializer, BaseSerializer
 
 
-class CommentBaseSerializer(BaseModel):
+class CommentBaseSerializer(BaseSerializer):
     """Base serializer for a comment."""
     text: str = Field(..., description="Comment text")
     rate: float = Field(..., ge=0, le=5, description="Rating (0 to 5)")
@@ -22,7 +23,7 @@ class CommentCreateSerializer(CommentBaseSerializer):
     pass
 
 
-class CommentUpdateSerializer(BaseModel):
+class CommentUpdateSerializer(BaseSerializer):
     """Serializer for updating a comment."""
     text: Optional[str] = Field(None, description="Updated comment text")
     rate: Optional[float] = Field(None, ge=0, le=5, description="Updated rating (0 to 5)")
@@ -36,28 +37,17 @@ class CommentUpdateSerializer(BaseModel):
         return value
 
 
-class CommentListSerializer(BaseModel):
+class CommentListSerializer(SafeSerializer):
     """Serializer for listing comments."""
-    id: int = Field(..., description="Unique identifier of the comment")
     text: str = Field(..., description="Comment text")
     user: Dict[str, Optional[str]] = Field(..., description="User details")
     rate: float = Field(..., description="Rating")
     status: str = Field(..., description="Status of the comment")
-    created_at: datetime = Field(..., description="Timestamp when the comment was created")
-
-    class Config:
-        from_attributes = True
 
 
-class CommentDetailSerializer(BaseModel):
+class CommentDetailSerializer(SafeSerializer):
     """Serializer for detailed comment information."""
-    id: int = Field(..., description="Unique identifier of the comment")
     text: str = Field(..., description="Comment text")
     user_id: int = Field(..., description="ID of the user who created the comment")
     rate: float = Field(..., description="Rating")
     status: str = Field(..., description="Status of the comment")
-    created_at: datetime = Field(..., description="Timestamp when the comment was created")
-    updated_at: Optional[datetime] = Field(None, description="Timestamp when the comment was last updated")
-
-    class Config:
-        from_attributes = True

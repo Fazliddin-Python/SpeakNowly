@@ -1,8 +1,9 @@
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import EmailStr, Field, validator
 from typing import Optional
+from ..base import SafeSerializer
 
 
-class ProfileSerializer(BaseModel):
+class ProfileSerializer(SafeSerializer):
     """Serializer for user profile operations."""
     email: Optional[EmailStr] = Field(None, description="User's email address (read-only)")
     first_name: Optional[str] = Field(None, description="User's first name")
@@ -28,6 +29,3 @@ class ProfileSerializer(BaseModel):
             if not any(char.isalpha() for char in value):
                 raise ValueError("New password must contain at least one letter")
         return value
-
-    class Config:
-        from_attributes = True

@@ -1,14 +1,19 @@
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import EmailStr, Field, validator
 from typing import Optional
 from datetime import datetime
+from ..base import SafeSerializer, BaseSerializer
 
 
-class UserBaseSerializer(BaseModel):
-    """Base serializer for a user."""
+class UserBaseSerializer(BaseSerializer):
+    """Base serializer for user-related operations."""
     email: EmailStr = Field(..., description="User's email address")
+    first_name: Optional[str] = Field(None, description="User's first name")
+    last_name: Optional[str] = Field(None, description="User's last name")
     age: Optional[int] = Field(None, ge=0, le=120, description="User's age (0 to 120)")
-    telegram_id: Optional[int] = Field(None, description="User's Telegram ID")
     photo: Optional[str] = Field(None, description="URL of the user's photo")
+    is_active: bool = Field(..., description="Whether the user is active")
+    is_verified: bool = Field(..., description="Whether the user is verified")
+    tokens: int = Field(..., description="Number of tokens the user has")
 
     @validator("photo")
     def validate_photo_url(cls, value):
@@ -52,12 +57,8 @@ class UserResponseSerializer(UserBaseSerializer):
         from_attributes = True 
 
 
-class UserActivityLogSerializer(BaseModel):
+class UserActivityLogSerializer(SafeSerializer):
     """Serializer for user activity logs."""
-    id: int = Field(..., description="Unique identifier of the log")
     user_id: int = Field(..., description="User ID")
     action: str = Field(..., description="Action performed by the user")
     timestamp: datetime = Field(..., description="Time of the action")
-
-    class Config:
-        from_attributes = True

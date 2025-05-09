@@ -1,11 +1,11 @@
-from pydantic import BaseModel, UUID4, Field, validator
+from pydantic import Field, UUID4, validator
 from typing import Optional
 from datetime import datetime
+from .base import SafeSerializer, BaseSerializer
 
 
-class PaymentSerializer(BaseModel):
+class PaymentSerializer(SafeSerializer):
     """Serializer for basic payment information."""
-    id: int
     uuid: UUID4
     user_id: int
     tariff_id: int
@@ -13,17 +13,13 @@ class PaymentSerializer(BaseModel):
     start_date: datetime
     end_date: datetime
 
-    class Config:
-        from_attributes = True
 
-
-class PaymentDetailSerializer(BaseModel):
+class PaymentDetailSerializer(SafeSerializer):
     """Serializer for detailed payment information."""
-    id: int
     uuid: UUID4
-    user: dict  # Nested user details
-    tariff: dict  # Nested tariff details
-    amount: int = Field(..., ge=0, description="Payment amount (must be non-negative)")
+    user: dict
+    tariff: dict
+    amount: int
     start_date: datetime
     end_date: datetime
 
@@ -33,11 +29,8 @@ class PaymentDetailSerializer(BaseModel):
             raise ValueError("User and Tariff details must be provided")
         return value
 
-    class Config:
-        from_attributes = True
 
-
-class PaymentCreateSerializer(BaseModel):
+class PaymentCreateSerializer(BaseSerializer):
     """Serializer for creating a payment."""
     user_id: int = Field(..., description="ID of the user making the payment")
     tariff_id: int = Field(..., description="ID of the tariff being purchased")
@@ -52,19 +45,12 @@ class PaymentCreateSerializer(BaseModel):
             raise ValueError("End date must be greater than start date")
         return end_date
 
-    class Config:
-        from_attributes = True
 
-
-class PaymentListSerializer(BaseModel):
+class PaymentListSerializer(SafeSerializer):
     """Serializer for listing payments."""
-    id: int
     uuid: UUID4
     user_id: int
     tariff_id: int
     amount: int
     start_date: datetime
     end_date: datetime
-
-    class Config:
-        from_attributes = True

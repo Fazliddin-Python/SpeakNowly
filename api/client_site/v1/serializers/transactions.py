@@ -1,24 +1,19 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import Field, validator
 from typing import Optional
 from datetime import datetime
+from .base import SafeSerializer, BaseSerializer
 
 
-class TokenTransactionSerializer(BaseModel):
+class TokenTransactionSerializer(SafeSerializer):
     """Serializer for basic token transaction information."""
-    id: int
     user_id: int
     transaction_type: str
     amount: int
     balance_after_transaction: int
     description: Optional[str]
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
-class TokenTransactionCreateSerializer(BaseModel):
+class TokenTransactionCreateSerializer(BaseSerializer):
     """Serializer for creating a token transaction."""
     user_id: int = Field(..., description="ID of the user")
     transaction_type: str = Field(..., description="Type of the transaction")
@@ -42,33 +37,22 @@ class TokenTransactionCreateSerializer(BaseModel):
             raise ValueError(f"Invalid transaction type. Must be one of {valid_types}")
         return value
 
-    class Config:
-        from_attributes = True
 
-
-class TokenTransactionListSerializer(BaseModel):
+class TokenTransactionListSerializer(SafeSerializer):
     """Serializer for listing token transactions."""
-    id: int
     user_id: int
     transaction_type: str
     amount: int
     balance_after_transaction: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
 
-
-class TokenTransactionDetailSerializer(BaseModel):
+class TokenTransactionDetailSerializer(SafeSerializer):
     """Serializer for detailed token transaction information."""
-    id: int
-    user: dict  # Nested user details
+    user: dict
     transaction_type: str
     amount: int
     balance_after_transaction: int
     description: Optional[str]
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
