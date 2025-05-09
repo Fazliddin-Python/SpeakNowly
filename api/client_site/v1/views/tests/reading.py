@@ -183,3 +183,89 @@ async def analyse_reading_test(reading_id: int):
         data.append(passage_data)
 
     return data
+
+
+@router.get("/questions/", response_model=List[QuestionSerializer])
+async def get_questions():
+    """
+    Retrieve all questions.
+    """
+    questions = await Question.all()
+    if not questions:
+        raise HTTPException(status_code=404, detail="No questions found")
+    return questions
+
+
+@router.get("/questions/{question_id}/", response_model=QuestionSerializer)
+async def get_question(question_id: int):
+    """
+    Retrieve a specific question by ID.
+    """
+    question = await Question.get_or_none(id=question_id)
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+    return question
+
+
+@router.post("/questions/", response_model=QuestionSerializer, status_code=status.HTTP_201_CREATED)
+async def create_question(data: QuestionSerializer):
+    """
+    Create a new question.
+    """
+    question = await Question.create(**data.dict())
+    return question
+
+
+@router.delete("/questions/{question_id}/", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_question(question_id: int):
+    """
+    Delete a specific question by ID.
+    """
+    question = await Question.get_or_none(id=question_id)
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+    await question.delete()
+    return {"message": "Question deleted successfully"}
+
+
+@router.get("/variants/", response_model=List[VariantSerializer])
+async def get_variants():
+    """
+    Retrieve all variants.
+    """
+    variants = await Variant.all()
+    if not variants:
+        raise HTTPException(status_code=404, detail="No variants found")
+    return variants
+
+
+@router.get("/variants/{variant_id}/", response_model=VariantSerializer)
+async def get_variant(variant_id: int):
+    """
+    Retrieve a specific variant by ID.
+    """
+    variant = await Variant.get_or_none(id=variant_id)
+    if not variant:
+        raise HTTPException(status_code=404, detail="Variant not found")
+    return variant
+
+
+@router.post("/variants/", response_model=VariantSerializer, status_code=status.HTTP_201_CREATED)
+async def create_variant(data: VariantSerializer):
+    """
+    Create a new variant.
+    """
+    variant = await Variant.create(**data.dict())
+    return variant
+
+
+@router.delete("/variants/{variant_id}/", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_variant(variant_id: int):
+    """
+    Delete a specific variant by ID.
+    """
+    variant = await Variant.get_or_none(id=variant_id)
+    if not variant:
+        raise HTTPException(status_code=404, detail="Variant not found")
+    await variant.delete()
+    return {"message": "Variant deleted successfully"}

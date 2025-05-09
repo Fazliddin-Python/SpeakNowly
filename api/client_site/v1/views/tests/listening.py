@@ -177,3 +177,89 @@ async def get_listening_part(part_id: int):
     if not part:
         raise HTTPException(status_code=404, detail="Listening part not found")
     return part
+
+
+@router.get("/sections/", response_model=List[ListeningSectionSerializer])
+async def get_listening_sections():
+    """
+    Retrieve all listening sections.
+    """
+    sections = await ListeningSection.all()
+    if not sections:
+        raise HTTPException(status_code=404, detail="No listening sections found")
+    return sections
+
+
+@router.get("/sections/{section_id}/", response_model=ListeningSectionSerializer)
+async def get_listening_section(section_id: int):
+    """
+    Retrieve a specific listening section by ID.
+    """
+    section = await ListeningSection.get_or_none(id=section_id)
+    if not section:
+        raise HTTPException(status_code=404, detail="Listening section not found")
+    return section
+
+
+@router.post("/sections/", response_model=ListeningSectionSerializer, status_code=201)
+async def create_listening_section(data: ListeningSectionSerializer):
+    """
+    Create a new listening section.
+    """
+    section = await ListeningSection.create(**data.dict())
+    return section
+
+
+@router.delete("/sections/{section_id}/", status_code=204)
+async def delete_listening_section(section_id: int):
+    """
+    Delete a specific listening section by ID.
+    """
+    section = await ListeningSection.get_or_none(id=section_id)
+    if not section:
+        raise HTTPException(status_code=404, detail="Listening section not found")
+    await section.delete()
+    return {"message": "Listening section deleted successfully"}
+
+
+@router.get("/questions/", response_model=List[ListeningQuestionSerializer])
+async def get_listening_questions():
+    """
+    Retrieve all listening questions.
+    """
+    questions = await ListeningQuestion.all()
+    if not questions:
+        raise HTTPException(status_code=404, detail="No listening questions found")
+    return questions
+
+
+@router.get("/questions/{question_id}/", response_model=ListeningQuestionSerializer)
+async def get_listening_question(question_id: int):
+    """
+    Retrieve a specific listening question by ID.
+    """
+    question = await ListeningQuestion.get_or_none(id=question_id)
+    if not question:
+        raise HTTPException(status_code=404, detail="Listening question not found")
+    return question
+
+
+@router.post("/questions/", response_model=ListeningQuestionSerializer, status_code=status.HTTP_201_CREATED)
+async def create_listening_question(data: ListeningQuestionSerializer):
+    """
+    Create a new listening question.
+    """
+    question = await ListeningQuestion.create(**data.dict())
+    return question
+
+
+@router.delete("/questions/{question_id}/", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_listening_question(question_id: int):
+    """
+    Delete a specific listening question by ID.
+    """
+    question = await ListeningQuestion.get_or_none(id=question_id)
+    if not question:
+        raise HTTPException(status_code=404, detail="Listening question not found")
+    await question.delete()
+    return {"message": "Listening question deleted successfully"}
