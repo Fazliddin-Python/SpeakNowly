@@ -9,7 +9,7 @@ from models.analyses import (
     WritingAnalyse,
 )
 from models.tests.writing import Writing, WritingPart1, WritingPart2
-from models.tests.speaking import Speaking, SpeakingAnswers, SpeakingAnalyse
+from models.tests.speaking import Speaking, SpeakingAnswers
 from services.chatgpt.integration import ChatGPTIntegration
 from ..serializers.analyses import (
     ListeningAnalyseSerializer,

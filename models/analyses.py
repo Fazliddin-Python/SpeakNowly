@@ -62,6 +62,7 @@ class SpeakingAnalyse(BaseModel):
     pronunciation_score = fields.DecimalField(max_digits=3, decimal_places=1, null=True, description="Pronunciation score")
     pronunciation_feedback = fields.TextField(null=True, description="Feedback on pronunciation")
     duration = fields.TimeDeltaField(null=True, description="Duration of the speaking test")
+
     class Meta:
         table = "speaking_analyses"
         verbose_name = "Speaking Analyse"

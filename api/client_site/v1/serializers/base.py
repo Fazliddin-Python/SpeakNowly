@@ -8,7 +8,6 @@ class BaseSerializer(BaseModel):
     Base serializer for all models.
     """
     class Config:
-        orm_mode = True
         from_attributes = True
 
 
