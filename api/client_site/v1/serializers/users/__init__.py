@@ -1,4 +1,5 @@
 from .email_update import *
+from .forget_password import *
 from .login import *
 from .profile import *
 from .register import *
