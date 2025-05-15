@@ -4,44 +4,67 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [packages]
-fastapi = "*"
+# Web framework
+fastapi = { extras = ["all"], version = "*" }
 uvicorn = { extras = ["standard"], version = "*" }
+
+# ORM & migrations
 tortoise-orm = "*"
-asyncpg = "*"
-python-dotenv = "*"
-fastapi-jwt-auth = "*"
+aerich = "*"
+
+# HTTP clients & utils
+httpx = "*"
+requests = "*"
+jinja2 = "*"
+
+# Auth / Security
+python-jose = "*"
+jwcrypto = "*"
+passlib = "*"
+
+# OAuth
+google-auth = "*"
+
+# Celery & Redis
 celery = "*"
 redis = "*"
-pillow = "*"
-requests = "*"
-openai = "*"
+
+# Database drivers
+asyncpg = "*" 
+
+# Configuration
 python-decouple = "*"
-passlib = "*"
-pydantic = {extras = ["email"], version = "*"}
+python-dotenv = "*"
+
+# Miscellaneous
+pydantic = { extras = ["email"], version = "*" }
 python-multipart = "*"
-python-jose = "*"
 
 [dev-packages]
-aerich = "*"
-autoflake = "*"
+# Linters & formatters
 black = "*"
 isort = "*"
+autoflake = "*"
 flake8 = "*"
 flake8-bugbear = "*"
 flake8-comprehensions = "*"
 flake8-eradicate = "*"
 flake8-pie = "*"
 pyflakes = "*"
+
+# Testing
 pytest = "*"
 pytest-cov = "*"
-pytest-benchmark = "*"
-pytest-factoryboy = "*"
-pytest-pretty = "*"
 pytest-xdist = "*"
-psutil = "*"
 factory-boy = "*"
+pytest-factoryboy = "*"
 Faker = "*"
+pytest-pretty = "*"
+pytest-benchmark = "*"
+
+# Config tooling
 tomlkit = "*"
+psutil = "*"
 
 [requires]
 python_version = "3.12"

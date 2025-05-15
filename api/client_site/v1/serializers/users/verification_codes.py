@@ -1,25 +1,34 @@
-from pydantic import BaseModel, EmailStr, Field, validator
-from typing import Optional, Literal
+from pydantic import BaseModel, EmailStr, Field
+from typing import Literal
 
+class CheckOTPSerializer(BaseModel):
+    """Serializer for checking verification OTP."""
+    email: EmailStr = Field(..., description="Email associated with the OTP")
+    code: str = Field(..., min_length=5, max_length=6, description="One-time verification code")
+    verification_type: Literal[
+        "register",
+        "login",
+        "reset_password",
+        "forget_password",
+        "update_email"
+    ] = Field(..., description="Type of verification")
 
-class VerificationCodeSerializer(BaseModel):
-    """Serializer for verification codes."""
-    id: int = Field(..., description="Unique identifier of the code")
-    email: Optional[EmailStr] = Field(None, description="Email associated with the code")
-    user_id: Optional[int] = Field(None, description="User ID associated with the code")
-    verification_type: Literal["register", "login", "reset_password", "forget_password", "update_email"] = Field(
-        ..., description="Type of verification (e.g., register, login, reset_password)"
-    )
-    code: int = Field(..., ge=100000, le=999999, description="Verification code (6 digits)")
-    is_used: bool = Field(..., description="Whether the code has been used")
-    is_expired: bool = Field(..., description="Whether the code has expired")
+class CheckOTPResponseSerializer(BaseModel):
+    """Serializer for OTP check response."""
+    message: str = Field(..., description="Result message of the operation")
+    access_token: str = Field(..., description="JWT access token")
 
-    @validator("code")
-    def validate_code_length(cls, value):
-        """Ensure the code is exactly 6 digits."""
-        if len(str(value)) != 6:
-            raise ValueError("Code must be exactly 6 digits")
-        return value
+class ResendOTPSchema(BaseModel):
+    """Serializer for OTP resend request."""
+    email: EmailStr = Field(..., description="Email to resend OTP to")
+    verification_type: Literal[
+        "register",
+        "login",
+        "reset_password",
+        "forget_password",
+        "update_email"
+    ] = Field(..., description="Type of verification")
 
-    class Config:
-        from_attributes = True
+class ResendOTPResponseSerializer(BaseModel):
+    """Serializer for OTP resend response."""
+    message: str = Field(..., description="Result message of the operation")
