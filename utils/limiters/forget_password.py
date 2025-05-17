@@ -7,18 +7,15 @@ class ForgetPasswordLimiter(BaseLimiter):
         super().__init__(redis_client, prefix="forget_password")
 
     async def is_blocked(self, email: str) -> bool:
-        """
-        True if forget-password should be blocked (limit exceeded).
-        """
         return not await self.check_limit(email, limit=5, period=timedelta(minutes=15))
 
-    async def increment_attempts(self, email: str) -> None:
+    async def register_failed_attempt(self, email: str) -> None:
         """
-        Increment the failed attempt count.
+        Register a failed password reset attempt for rate limiting.
         """
         await self.check_limit(email, limit=5, period=timedelta(minutes=15))
 
-    async def reset_attempts(self, email: str) -> None:
+    async def reset(self, email: str) -> None:
         """
         Reset the counter on successful password reset.
         """

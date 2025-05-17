@@ -1,6 +1,6 @@
 from pydantic import Field, validator
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from .base import SafeSerializer, BaseSerializer
 
 

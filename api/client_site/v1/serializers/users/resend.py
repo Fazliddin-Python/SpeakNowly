@@ -1,5 +1,15 @@
 from pydantic import BaseModel, EmailStr, Field
+from typing import Literal
 
-class ResendSerializer(BaseModel):
+class ResendOTPSchema(BaseModel):
     email: EmailStr = Field(..., description="Email to resend the verification code")
-    type: str = Field(..., description="Type of verification (e.g., REGISTER, FORGET_PASSWORD, UPDATE_EMAIL)")
+    verification_type: Literal[
+        "register",
+        "login",
+        "reset_password",
+        "forget_password",
+        "update_email"
+    ] = Field(..., description="Type of verification")
+
+class ResendOTPResponseSerializer(BaseModel):
+    message: str = Field(..., description="Result message of the operation")

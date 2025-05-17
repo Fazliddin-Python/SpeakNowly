@@ -1,197 +1,199 @@
-# SpeakNowly: FastAPI Application
+# SpeakNowly API
 
-SpeakNowly is a modular FastAPI application that provides RESTful APIs for a client website, a mobile app, and an admin dashboard.
+Modular FastAPI backend for the SpeakNowly platform: REST API for the client website, mobile app, and admin dashboard.
 
 ---
 
 ## Table of Contents
 
-1. Project Overview  
-2. Directory Structure  
-3. Key Features  
+1. Overview  
+2. Structure  
+3. Features  
 4. Installation  
 5. Configuration  
-6. Database Migrations  
-7. Running the Application  
-8. API Documentation  
-9. Available Endpoints  
-10. Contributing  
-11. License  
+6. Migrations  
+7. Running  
+8. Documentation  
+9. API Routing & Organization  
+10. Endpoints  
+11. Contribution  
+12. License  
 
 ---
 
-## Project Overview
+## 1. Overview
 
-SpeakNowly offers:
+SpeakNowly provides:
 
-- User registration, authentication (including OTP verification), and profile management  
-- Tariff and feature management, including categories and discounts  
-- A suite of language tests (listening, reading, writing, speaking, grammar, vocabulary) with result analysis  
-- Notification delivery with read/unread tracking  
-- Payment processing and token-based transactions  
+- User registration, authentication (JWT + OTP), and profile management
+- Secure password reset and email update flows
+- Management of tariffs, categories, and discounts
+- Language tests (listening, reading, writing, speaking, grammar, vocabulary) with result analysis
+- Notifications with read tracking
+- Payments and token transactions
+- Modular, scalable architecture for client, mobile, and admin interfaces
 
 ---
 
-## Directory Structure
+## 2. Structure
 
 ```text
 app/
 ├── api/
-│ ├── client\_site/ # Client website API (v1)
-│ │ ├── serializers/
-│ │ ├── views/
-│ │ └── routes.py
-│ ├── mobile/ # Mobile app API (v1)
-│ │ ├── serializers/
-│ │ ├── views/
-│ │ └── routes.py
-│ └── dashboard/ # Admin dashboard API (v1)
-│ ├── serializers/
-│ ├── views/
-│ └── routes.py
-├── models/ # Database models
-│ ├── base.py
-│ ├── users.py
-│ ├── tariffs.py
-│ ├── notifications.py
-│ ├── transactions.py
-│ └── tests/ # Test-related models
-│ ├── listening.py
-│ ├── reading.py
-│ ├── writing.py
-│ ├── speaking.py
-│ ├── grammar.py
-│ └── vocabulary.py
-├── services/ # Business logic
-├── tasks/ # Background jobs
-├── utils/ # Helpers and utilities
-├── main.py # Application entry point
-├── config.py # Configuration settings
-├── .env # Environment variables
-├── Pipfile # Dependencies
-└── README.md # Project documentation
+│   ├── client_site/v1/
+│   │   ├── views/
+│   │   │   ├── users/
+│   │   │   │   ├── users.py
+│   │   │   │   ├── profile.py
+│   │   │   │   ├── login.py
+│   │   │   │   ├── logout.py
+│   │   │   │   ├── register.py
+│   │   │   │   ├── resend.py
+│   │   │   │   ├── forget_password.py
+│   │   │   │   ├── email_update.py
+│   │   │   │   ├── verification_codes.py
+│   │   │   │   └── __init__.py
+│   │   │   ├── tests/
+│   │   │   └── ... (other modules)
+│   │   ├── serializers/
+│   │   ├── routes.py
+│   │   └── __init__.py
+│   ├── dashboard/v1/
+│   └── mobile/v1/
+├── models/
+├── services/
+├── tasks/
+├── utils/
+├── main.py
+├── config.py
+├── celery_app.py
+├── .env
+├── Pipfile
+└── README.md
 ```
 
 ---
 
-## Key Features
+## 3. Features
 
-- **Users**: Registration, login, profile management, OTP-based verification  
-- **Tariffs**: CRUD operations for tariffs, categories, features, discounts  
-- **Language Tests**: Listening, reading, writing, speaking, grammar, vocabulary, automated result analysis  
-- **Notifications**: Send notifications to users, track read/unread status  
-- **Payments**: Create and manage payments, token transaction history  
-
----
-
-## Installation
-
-1. Clone the repository:  
-   ```bash
-   git clone https://github.com/your-org/speaknowly.git
-   cd speaknowly
-   ```
-
-2. Install dependencies (requires Python 3.7+ and pipenv):  
-   ```bash
-   pip install pipenv
-   pipenv install
-   ```
-
-3. Activate the virtual environment:  
-   ```bash
-   pipenv shell
-   ```
+- **Users**: registration, login, logout, profile, OTP, password reset, email update
+- **Tariffs**: CRUD for tariffs, categories, discounts
+- **Tests**: all types of language tests, automatic analysis
+- **Notifications**: sending, read status
+- **Payments**: creation, history, tokens
+- **Admin & Staff**: user management, permissions
+- **Rate Limiting**: per-action (registration, login, password reset, etc.)
+- **Celery**: background tasks for email, logging, etc.
+- **Internationalization**: multi-language support for messages
 
 ---
 
-## Configuration
+## 4. Installation
 
-Create a .env file in the project root with the following variables:
+```bash
+git clone https://github.com/your-org/speaknowly.git
+cd speaknowly
+pip install pipenv
+pipenv install
+pipenv shell
+```
+
+---
+
+## 5. Configuration
+
+Create a `.env` file in the root:
 
 ```env
 SECRET_KEY=your_secret_key
 DEBUG=true
-DB_NAME=your_db_name
-DB_USER=your_db_user
-DB_PASSWORD=your_db_password
-DB_HOST=localhost
-DB_PORT=5432
+ALLOWED_HOSTS=*
+DATABASE_URL=postgresql://user:password@host/db
+EMAIL_BACKEND=smtp
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=your@email
+SMTP_PASSWORD=your_password
+EMAIL_FROM=your@email
+REDIS_URL=redis://localhost:6379/0
 ```
 
 ---
 
-## Database Migrations
-
-Apply database migrations using Tortoise ORM (aerich):
+## 6. Migrations
 
 ```bash
-aerich init --config=config.TORTOISE_ORM
+aerich init --config=config.DATABASE_CONFIG
 aerich migrate
 aerich upgrade
 ```
 
 ---
 
-## Running the Application
-
-Start the development server:
+## 7. Running
 
 ```bash
 uvicorn main:app --reload
 ```
 
-The API will be available at: [http://127.0.0.1:8000](http://127.0.0.1:8000).
+API: http://127.0.0.1:8000
 
 ---
 
-## API Documentation
+## 8. Documentation
 
-- Swagger UI: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)  
-- ReDoc: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)  
-
----
-
-## Available Endpoints
-
-### Authentication
-
-- `POST /api/v1/auth/register/` — Register a new user  
-- `POST /api/v1/auth/login/` — Obtain JWT tokens  
-
-### Users
-
-- `GET /api/v1/users/me/` — Get current user profile  
-
-### Tariffs
-
-- `GET /api/v1/tariffs/` — List all tariffs  
-- `GET /api/v1/tariffs/{id}/` — Get tariff by ID  
-
-### Tests
-
-- `GET /api/v1/tests/listening/` — Retrieve listening tests  
-- `POST /api/v1/tests/writing/` — Submit a writing test  
-  *(other test endpoints follow the same pattern)*  
-
-### Notifications
-
-- `GET /api/v1/notifications/` — List notifications  
-- `GET /api/v1/notifications/{id}/` — Get notification details  
-
-### Payments
-
-- `POST /api/v1/payments/checkout/` — Initiate a payment  
-- `GET /api/v1/payments/` — List payment records  
+- Swagger: http://127.0.0.1:8000/docs  
+- ReDoc: http://127.0.0.1:8000/redoc  
 
 ---
 
-## Contributing
+## 9. API Routing & Organization
 
-We welcome contributions from the community! Please refer to CONTRIBUTING.md for detailed guidelines.
+- **All user and auth endpoints are grouped under `/api/v1/users/`** for clarity and REST consistency.
+- **Other domains** (tests, tariffs, notifications, etc.) are grouped under their own prefixes.
+- **Example structure:**
+    - `/api/v1/users/` — user CRUD (admin)
+    - `/api/v1/users/profile/` — user profile
+    - `/api/v1/users/email-update/` — email update flow
+    - `/api/v1/users/login/` — login
+    - `/api/v1/users/logout/` — logout
+    - `/api/v1/users/register/` — registration
+    - `/api/v1/users/resend-otp/` — resend OTP
+    - `/api/v1/users/forget-password/` — password reset
+    - `/api/v1/users/verification/` — OTP verification
+    - `/api/v1/tests/` — language tests
+    - `/api/v1/tariffs/` — tariffs and categories
+    - `/api/v1/notifications/` — notifications
+    - `/api/v1/payments/` — payments and tokens
 
 ---
 
-## License
+## 10. Endpoints (examples)
 
-This project is licensed under the MIT License. See the LICENSE file for details.
+- `POST /api/v1/users/register/` — registration
+- `POST /api/v1/users/login/` — JWT login
+- `POST /api/v1/users/logout/` — logout
+- `GET /api/v1/users/me/` — user profile
+- `PUT /api/v1/users/profile/` — update profile
+- `POST /api/v1/users/email-update/` — request email update
+- `POST /api/v1/users/email-update/confirm/` — confirm email update
+- `POST /api/v1/users/forget-password/` — request password reset
+- `POST /api/v1/users/forget-password/confirm/` — confirm password reset
+- `POST /api/v1/users/resend-otp/` — resend OTP
+- `POST /api/v1/users/verification/verify-otp` — verify OTP
+- `GET /api/v1/tariffs/` — list tariffs
+- `GET /api/v1/tests/listening/` — listening tests
+- `GET /api/v1/notifications/` — notifications
+- `POST /api/v1/payments/checkout/` — payment
+
+---
+
+## 11. Contribution
+
+PRs and ideas are welcome! See CONTRIBUTING.md.
+
+---
+
+## 12. License
+
+MIT License. See LICENSE.

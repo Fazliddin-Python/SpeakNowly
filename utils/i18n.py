@@ -1,6 +1,7 @@
-from fastapi import Request, Depends
+from fastapi import Request
 from typing import Dict
 
+# Dictionary containing translations for supported languages.
 _TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "en": {
         "user_already_registered": "This email is already registered",
@@ -16,7 +17,6 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "too_many_attempts": "Too many attempts, please try again later",
         "otp_resend_failed": "Failed to resend OTP, please try again",
         "inactive_user": "User is inactive",
-        "email_not_verified": "Email not verified",
         "otp_verification_failed": "OTP verification failed",
     },
     "ru": {
@@ -33,7 +33,6 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "too_many_attempts": "Слишком много попыток, попробуйте позже",
         "otp_resend_failed": "Не удалось повторно отправить OTP, попробуйте снова",
         "inactive_user": "Пользователь неактивен",
-        "email_not_verified": "Email не подтверждён",
         "otp_verification_failed": "Ошибка подтверждения OTP",
     },
     "uz": {
@@ -50,14 +49,14 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "too_many_attempts": "Juda ko'p urinishlar, iltimos keyinroq urinib ko'ring",
         "otp_resend_failed": "OTPni qayta yuborishda xato, iltimos qayta urinib ko'ring",
         "inactive_user": "Foydalanuvchi faol emas",
-        "email_not_verified": "Email tasdiqlanmagan",
         "otp_verification_failed": "OTPni tasdiqlashda xato",
     },
 }
 
 def get_translation(request: Request) -> Dict[str, str]:
     """
-    Dependency: returns the dict of translations for requested language.
+    Dependency that returns the dictionary of translations for the requested language.
+    Defaults to English if the language is not supported.
     """
     lang = request.headers.get("Accept-Language", "en").split(",")[0]
     return _TRANSLATIONS.get(lang, _TRANSLATIONS["en"])

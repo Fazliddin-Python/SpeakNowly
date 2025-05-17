@@ -7,7 +7,7 @@ from ...serializers.tests.speaking import (
     SpeakingQuestionSerializer,
     SpeakingAnswerSerializer,
 )
-from datetime import datetime
+from datetime import datetime, timezone
 
 router = APIRouter()
 
@@ -41,7 +41,7 @@ async def create_speaking_test(user_id: int, start_time: Optional[datetime] = No
     """
     test = await Speaking.create(
         user_id=user_id,
-        start_time=start_time or datetime.utcnow(),
+        start_time=start_time or datetime.now(timezone.utc),
         status="started",
     )
     return test
@@ -94,7 +94,7 @@ async def complete_speaking_test(test_id: int):
         raise HTTPException(status_code=400, detail="Test is already completed")
 
     test.status = "completed"
-    test.end_time = datetime.utcnow()
+    test.end_time = datetime.now(timezone.utc)
     await test.save()
 
     return {"message": "Speaking test completed successfully"}

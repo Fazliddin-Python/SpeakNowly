@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Optional, TypedDict
 
 from fastapi import Depends, HTTPException
@@ -6,6 +6,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError, ExpiredSignatureError
 
 from config import SECRET_KEY, ALGORITHM
+from models.users.users import User
 
 
 class TokenPayload(TypedDict):
@@ -28,8 +29,10 @@ def create_access_token(
     if expires_delta is None:
         expires_delta = timedelta(days=7)
 
-    expire = datetime.utcnow() + expires_delta
-    payload = {"sub": subject, "email": email, "exp": expire}
+    expire = datetime.now(timezone.utc) + expires_delta
+    expire_timestamp = int(expire.timestamp())
+
+    payload = {"sub": subject, "email": email, "exp": expire_timestamp}
 
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -61,4 +64,6 @@ async def get_current_user(
     FastAPI dependency to extract current user from the token.
     """
     payload = decode_access_token(credentials.credentials)
-    return {"user_id": payload["sub"], "email": payload["email"]}
+    user_id = payload["sub"]
+    user = await User.get(id=user_id)
+    return user

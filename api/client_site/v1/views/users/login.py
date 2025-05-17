@@ -1,4 +1,5 @@
 import logging
+import asyncio
 
 from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.security import HTTPBearer
@@ -13,7 +14,7 @@ from tasks.users.activity_tasks import log_user_activity
 from utils.limiters.login import LoginLimiter
 from config import REDIS_URL
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter()
 bearer_scheme = HTTPBearer()
 logger = logging.getLogger(__name__)
 
@@ -32,46 +33,59 @@ async def login(
 ) -> AuthResponseSerializer:
     """
     Authenticate a user via email/password and issue JWT.
+
+    Steps:
+    1. Normalize and validate email.
+    2. Check login rate limit.
+    3. Fetch user by email.
+    4. Check if user is active.
+    5. Verify password.
+    6. Check if email is verified.
+    7. Reset limiter on success.
+    8. Issue JWT and log activity.
+    9. Return response.
     """
     email = data.email.lower().strip()
     logger.info("Login attempt for email: %s", email)
 
-    # 1) Rate-limit check
+    # 1. Rate-limit check
     if await login_limiter.is_blocked(email):
         logger.warning("Login blocked due to too many attempts: %s", email)
         raise HTTPException(status_code=429, detail=t["too_many_attempts"])
 
-    # 2) Fetch user
+    # 2. Fetch user
     user = await UserService.get_by_email(email)
     if not user:
         logger.warning("Login failed, user not found: %s", email)
         await login_limiter.register_failed_attempt(email)
-        raise HTTPException(status_code=400, detail=t["user_not_found"])
+        raise HTTPException(status_code=401, detail=t["invalid_credentials"])
 
-    # 3) Inactive user
+    # 3. Check if user is active
     if not user.is_active:
         logger.warning("Login failed, inactive user: %s", email)
         raise HTTPException(status_code=403, detail=t["inactive_user"])
 
-    # 4) Password verification
-    if not user.check_password(data.password):
+    # 4. Password verification (run in thread pool if bcrypt is sync)
+    loop = asyncio.get_event_loop()
+    password_valid = await loop.run_in_executor(None, user.check_password, data.password)
+    if not password_valid:
         logger.warning("Login failed, incorrect password: %s", email)
         await login_limiter.register_failed_attempt(email)
-        raise HTTPException(status_code=400, detail=t["incorrect_password"])
+        raise HTTPException(status_code=401, detail=t["invalid_credentials"])
 
-    # 5) Email verified
+    # 5. Email verified
     if not user.is_verified:
         logger.warning("Login failed, email not verified: %s", email)
         raise HTTPException(status_code=403, detail=t["email_not_verified"])
 
-    # 6) Successful login — reset limiter counter
+    # 6. Successful login — reset limiter counter
     await login_limiter.register_successful_login(email)
 
-    # 7) Issue JWT
+    # 7. Issue JWT
     token = create_access_token(subject=str(user.id), email=user.email)
     logger.info("User logged in successfully: %s", email)
 
-    # 8) Log activity
+    # 8. Log activity
     log_user_activity.delay(user.id, "login")
 
     return AuthResponseSerializer(token=token, auth_type="Bearer")
@@ -88,6 +102,13 @@ async def oauth2_login(
 ) -> AuthResponseSerializer:
     """
     Authenticate a user via OAuth2 (Google or Apple) and issue JWT.
+
+    Steps:
+    1. Validate OAuth2 input.
+    2. Authenticate via oauth2_sign_in utility.
+    3. Decode JWT and extract user ID.
+    4. Log activity.
+    5. Return response.
     """
     logger.info("OAuth2 login attempt type=%s", data.auth_type)
 

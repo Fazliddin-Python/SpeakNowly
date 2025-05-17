@@ -1,5 +1,3 @@
-# controllers/users/users.py
-
 import logging
 from typing import List, Optional
 
@@ -13,9 +11,10 @@ from ...serializers.users.users import (
 )
 from services.users.user_service import UserService
 from utils.i18n import get_translation
+from utils.auth.auth import get_current_user
 from tasks.users.activity_tasks import log_user_activity
 
-router = APIRouter(prefix="/users", tags=["users"])
+router = APIRouter()
 auth_scheme = HTTPBearer()
 logger = logging.getLogger(__name__)
 
@@ -27,18 +26,19 @@ logger = logging.getLogger(__name__)
 )
 async def list_users(
     is_active: Optional[bool] = None,
-    t: dict = Depends(get_translation)
+    t: dict = Depends(get_translation),
+    current_user=Depends(get_current_user)
 ):
     """
     List all users, optionally filtering by active status.
+    Only staff or superuser can list users.
     """
+    if not (current_user.is_staff or current_user.is_superuser):
+        logger.warning("Permission denied for user %s to list users", current_user.email)
+        raise HTTPException(status_code=403, detail="Permission denied")
+
     users = await UserService.list_users(is_active=is_active)
-    if not users:
-        logger.info("No users found with is_active=%s", is_active)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=t["users_not_found"]
-        )
+    # Always return 200 with a list (even if empty)
     return users
 
 
@@ -49,11 +49,17 @@ async def list_users(
 )
 async def retrieve_user(
     user_id: int,
-    t: dict = Depends(get_translation)
+    t: dict = Depends(get_translation),
+    current_user=Depends(get_current_user)
 ):
     """
     Retrieve a user by ID.
+    Only staff or superuser can retrieve users.
     """
+    if not (current_user.is_staff or current_user.is_superuser):
+        logger.warning("Permission denied for user %s to retrieve user %d", current_user.email, user_id)
+        raise HTTPException(status_code=403, detail="Permission denied")
+
     user = await UserService.get_by_id(user_id)
     if not user:
         logger.warning("User %d not found", user_id)
@@ -71,11 +77,16 @@ async def retrieve_user(
 )
 async def create_user(
     data: UserCreateSerializer,
-    t: dict = Depends(get_translation)
+    t: dict = Depends(get_translation),
+    current_user=Depends(get_current_user)
 ):
     """
     Create a new user (admin only).
     """
+    if not current_user.is_superuser:
+        logger.warning("Permission denied for user %s to create user", current_user.email)
+        raise HTTPException(status_code=403, detail="Permission denied")
+
     exists = await UserService.get_by_email(data.email)
     if exists:
         logger.warning("Attempt to create user with existing email: %s", data.email)
@@ -109,11 +120,16 @@ async def create_user(
 async def update_user(
     user_id: int,
     data: UserUpdateSerializer,
-    t: dict = Depends(get_translation)
+    t: dict = Depends(get_translation),
+    current_user=Depends(get_current_user)
 ):
     """
     Update an existing user (admin only).
     """
+    if not current_user.is_superuser:
+        logger.warning("Permission denied for user %s to update user %d", current_user.email, user_id)
+        raise HTTPException(status_code=403, detail="Permission denied")
+
     # Prevent email duplication
     if data.email:
         conflict = await UserService.get_by_email(data.email)
@@ -142,18 +158,21 @@ async def update_user(
 )
 async def delete_user(
     user_id: int,
-    t: dict = Depends(get_translation)
+    t: dict = Depends(get_translation),
+    current_user=Depends(get_current_user)
 ):
     """
     Delete a user by ID (admin only).
     """
-    deleted = await UserService.delete_user(user_id)
-    if not deleted:
+    if not current_user.is_superuser:
+        logger.warning("Permission denied for user %s to delete user %d", current_user.email, user_id)
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    try:
+        await UserService.delete_user(user_id)
+    except HTTPException as exc:
         logger.warning("User %d not found for deletion", user_id)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=t["user_not_found"]
-        )
+        raise
     logger.info("Admin deleted user %d", user_id)
     log_user_activity.delay(user_id, "admin_delete_user")
     return

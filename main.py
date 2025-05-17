@@ -1,15 +1,24 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from tortoise.contrib.fastapi import register_tortoise
-from config import DATABASE_CONFIG
-from api.client_site.v1.routes import router as client_site_v1_router
-# from api.dashboard.v1.routes import router as dashboard_v1_router
-# from api.mobile.v1.routes import router as mobile_v1_router
+from config import DATABASE_CONFIG, ALLOWED_HOSTS
+from api.client_site.v1 import router as client_site_v1_router
 
-app = FastAPI()
+app = FastAPI(
+    title="SpeakNowly API",
+    description="Modular FastAPI backend for SpeakNowly platform.",
+    version="1.0.0"
+)
 
-app.include_router(client_site_v1_router, prefix="/v1", tags=["Client Site v1"])
-# app.include_router(dashboard_v1_router, prefix="/api/dashboard/v1", tags=["Dashboard v1"])
-# app.include_router(mobile_v1_router, prefix="/api/mobile/v1", tags=["Mobile v1"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_HOSTS if ALLOWED_HOSTS != ["*"] else ["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(client_site_v1_router, prefix="/api/v1")
 
 register_tortoise(
     app,
@@ -20,4 +29,4 @@ register_tortoise(
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to the FastAPI application!"}
+    return {"message": "Welcome to the SpeakNowly FastAPI application!"}

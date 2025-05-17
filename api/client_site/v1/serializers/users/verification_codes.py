@@ -17,18 +17,3 @@ class CheckOTPResponseSerializer(BaseModel):
     """Serializer for OTP check response."""
     message: str = Field(..., description="Result message of the operation")
     access_token: str = Field(..., description="JWT access token")
-
-class ResendOTPSchema(BaseModel):
-    """Serializer for OTP resend request."""
-    email: EmailStr = Field(..., description="Email to resend OTP to")
-    verification_type: Literal[
-        "register",
-        "login",
-        "reset_password",
-        "forget_password",
-        "update_email"
-    ] = Field(..., description="Type of verification")
-
-class ResendOTPResponseSerializer(BaseModel):
-    """Serializer for OTP resend response."""
-    message: str = Field(..., description="Result message of the operation")

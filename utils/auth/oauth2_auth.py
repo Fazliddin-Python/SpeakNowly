@@ -19,7 +19,7 @@ async def oauth2_sign_in(
     """
     if auth_type == "google":
         try:
-            payload = google_id_token.verify_oauth2_token(token, google_requests.Request())
+            payload = google_id_token.verify_oauth2_token(token, google_requests.Request(), client_id)
             email = payload.get("email")
             if not email:
                 raise HTTPException(status_code=403, detail="Email not provided by Google token")

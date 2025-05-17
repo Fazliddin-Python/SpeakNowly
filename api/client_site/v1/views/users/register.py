@@ -13,7 +13,7 @@ from tasks.users.activity_tasks import log_user_activity
 from utils.limiters.register import RegistrationLimiter
 from config import REDIS_URL
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter()
 logger = logging.getLogger(__name__)
 
 redis_client = Redis.from_url(REDIS_URL, decode_responses=True)
@@ -31,6 +31,16 @@ async def register(
 ) -> RegisterResponseSerializer:
     """
     Handle user registration and send verification code.
+
+    Steps:
+    1. Normalize and validate email.
+    2. Check registration rate limit.
+    3. Check if a verified user already exists.
+    4. Create a new user or reuse an unverified one.
+    5. Send verification code.
+    6. Register failed attempt for limiter.
+    7. Issue JWT and return response.
+    8. Log registration activity asynchronously.
     """
     normalized_email = data.email.lower().strip()
     logger.info("Registration attempt for email: %s", normalized_email)
@@ -40,7 +50,7 @@ async def register(
         logger.warning("Registration blocked due to too many attempts: %s", normalized_email)
         raise HTTPException(status_code=429, detail=t["too_many_attempts"])
 
-    # 2. Check existing user
+    # 2. Check if a verified user already exists
     existing = await UserService.get_by_email(normalized_email)
     if existing and existing.is_verified:
         logger.warning("Registration failed, user already verified: %s", normalized_email)

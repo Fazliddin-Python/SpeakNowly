@@ -24,8 +24,6 @@ class LoginLimiter(BaseLimiter):
         Check if login attempts for this email are blocked.
         Returns True if limit exceeded, False otherwise.
         """
-        # BaseLimiter.check_limit returns True if under limit (and increments)
-        # so blocked == not check_limit
         allowed = await self.check_limit(email, limit=self.max_attempts, period=self.period)
         return not allowed
 
@@ -33,7 +31,6 @@ class LoginLimiter(BaseLimiter):
         """
         Record a failed login attempt (increments counter).
         """
-        # We call check_limit to increment the counter
         await self.check_limit(email, limit=self.max_attempts, period=self.period)
 
     async def register_successful_login(self, email: str) -> None:

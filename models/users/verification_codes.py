@@ -3,7 +3,7 @@ from tortoise.validators import MinValueValidator, MaxValueValidator
 from tortoise import fields
 from ..base import BaseModel
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from enum import Enum
 
 class VerificationType(str, Enum):
@@ -26,14 +26,16 @@ class VerificationCode(BaseModel):
         table = "verification_codes"
         verbose_name = "Verification Code"
         verbose_name_plural = "Verification Codes"
+        unique_together = ("email", "verification_type")
 
     def __str__(self):
         user_name = self.user.get_full_name() if self.user else "Unknown User"
         return f"{user_name} - {self.verification_type} - {self.code} - {self.is_used} - {self.is_expired}"
 
     def is_code_expired(self) -> bool:
-        """Checks if the code has expired."""
-        return self.is_expired
+        """Checks if the code has expired based on TTL."""
+        ttl = timedelta(minutes=10)  # Use the same TTL as in service
+        return self.is_expired or (datetime.now(timezone.utc) - self.created_at > ttl)
 
     @staticmethod
     async def is_resend_blocked(email: str, verification_type: VerificationType) -> bool:

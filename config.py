@@ -12,6 +12,9 @@ DEBUG = config("DEBUG", cast=bool, default=False)
 
 # === Allowed hosts / CORS ===
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", cast=Csv(), default="*")
+if isinstance(ALLOWED_HOSTS, str):
+    ALLOWED_HOSTS = [ALLOWED_HOSTS]
+
 CORS_ORIGIN_ALLOW_ALL = True
 CORS_ALLOW_HEADERS = [
     "accept-language",
@@ -31,10 +34,19 @@ DATABASE_CONFIG = {
     },
 }
 
-# === Email provider ===
-EMAIL_PROVIDER_URL = config("EMAIL_PROVIDER_URL")
-EMAIL_PROVIDER_APIKEY = config("EMAIL_PROVIDER_APIKEY")
+# === Email settings ===
+EMAIL_BACKEND = config("EMAIL_BACKEND", default="http")  # smtp или http
 EMAIL_FROM = config("EMAIL_FROM", default="no-reply@example.com")
+
+# SMTP backend
+SMTP_HOST = config("SMTP_HOST", default="")
+SMTP_PORT = config("SMTP_PORT", cast=int, default=0)
+SMTP_USER = config("SMTP_USER", default="")
+SMTP_PASSWORD = config("SMTP_PASSWORD", default="")
+
+# HTTP API (fallback)
+EMAIL_PROVIDER_URL = config("EMAIL_PROVIDER_URL", default="")
+EMAIL_PROVIDER_APIKEY = config("EMAIL_PROVIDER_APIKEY", default="")
 
 # === JWT settings ===
 ACCESS_TOKEN_EXPIRE = timedelta(days=5)
@@ -50,6 +62,6 @@ CELERY_TIMEZONE = "UTC"
 
 REDIS_URL = config("REDIS_URL", default="redis://localhost:6379/0")
 CELERY_TASK_ROUTES = {
-    "services.email_service.send_email_task": {"queue": "emails"},
+    "services.users.email_service.send_email_task": {"queue": "emails"},
     "tasks.users.activity_tasks.log_user_activity": {"queue": "user_activity"},
 }

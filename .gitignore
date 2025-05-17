@@ -1,26 +1,76 @@
-# Python specific
-*.pyc
+# Python
+__pycache__/
+*.py[cod]
 *.pyo
 *.pyd
-__pycache__/
-*.env
-*.venv
+*.pyc
+
+# Virtualenv
+.env
+.venv
 env/
 venv/
 ENV/
 env.bak/
-venv.bak/
+*.env
 
-# FastAPI specific
-instance/
-*.log
-*.sqlite3
-
-# IDE specific
+# VSCode
 .vscode/
-.idea/
-*.swp
+.history/
 
-# OS generated files
+# OS files
 .DS_Store
 Thumbs.db
+
+# Logs
+*.log
+
+# Database & migrations
+*.sqlite3
+*.db
+*.bak
+*.sql
+migrations/
+aerich.ini
+aerich.log
+
+# Tortoise ORM generated files
+*.py,cover
+*.pyc,cover
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Pipenv
+Pipfile.lock
+
+# Test & coverage
+.coverage
+htmlcov/
+.tox/
+.nox/
+.cache/
+pytest_cache/
+coverage.xml
+
+# Jupyter
+.ipynb_checkpoints
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# IDEs
+.idea/
+*.iml
+
+# Node (if frontend present)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Custom
+secrets.json

@@ -11,7 +11,7 @@ from ..serializers.payments import (
     PaymentListSerializer,
 )
 from uuid import uuid4
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 
 router = APIRouter()
 
@@ -33,7 +33,7 @@ async def create_payment(payment_data: PaymentCreateSerializer):
         raise HTTPException(status_code=400, detail="Payment for this tariff already exists")
 
     # Calculate start and end dates
-    start_date = payment_data.start_date or datetime.utcnow()
+    start_date = payment_data.start_date or datetime.now(timezone.utc)
     end_date = payment_data.end_date or (start_date + timedelta(days=tariff.duration))
 
     # Create payment

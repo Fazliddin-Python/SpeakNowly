@@ -9,7 +9,7 @@ from ...serializers.tests.reading import (
     VariantSerializer,
     AnswerSerializer,
 )
-from datetime import datetime
+from datetime import datetime, timezone
 
 router = APIRouter()
 
@@ -47,7 +47,7 @@ async def start_reading_test(user_id: int):
 
     reading = await Reading.create(
         user_id=user_id,
-        start_time=datetime.utcnow(),
+        start_time=datetime.now(timezone.utc),
         status="started",
         duration=60,
     )
@@ -87,7 +87,7 @@ async def submit_reading_answers(reading_id: int, answers: List[AnswerSerializer
         )
 
     reading.status = "completed"
-    reading.end_time = datetime.utcnow()
+    reading.end_time = datetime.now(timezone.utc)
     reading.score = total_score
     await reading.save()
 
@@ -135,7 +135,7 @@ async def restart_reading_test(reading_id: int):
         raise HTTPException(status_code=400, detail="Only completed tests can be restarted")
 
     reading.status = "started"
-    reading.start_time = datetime.utcnow()
+    reading.start_time = datetime.now(timezone.utc)
     reading.end_time = None
     reading.score = 0
     await reading.save()

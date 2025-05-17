@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Form
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from tortoise.exceptions import DoesNotExist
 from models.tests.writing import Writing, WritingPart1, WritingPart2
 from ...serializers.tests.writing import (
@@ -41,7 +41,7 @@ async def create_writing_test(user_id: int, start_time: Optional[datetime] = Non
     """
     test = await Writing.create(
         user_id=user_id,
-        start_time=start_time or datetime.utcnow(),
+        start_time=start_time or datetime.now(timezone.utc),
         status="started",
     )
     await WritingPart1.create(writing_id=test.id, content="Part 1 content")
@@ -74,7 +74,7 @@ async def submit_writing_test(
         await test.part2.save()
 
     test.status = "completed"
-    test.end_time = datetime.utcnow()
+    test.end_time = datetime.now(timezone.utc)
     await test.save()
 
     return {"message": "Writing test submitted successfully"}

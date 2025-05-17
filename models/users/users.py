@@ -42,10 +42,10 @@ class User(BaseModel):
             self.add_tariff(Tariff.get_default_tariff())
         return not self.tariff.is_default
 
-    def add_tariff(self, tariff):
+    async def add_tariff(self, tariff):
         """Assigns a tariff to the user."""
         self.tariff = tariff
-        self.save()
+        await self.save()
 
 
 class UserActivityLog(BaseModel):

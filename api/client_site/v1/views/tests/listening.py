@@ -17,7 +17,7 @@ from ...serializers.tests.listening import (
     UserListeningSessionSerializer,
     UserResponseSerializer,
 )
-from datetime import datetime
+from datetime import datetime, timezone
 import random
 
 router = APIRouter()
@@ -79,7 +79,7 @@ async def start_listening_test(user_id: int):
     session = await UserListeningSession.create(
         user_id=user_id,
         exam_id=selected_test.id,
-        start_time=datetime.utcnow(),
+        start_time=datetime.now(timezone.utc),
         status="started",
     )
     return session
@@ -145,7 +145,7 @@ async def submit_listening_answers(session_id: int, answers: List[UserResponseSe
         )
 
     session.status = "completed"
-    session.end_time = datetime.utcnow()
+    session.end_time = datetime.now(timezone.utc)
     await session.save()
 
     return {"message": "Answers submitted successfully", "total_score": total_score}

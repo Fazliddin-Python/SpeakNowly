@@ -12,7 +12,7 @@ from tasks.users.activity_tasks import log_user_activity
 from models.users.verification_codes import VerificationType
 from config import REDIS_URL
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter()
 logger = logging.getLogger(__name__)
 
 redis_client = Redis.from_url(REDIS_URL, decode_responses=True)
@@ -26,39 +26,45 @@ async def request_password_reset(
 ):
     """
     Step 1: Request a password reset.
-    Sends an OTP to the user's email.
+    1. Check if user exists and is active.
+    2. Check rate limit.
+    3. Register failed attempt for limiter.
+    4. Send verification code.
+    5. Log activity.
+    6. Return response.
     """
-    logger.info("Password reset requested for email: %s", data.email)
+    normalized_email = data.email.lower().strip()
+    logger.info("Password reset requested for email: %s", normalized_email)
 
-    user = await UserService.get_by_email(data.email)
-    if not user:
-        logger.warning("Password reset failed: user not found (%s)", data.email)
+    # 1. Check if user exists and is active
+    user = await UserService.get_by_email(normalized_email)
+    if not user or not user.is_active:
+        logger.warning("Password reset failed: user not found or inactive (%s)", normalized_email)
         raise HTTPException(status_code=404, detail=t["user_not_found"])
-    if not user.is_active:
-        logger.warning("Password reset failed: user is inactive (%s)", data.email)
-        raise HTTPException(status_code=403, detail=t["inactive_user"])
 
-    # 1. Rate-limit check
-    if await forget_limiter.is_blocked(data.email):
-        logger.warning("Password reset blocked due to too many attempts: %s", data.email)
-        raise HTTPException(status_code=429, detail=t["too_many_requests"])
+    # 2. Rate-limit check
+    if await forget_limiter.is_blocked(normalized_email):
+        logger.warning("Password reset blocked due to too many attempts: %s", normalized_email)
+        raise HTTPException(status_code=429, detail=t["too_many_attempts"])
 
-    # 2. Increment attempt counter
-    await forget_limiter.increment_attempts(data.email)
+    # 3. Register failed attempt for limiter
+    await forget_limiter.register_failed_attempt(normalized_email)
 
-    # 3. Send verification code
+    # 4. Send verification code
     try:
         await VerificationService.send_verification_code(
-            email=data.email,
+            email=normalized_email,
             verification_type=VerificationType.FORGET_PASSWORD
         )
     except HTTPException as exc:
         detail = exc.detail if isinstance(exc.detail, str) else t["otp_resend_failed"]
-        logger.warning("Failed to send password-reset OTP to %s: %s", data.email, detail)
+        logger.warning("Failed to send password-reset OTP to %s: %s", normalized_email, detail)
         raise HTTPException(status_code=exc.status_code, detail=detail)
 
-    # 4. Log activity
+    # 5. Log activity
     log_user_activity.delay(user.id, "forget_password_request")
+
+    # 6. Return response
     return {"message": t["verification_sent"]}
 
 
@@ -69,32 +75,42 @@ async def confirm_password_reset(
 ):
     """
     Step 2: Confirm the OTP and set a new password.
-    Verifies the code, updates the password, and cleans up OTPs.
+    1. Verify OTP using VerificationService.
+    2. Reset limiter on success.
+    3. Change password using UserService.
+    4. Delete unused codes.
+    5. Log activity.
+    6. Return response.
     """
-    logger.info("Confirming password reset: email=%s code=%s", data.email, data.code)
+    normalized_email = data.email.lower().strip()
+    logger.info("Confirming password reset: email=%s code=%s", normalized_email, data.code)
 
+    # 1. Verify OTP
     try:
         user = await VerificationService.verify_code(
-            email=data.email,
-            code=data.code,
+            email=normalized_email,
+            code=str(data.code),
             verification_type=VerificationType.FORGET_PASSWORD
         )
     except HTTPException as exc:
         detail = exc.detail if isinstance(exc.detail, str) else t["otp_verification_failed"]
-        logger.warning("Password reset verification failed for %s: %s", data.email, detail)
+        logger.warning("Password reset verification failed for %s: %s", normalized_email, detail)
         raise HTTPException(status_code=exc.status_code, detail=detail)
 
-    # 5. On successful verification — reset limiter
-    await forget_limiter.reset_attempts(data.email)
+    # 2. Reset limiter on success
+    await forget_limiter.reset(normalized_email)
 
-    # 6. Change password
+    # 3. Change password
     await UserService.change_password(user.id, data.new_password)
 
-    # 7. Cleanup any unused codes
+    # 4. Delete unused codes
     await VerificationService.delete_unused_codes(
-        email=data.email,
+        email=normalized_email,
         verification_type=VerificationType.FORGET_PASSWORD
     )
 
+    # 5. Log activity
     log_user_activity.delay(user.id, "forget_password_confirm")
+
+    # 6. Return response
     return {"message": t["password_updated"]}
