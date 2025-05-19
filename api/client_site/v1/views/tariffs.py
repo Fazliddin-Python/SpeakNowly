@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status, Depends
 from typing import List
 from tortoise.exceptions import DoesNotExist
 from models.tariffs import Sale, Tariff, TariffCategory, Feature, TariffFeature
@@ -9,6 +9,7 @@ from ..serializers.tariffs import (
     FeatureSerializer,
     SaleSerializer,
 )
+from services.cache_service import cache
 
 router = APIRouter()
 
@@ -18,9 +19,13 @@ async def list_tariff_categories():
     """
     List all tariff categories.
     """
-    categories = await TariffCategory.all()
+    cache_key = "tariff_categories"
+    cached = await cache.get(cache_key)
+    if cached:
+        return cached
+    categories = await TariffCategory.filter(is_active=True)
+    await cache.set(cache_key, categories, expire=86400)  # one day
     return categories
-
 
 @router.get("/categories/{category_id}/", response_model=TariffCategorySerializer)
 async def get_category_details(category_id: int):
@@ -28,7 +33,7 @@ async def get_category_details(category_id: int):
     Retrieve details of a specific tariff category.
     """
     try:
-        category = await TariffCategory.get(id=category_id)
+        category = await TariffCategory.get(id=category_id, is_active=True)
         return category
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Category not found")
@@ -39,7 +44,12 @@ async def list_features():
     """
     List all features.
     """
+    cache_key = "tariff_features"
+    cached = await cache.get(cache_key)
+    if cached:
+        return cached
     features = await Feature.all()
+    await cache.set(cache_key, features, expire=86400)  # one day
     return features
 
 
@@ -78,13 +88,32 @@ async def list_tariff_sales(tariff_id: int):
 
 
 @router.get("/", response_model=List[TariffSerializer])
-async def list_tariffs(page: int = Query(1, ge=1), page_size: int = Query(10, ge=1)):
+async def list_tariffs(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1),
+    lang: str = Query("en", description="Language code: en, ru, uz")
+):
     """
     List all tariffs with pagination.
     """
+
+    cache_key = f"tariffs:{lang}:page={page}:size={page_size}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return cached
     offset = (page - 1) * page_size
-    tariffs = await Tariff.all().offset(offset).limit(page_size)
-    return tariffs
+    tariffs = await Tariff.filter(is_active=True).offset(offset).limit(page_size)
+    # Map only the requested language fields
+    result = []
+    for tariff in tariffs:
+        result.append({
+            "id": tariff.id,
+            "name": getattr(tariff, f"name_{lang}", tariff.name_en),
+            "description": getattr(tariff, f"description_{lang}", tariff.description_en),
+            # ...other fields...
+        })
+    await cache.set(cache_key, result, expire=3600)
+    return result
 
 
 @router.get("/{tariff_id}/", response_model=TariffDetailSerializer)
@@ -93,7 +122,7 @@ async def get_tariff_detail(tariff_id: int):
     Retrieve detailed information about a specific tariff.
     """
     try:
-        tariff = await Tariff.get(id=tariff_id).prefetch_related("features", "category")
+        tariff = await Tariff.get(id=tariff_id, is_active=True).prefetch_related("features", "category")
         return tariff
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Tariff not found")

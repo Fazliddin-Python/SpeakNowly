@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Query
+import logging
+from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import List
 from tortoise.exceptions import DoesNotExist
 
@@ -8,8 +9,10 @@ from ..serializers.notifications import (
     MessageListSerializer,
     ReadStatusSerializer,
 )
+from tasks.notifications_tasks import send_mass_notification
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/", response_model=List[MessageListSerializer])
@@ -21,9 +24,11 @@ async def get_notifications(
     """
     Get a paginated list of notifications for a user.
     """
+    logger.info("User %s requested notifications page=%s", user_id, page)
     offset = (page - 1) * page_size
     messages = await Message.filter(user_id=user_id).offset(offset).limit(page_size).all()
     if not messages:
+        logger.warning("No notifications found for user %s", user_id)
         raise HTTPException(status_code=404, detail="No notifications found")
     
     # Add `is_read` status for each message
@@ -83,3 +88,9 @@ async def delete_notification(id: int, user_id: int):
     if not deleted_count:
         raise HTTPException(status_code=404, detail="Notification not found")
     return {"message": "Notification deleted successfully"}
+
+@router.post("/mass-send/")
+async def mass_send_notification_endpoint(user_ids: List[int], title: str, content: str):
+    send_mass_notification.delay(user_ids, title, content)
+    logger.info("Mass notification task started for %d users", len(user_ids))
+    return {"message": "Notifications are being sent"}

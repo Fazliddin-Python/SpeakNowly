@@ -1,5 +1,11 @@
 from tortoise import fields
 from .base import BaseModel
+from enum import Enum
+
+class PaymentStatus(str, Enum):
+    PENDING = "pending"
+    PAID = "paid"
+    FAILED = "failed"
 
 class Payment(BaseModel):
     uuid = fields.UUIDField(description="UUID")
@@ -8,6 +14,7 @@ class Payment(BaseModel):
     amount = fields.IntField(description="Amount")
     start_date = fields.DatetimeField(description="Start Date")
     end_date = fields.DatetimeField(description="End Date")
+    status = fields.CharEnumField(PaymentStatus, default=PaymentStatus.PENDING, description="Payment status")
 
     class Meta:
         table = "payments"

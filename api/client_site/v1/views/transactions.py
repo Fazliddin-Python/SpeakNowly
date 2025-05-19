@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query, Depends, status
 from typing import List, Optional
 from tortoise.exceptions import DoesNotExist
+from tortoise.transactions import in_transaction
 from models.transactions import TokenTransaction
 from models.users.users import User
 from ..serializers.transactions import (
@@ -99,3 +100,10 @@ async def delete_transaction(transaction_id: int):
     if not deleted_count:
         raise HTTPException(status_code=404, detail="Transaction not found")
     return {"message": "Transaction deleted successfully"}
+
+
+@router.post("/checkout/", status_code=status.HTTP_201_CREATED)
+async def create_payment(payment_data: PaymentCreateSerializer):
+    async with in_transaction():
+        # ...вся логика создания платежа и invoice...
+        # если будет raise — всё откатится

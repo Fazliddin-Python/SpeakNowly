@@ -18,6 +18,7 @@ requests = "*"
 jinja2 = "*"
 
 # Auth / Security
+jwt = "*"
 python-jose = "*"
 jwcrypto = "*"
 passlib = "*"
@@ -63,6 +64,7 @@ pytest-pretty = "*"
 pytest-benchmark = "*"
 
 # Config tooling
+openai = "*"
 tomlkit = "*"
 psutil = "*"
 
