@@ -1,14 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from typing import List
-from tortoise.exceptions import DoesNotExist
-from models.tests.listening import (
-    Listening,
-    ListeningPart,
-    ListeningSection,
-    ListeningQuestion,
-    UserListeningSession,
-    UserResponse,
-)
+from services.tests.listening_service import ListeningService
 from ...serializers.tests.listening import (
     ListeningSerializer,
     ListeningPartSerializer,
@@ -17,249 +9,181 @@ from ...serializers.tests.listening import (
     UserListeningSessionSerializer,
     UserResponseSerializer,
 )
-from datetime import datetime, timezone
-import random
+from utils.i18n import get_translation
+from utils.auth.auth import get_current_user
 
 router = APIRouter()
 
-
 @router.get("/", response_model=List[ListeningSerializer])
-async def get_listening_tests():
-    """
-    Retrieve all listening tests.
-    """
-    tests = await Listening.all()
-    if not tests:
-        raise HTTPException(status_code=404, detail="No listening tests found")
-    return tests
-
+async def get_listening_tests(
+    user=Depends(get_current_user),
+    t: dict = Depends(get_translation)
+):
+    """Retrieve all listening tests."""
+    return await ListeningService.list_tests()
 
 @router.get("/{test_id}/", response_model=ListeningSerializer)
-async def get_listening_test(test_id: int):
-    """
-    Retrieve a specific listening test by ID.
-    """
-    test = await Listening.get_or_none(id=test_id)
+async def get_listening_test(
+    test_id: int,
+    user=Depends(get_current_user),
+    t: dict = Depends(get_translation)
+):
+    """Retrieve a specific listening test by ID."""
+    test = await ListeningService.get_test(test_id)
     if not test:
-        raise HTTPException(status_code=404, detail="Listening test not found")
+        raise HTTPException(status_code=404, detail=t["listening_test_not_found"])
     return test
-
 
 @router.post("/", response_model=ListeningSerializer, status_code=status.HTTP_201_CREATED)
-async def create_listening_test(data: ListeningSerializer):
-    """
-    Create a new listening test.
-    """
-    test = await Listening.create(**data.dict())
-    return test
-
+async def create_listening_test(
+    data: ListeningSerializer,
+    user=Depends(get_current_user)
+):
+    """Create a new listening test."""
+    return await ListeningService.create_test(data.dict())
 
 @router.delete("/{test_id}/", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_listening_test(test_id: int):
-    """
-    Delete a specific listening test by ID.
-    """
-    test = await Listening.get_or_none(id=test_id)
-    if not test:
+async def delete_listening_test(
+    test_id: int,
+    user=Depends(get_current_user)
+):
+    """Delete a specific listening test by ID."""
+    ok = await ListeningService.delete_test(test_id)
+    if not ok:
         raise HTTPException(status_code=404, detail="Listening test not found")
-    await test.delete()
     return {"message": "Listening test deleted successfully"}
 
-
 @router.post("/start/", response_model=UserListeningSessionSerializer, status_code=status.HTTP_201_CREATED)
-async def start_listening_test(user_id: int):
-    """
-    Start a new listening test session for a user.
-    """
-    listening_tests = await Listening.all()
-    if not listening_tests:
-        raise HTTPException(status_code=404, detail="No listening tests available")
-
-    selected_test = random.choice(listening_tests)
-    session = await UserListeningSession.create(
-        user_id=user_id,
-        exam_id=selected_test.id,
-        start_time=datetime.now(timezone.utc),
-        status="started",
-    )
+async def start_listening_test(
+    user=Depends(get_current_user),
+    t: dict = Depends(get_translation)
+):
+    """Start a new listening test session for a user."""
+    session = await ListeningService.start_session(user.id)
+    if not session:
+        raise HTTPException(status_code=404, detail=t["no_listening_tests"])
     return session
-
 
 @router.get("/session/{session_id}/", response_model=UserListeningSessionSerializer)
-async def get_listening_session(session_id: int):
-    """
-    Retrieve details of a specific listening session by ID.
-    """
-    session = await UserListeningSession.get_or_none(id=session_id).prefetch_related("exam")
-    if not session:
-        raise HTTPException(status_code=404, detail="Listening session not found")
+async def get_listening_session(
+    session_id: int,
+    user=Depends(get_current_user),
+    t: dict = Depends(get_translation)
+):
+    """Retrieve details of a specific listening session by ID."""
+    session = await ListeningService.get_session(session_id)
+    if not session or session.user_id != user.id:
+        raise HTTPException(status_code=404, detail=t["listening_session_not_found"])
     return session
 
-
 @router.post("/session/{session_id}/submit/", status_code=status.HTTP_201_CREATED)
-async def submit_listening_answers(session_id: int, answers: List[UserResponseSerializer]):
-    """
-    Submit answers for a listening test session.
-    """
-    session = await UserListeningSession.get_or_none(id=session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Listening session not found")
-
-    if session.status == "completed":
-        raise HTTPException(status_code=400, detail="This session has already been completed")
-
-    total_score = 0
-    answered_question_ids = []
-
-    for answer in answers:
-        question = await ListeningQuestion.get_or_none(id=answer.question_id)
-        if not question:
-            raise HTTPException(status_code=404, detail=f"Question {answer.question_id} not found")
-
-        is_correct = question.correct_answer == answer.user_answer
-        score = 1 if is_correct else 0
-        total_score += score
-
-        await UserResponse.create(
-            session_id=session_id,
-            user_id=session.user_id,
-            question_id=answer.question_id,
-            user_answer=answer.user_answer,
-            is_correct=is_correct,
-            score=score,
-        )
-        answered_question_ids.append(answer.question_id)
-
-    # Handle unanswered questions
-    all_questions = await ListeningQuestion.filter(section__part__listening_id=session.exam_id).all()
-    unanswered_questions = [q for q in all_questions if q.id not in answered_question_ids]
-
-    for question in unanswered_questions:
-        await UserResponse.create(
-            session_id=session_id,
-            user_id=session.user_id,
-            question_id=question.id,
-            user_answer=None,
-            is_correct=False,
-            score=0,
-        )
-
-    session.status = "completed"
-    session.end_time = datetime.now(timezone.utc)
-    await session.save()
-
-    return {"message": "Answers submitted successfully", "total_score": total_score}
-
+async def submit_listening_answers(
+    session_id: int,
+    answers: List[UserResponseSerializer],
+    user=Depends(get_current_user),
+    t: dict = Depends(get_translation)
+):
+    """Submit answers for a listening test session."""
+    total_score, error = await ListeningService.submit_answers(session_id, user.id, [a.dict() for a in answers])
+    if error == "not_found":
+        raise HTTPException(status_code=404, detail=t["listening_session_not_found"])
+    if error == "already_completed":
+        raise HTTPException(status_code=400, detail=t["session_already_completed"])
+    if error and error.startswith("question_"):
+        raise HTTPException(status_code=404, detail=t["question_not_found"])
+    return {"message": t["answers_submitted"], "total_score": total_score}
 
 @router.post("/session/{session_id}/cancel/", status_code=status.HTTP_200_OK)
-async def cancel_listening_session(session_id: int):
-    """
-    Cancel a listening test session.
-    """
-    session = await UserListeningSession.get_or_none(id=session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Listening session not found")
+async def cancel_listening_session(
+    session_id: int,
+    user=Depends(get_current_user),
+    t: dict = Depends(get_translation)
+):
+    """Cancel a listening test session."""
+    ok = await ListeningService.cancel_session(session_id, user.id)
+    if not ok:
+        raise HTTPException(status_code=404, detail=t["listening_session_not_found"])
+    return {"message": t["session_cancelled"]}
 
-    if session.status in ["completed", "cancelled"]:
-        raise HTTPException(status_code=400, detail="Session cannot be cancelled")
-
-    session.status = "cancelled"
-    await session.save()
-    return {"message": "Session cancelled successfully"}
-
+# --- CRUD for parts, sections, questions ---
 
 @router.get("/part/{part_id}/", response_model=ListeningPartSerializer)
-async def get_listening_part(part_id: int):
-    """
-    Retrieve details of a specific listening part by ID.
-    """
-    part = await ListeningPart.get_or_none(id=part_id).prefetch_related("sections")
+async def get_listening_part(
+    part_id: int,
+    user=Depends(get_current_user),
+    t: dict = Depends(get_translation)
+):
+    part = await ListeningService.get_part(part_id)
     if not part:
-        raise HTTPException(status_code=404, detail="Listening part not found")
+        raise HTTPException(status_code=404, detail=t["listening_part_not_found"])
     return part
 
-
 @router.get("/sections/", response_model=List[ListeningSectionSerializer])
-async def get_listening_sections():
-    """
-    Retrieve all listening sections.
-    """
-    sections = await ListeningSection.all()
-    if not sections:
-        raise HTTPException(status_code=404, detail="No listening sections found")
-    return sections
-
+async def get_listening_sections(
+    user=Depends(get_current_user),
+    t: dict = Depends(get_translation)
+):
+    return await ListeningService.list_sections()
 
 @router.get("/sections/{section_id}/", response_model=ListeningSectionSerializer)
-async def get_listening_section(section_id: int):
-    """
-    Retrieve a specific listening section by ID.
-    """
-    section = await ListeningSection.get_or_none(id=section_id)
+async def get_listening_section(
+    section_id: int,
+    user=Depends(get_current_user),
+    t: dict = Depends(get_translation)
+):
+    section = await ListeningService.get_section(section_id)
     if not section:
-        raise HTTPException(status_code=404, detail="Listening section not found")
+        raise HTTPException(status_code=404, detail=t["listening_section_not_found"])
     return section
-
 
 @router.post("/sections/", response_model=ListeningSectionSerializer, status_code=201)
-async def create_listening_section(data: ListeningSectionSerializer):
-    """
-    Create a new listening section.
-    """
-    section = await ListeningSection.create(**data.dict())
-    return section
-
+async def create_listening_section(
+    data: ListeningSectionSerializer,
+    user=Depends(get_current_user)
+):
+    return await ListeningService.create_section(data.dict())
 
 @router.delete("/sections/{section_id}/", status_code=204)
-async def delete_listening_section(section_id: int):
-    """
-    Delete a specific listening section by ID.
-    """
-    section = await ListeningSection.get_or_none(id=section_id)
-    if not section:
+async def delete_listening_section(
+    section_id: int,
+    user=Depends(get_current_user)
+):
+    ok = await ListeningService.delete_section(section_id)
+    if not ok:
         raise HTTPException(status_code=404, detail="Listening section not found")
-    await section.delete()
     return {"message": "Listening section deleted successfully"}
 
-
 @router.get("/questions/", response_model=List[ListeningQuestionSerializer])
-async def get_listening_questions():
-    """
-    Retrieve all listening questions.
-    """
-    questions = await ListeningQuestion.all()
-    if not questions:
-        raise HTTPException(status_code=404, detail="No listening questions found")
-    return questions
-
+async def get_listening_questions(
+    user=Depends(get_current_user),
+    t: dict = Depends(get_translation)
+):
+    return await ListeningService.list_questions()
 
 @router.get("/questions/{question_id}/", response_model=ListeningQuestionSerializer)
-async def get_listening_question(question_id: int):
-    """
-    Retrieve a specific listening question by ID.
-    """
-    question = await ListeningQuestion.get_or_none(id=question_id)
+async def get_listening_question(
+    question_id: int,
+    user=Depends(get_current_user),
+    t: dict = Depends(get_translation)
+):
+    question = await ListeningService.get_question(question_id)
     if not question:
-        raise HTTPException(status_code=404, detail="Listening question not found")
+        raise HTTPException(status_code=404, detail=t["listening_question_not_found"])
     return question
-
 
 @router.post("/questions/", response_model=ListeningQuestionSerializer, status_code=status.HTTP_201_CREATED)
-async def create_listening_question(data: ListeningQuestionSerializer):
-    """
-    Create a new listening question.
-    """
-    question = await ListeningQuestion.create(**data.dict())
-    return question
-
+async def create_listening_question(
+    data: ListeningQuestionSerializer,
+    user=Depends(get_current_user)
+):
+    return await ListeningService.create_question(data.dict())
 
 @router.delete("/questions/{question_id}/", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_listening_question(question_id: int):
-    """
-    Delete a specific listening question by ID.
-    """
-    question = await ListeningQuestion.get_or_none(id=question_id)
-    if not question:
+async def delete_listening_question(
+    question_id: int,
+    user=Depends(get_current_user)
+):
+    ok = await ListeningService.delete_question(question_id)
+    if not ok:
         raise HTTPException(status_code=404, detail="Listening question not found")
-    await question.delete()
     return {"message": "Listening question deleted successfully"}

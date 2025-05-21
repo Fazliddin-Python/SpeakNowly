@@ -19,7 +19,7 @@ class EmailUpdateLimiter(BaseLimiter):
         allowed = await self.check_limit(email, limit=self.max_attempts, period=self.period)
         return not allowed
 
-    async def increment_attempts(self, email: str) -> None:
+    async def register_failed_attempt(self, email: str) -> None:
         """Record a new OTP request."""
         await self.check_limit(email, limit=self.max_attempts, period=self.period)
 

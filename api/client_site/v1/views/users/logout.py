@@ -2,6 +2,7 @@ import logging
 from fastapi import APIRouter, Depends, status
 from utils.auth.auth import get_current_user
 from utils.i18n import get_translation
+from tasks.users.activity_tasks import log_user_activity
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -24,6 +25,5 @@ async def logout(
     4. Return 204.
     """
     logger.info("User logged out: %s", current_user.email)
-    # Если используете blacklisting — добавить сюда.
-    # log_user_activity.delay(current_user.id, "logout")
+    log_user_activity.delay(current_user.id, "logout")
     return

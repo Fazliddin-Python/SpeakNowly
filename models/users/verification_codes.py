@@ -40,11 +40,11 @@ class VerificationCode(BaseModel):
     @staticmethod
     async def is_resend_blocked(email: str, verification_type: VerificationType) -> bool:
         """Check if the resend limit is reached."""
-        time_limit = datetime.now() - timedelta(minutes=1)  # Example: 1-minute limit
+        time_limit = datetime.now(timezone.utc) - timedelta(minutes=1)
         recent_code = await VerificationCode.filter(
             email=email,
             verification_type=verification_type,
-            created_at__gte=time_limit,
+            updated_at__gte=time_limit,
         ).first()
         return recent_code is not None
 

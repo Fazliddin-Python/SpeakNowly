@@ -4,7 +4,7 @@ from typing import Literal
 class CheckOTPSerializer(BaseModel):
     """Serializer for checking verification OTP."""
     email: EmailStr = Field(..., description="Email associated with the OTP")
-    code: str = Field(..., min_length=5, max_length=6, description="One-time verification code")
+    code: int = Field(..., ge=10000, le=99999, description="One-time verification code (5 digits)")
     verification_type: Literal[
         "register",
         "login",

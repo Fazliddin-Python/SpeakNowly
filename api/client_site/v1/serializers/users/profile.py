@@ -1,3 +1,4 @@
+import re
 from pydantic import BaseModel, EmailStr, Field, validator
 from typing import Optional
 
@@ -22,15 +23,10 @@ class ProfileSerializer(BaseModel):
 
 class ProfileUpdateSerializer(BaseModel):
     """Serializer for updating user profile fields."""
-    email: Optional[EmailStr] = Field(None, description="New email address")
     first_name: Optional[str] = Field(None, description="User's first name")
     last_name: Optional[str] = Field(None, description="User's last name")
     age: Optional[int] = Field(None, ge=0, le=120, description="User's age")
     photo: Optional[str] = Field(None, description="URL of the user's photo")
-
-    @validator("email")
-    def normalize_email(cls, v: str) -> str:
-        return v.lower().strip()
 
     @validator("photo")
     def validate_photo_url(cls, value: Optional[str]) -> Optional[str]:
@@ -46,8 +42,14 @@ class ProfilePasswordUpdateSerializer(BaseModel):
 
     @validator("new_password")
     def validate_new_password(cls, value: str) -> str:
-        if not any(ch.isdigit() for ch in value):
-            raise ValueError("New password must include at least one digit")
-        if not any(ch.isalpha() for ch in value):
-            raise ValueError("New password must include at least one letter")
+        if len(value) < 8:
+            raise ValueError("Password must be at least 8 characters long")
+        if not re.search(r"[A-Z]", value):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not re.search(r"[a-z]", value):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not re.search(r"\d", value):
+            raise ValueError("Password must contain at least one digit")
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", value):
+            raise ValueError("Password must contain at least one special character")
         return value

@@ -60,21 +60,16 @@ class VerificationService:
         )
 
         # 6. Save or update the code in the database
-        await VerificationCode.create(
+        await VerificationCode.update_or_create(
             email=email,
             verification_type=otp_type,
-            code=int(code),
-            is_used=False,
-            is_expired=False
+            defaults={
+                "code": int(code),
+                "is_used": False,
+                "is_expired": False,
+                "created_at": datetime.now(timezone.utc),
+            }
         )
-
-        # 7. Optionally: delete old unused codes to keep DB clean
-        await VerificationCode.filter(
-            email=email,
-            verification_type=otp_type,
-            is_used=False,
-            is_expired=False
-        ).exclude(code=int(code)).delete()
 
         logger.info(f"Verification code sent to {email} for {verification_type}")
         return code
@@ -107,13 +102,13 @@ class VerificationService:
             verification_type=otp_type,
             is_used=False,
             is_expired=False
-        ).order_by("-created_at").first()
+        ).order_by("-updated_at").first()
         if not record:
             logger.info(f"Verification code not found or used for {email}")
             raise HTTPException(status_code=400, detail="Verification code not found or used")
 
         # 3. Check if the code is expired
-        if datetime.now(timezone.utc) - record.created_at > CODE_TTL:
+        if datetime.now(timezone.utc) - record.updated_at > CODE_TTL:
             record.is_expired = True
             await record.save()
             logger.info(f"Verification code expired for {email}")

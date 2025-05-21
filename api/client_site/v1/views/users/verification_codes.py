@@ -45,7 +45,7 @@ async def verify_otp(
     try:
         user = await VerificationService.verify_code(
             email=data.email,
-            code=data.code,
+            code=str(data.code),
             verification_type=data.verification_type
         )
     except HTTPException as exc:

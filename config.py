@@ -65,3 +65,8 @@ CELERY_TASK_ROUTES = {
     "services.users.email_service.send_email_task": {"queue": "emails"},
     "tasks.users.activity_tasks.log_user_activity": {"queue": "user_activity"},
 }
+
+# === Api keys ===
+GOOGLE_CLIENT_ID = config("GOOGLE_CLIENT_ID", default="")
+GOOGLE_CLIENT_SECRET = config("GOOGLE_CLIENT_SECRET", default="https://maps.googleapis.com/maps/api/place/autocomplete/json")
+OPENAI_API_KEY = config("OPENAI_API_KEY", default="")

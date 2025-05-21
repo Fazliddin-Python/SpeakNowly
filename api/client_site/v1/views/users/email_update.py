@@ -39,12 +39,12 @@ async def request_email_update(
     2. Normalize and validate new email.
     3. Check if email is already in use.
     4. Rate-limit check.
-    5. Register failed attempt for limiter.
+    5. Register attempt for limiter.
     6. Send verification code.
     7. Log activity.
     8. Return response.
     """
-    user_id = current["user_id"]
+    user_id = current.id
     new_email = data.email.lower().strip()
     logger.info("Email-update requested for user %s -> %s", user_id, new_email)
 
@@ -59,7 +59,7 @@ async def request_email_update(
         logger.warning("Email-update blocked due to too many attempts: %s", new_email)
         raise HTTPException(status_code=429, detail=t["too_many_attempts"])
 
-    # 5. Register failed attempt for limiter
+    # 5. Register attempt for limiter
     await email_update_limiter.register_failed_attempt(new_email)
 
     # 6. Send OTP
@@ -103,21 +103,21 @@ async def confirm_email_update(
     8. Log activity.
     9. Return response.
     """
-    user_id = current["user_id"]
+    user_id = current.id
     new_email = data.new_email.lower().strip()
     logger.info("Confirm-email-update for user %s: new=%s code=%s", user_id, new_email, data.code)
 
-    # 3. Prevent duplicate email
+    # 1. Prevent duplicate email
     existing = await UserService.get_by_email(new_email)
     if existing and existing.id != user_id:
         logger.warning("Confirm-email-update failed: %s already in use", new_email)
         raise HTTPException(status_code=400, detail=t["user_already_registered"])
 
-    # 4. Verify code
+    # 2. Verify code
     try:
         await VerificationService.verify_code(
             email=new_email,
-            code=data.code,
+            code=str(data.code),
             verification_type=VerificationType.UPDATE_EMAIL
         )
     except HTTPException as exc:
@@ -125,20 +125,20 @@ async def confirm_email_update(
         logger.warning("Confirm-email-update failed: %s", detail)
         raise HTTPException(status_code=exc.status_code, detail=detail)
 
-    # 5. Reset limiter
+    # 3. Reset limiter
     await email_update_limiter.reset(new_email)
 
-    # 6. Update email
+    # 4. Update email
     await UserService.update_user(user_id, email=new_email)
 
-    # 7. Delete unused codes
+    # 5. Delete unused codes
     await VerificationService.delete_unused_codes(
         email=new_email,
         verification_type=VerificationType.UPDATE_EMAIL
     )
 
-    # 8. Log activity
+    # 6. Log activity
     log_user_activity.delay(user_id, "email_update_confirm")
 
-    # 9. Return response
+    # 7. Return response
     return {"message": t["code_confirmed"]}

@@ -13,7 +13,7 @@ from .verification_codes import router as verification_codes_router
 users_group_router = APIRouter()
 users_group_router.include_router(users_router, prefix="", tags=["Users"])
 users_group_router.include_router(profile_router, prefix="/profile", tags=["Users"])
-users_group_router.include_router(email_update_router, prefix="/email-update", tags=["Users"])
+users_group_router.include_router(email_update_router, prefix="", tags=["Users"])
 
 # Auth group router (login, logout, register, resend, forget password, verification)
 auth_group_router = APIRouter()

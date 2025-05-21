@@ -10,6 +10,7 @@ from ..serializers.transactions import (
     TokenTransactionListSerializer,
     TokenTransactionDetailSerializer,
 )
+from ..serializers.payments import PaymentCreateSerializer
 
 router = APIRouter()
 
@@ -107,3 +108,4 @@ async def create_payment(payment_data: PaymentCreateSerializer):
     async with in_transaction():
         # ...вся логика создания платежа и invoice...
         # если будет raise — всё откатится
+        pass

@@ -15,7 +15,7 @@ class ResetPasswordSerializer(BaseModel):
         json_schema_extra = {
             "example": {
                 "email": "user@example.com",
-                "code": 123456,
+                "code": 12345,
                 "new_password": "NewPass123"
             }
         }

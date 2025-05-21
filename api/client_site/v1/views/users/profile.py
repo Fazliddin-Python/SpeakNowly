@@ -67,16 +67,9 @@ async def update_profile(
         raise HTTPException(status_code=403, detail=t["inactive_user"])
 
     update_fields = data.dict(exclude_unset=True)
-    # Prevent updating protected fields
+    update_fields.pop("email", None)
     for protected in ("id", "is_superuser", "tokens", "is_verified", "is_active"):
         update_fields.pop(protected, None)
-
-    # Check email uniqueness if email is being updated
-    if "email" in update_fields and update_fields["email"]:
-        existing = await UserService.get_by_email(update_fields["email"])
-        if existing and existing.id != current_user.id:
-            logger.warning("Email already in use: %s", update_fields["email"])
-            raise HTTPException(status_code=400, detail=t["user_already_registered"])
 
     updated_user = await UserService.update_user(current_user.id, **update_fields)
     logger.info("Profile updated for user: %s", current_user.email)

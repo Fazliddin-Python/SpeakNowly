@@ -3,11 +3,7 @@ from datetime import timedelta
 from .base_limiter import BaseLimiter
 
 class LoginLimiter(BaseLimiter):
-    """
-    Limiter for login attempts by email.
-    Blocks further attempts after max_attempts within the window.
-    """
-
+    """Limiter for login attempts."""
     def __init__(
         self,
         redis_client: redis.Redis,
@@ -20,21 +16,14 @@ class LoginLimiter(BaseLimiter):
         self.period = period
 
     async def is_blocked(self, email: str) -> bool:
-        """
-        Check if login attempts for this email are blocked.
-        Returns True if limit exceeded, False otherwise.
-        """
+        """True if too many login attempts have been made for this email."""
         allowed = await self.check_limit(email, limit=self.max_attempts, period=self.period)
         return not allowed
 
     async def register_failed_attempt(self, email: str) -> None:
-        """
-        Record a failed login attempt (increments counter).
-        """
+        """Record a new failed login attempt."""
         await self.check_limit(email, limit=self.max_attempts, period=self.period)
 
-    async def register_successful_login(self, email: str) -> None:
-        """
-        Reset the failed-attempt counter after a successful login.
-        """
+    async def reset_attempts(self, email: str) -> None:
+        """Reset counter after successful login."""
         await self.reset_limit(email)
