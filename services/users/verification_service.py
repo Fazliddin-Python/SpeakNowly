@@ -78,7 +78,8 @@ class VerificationService:
     async def verify_code(
         email: str,
         code: str,
-        verification_type: str
+        verification_type: str,
+        user_id: int = None
     ) -> User:
         """
         1. Validate verification type.
@@ -124,12 +125,20 @@ class VerificationService:
         await record.save()
 
         # 6. Return the user
-        user = await UserService.get_by_email(email)
-        if not user:
-            logger.error(f"User not found for email: {email}")
-            raise HTTPException(status_code=404, detail="User not found")
-        logger.info(f"Verification code confirmed for {email}")
-        return user
+        if otp_type == VerificationType.UPDATE_EMAIL and user_id:
+            user = await UserService.get_by_id(user_id)
+            if not user:
+                logger.error(f"User not found for id: {user_id}")
+                raise HTTPException(status_code=404, detail="User not found")
+            logger.info(f"Verification code confirmed for user_id={user_id} (UPDATE_EMAIL)")
+            return user
+        else:
+            user = await UserService.get_by_email(email)
+            if not user:
+                logger.error(f"User not found for email: {email}")
+                raise HTTPException(status_code=404, detail="User not found")
+            logger.info(f"Verification code confirmed for {email}")
+            return user
 
     @staticmethod
     async def delete_unused_codes(email: str, verification_type: str) -> None:

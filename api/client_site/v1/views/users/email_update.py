@@ -118,7 +118,8 @@ async def confirm_email_update(
         await VerificationService.verify_code(
             email=new_email,
             code=str(data.code),
-            verification_type=VerificationType.UPDATE_EMAIL
+            verification_type=VerificationType.UPDATE_EMAIL,
+            user_id=user_id
         )
     except HTTPException as exc:
         detail = exc.detail if isinstance(exc.detail, str) else t["otp_verification_failed"]
@@ -129,8 +130,11 @@ async def confirm_email_update(
     await email_update_limiter.reset_attempts(new_email)
 
     # 4. Update email
-    await UserService.update_user(user_id, email=new_email)
-
+    logger.info(f"Trying to update user: user_id={user_id}, new_email={new_email}")
+    user_check = await UserService.get_by_id(user_id)
+    logger.info(f"UserService.get_by_id({user_id}) result: {user_check}")
+    user = await UserService.update_user(user_id, email=new_email)
+    print(user)
     # 5. Delete unused codes
     await VerificationService.delete_unused_codes(
         email=new_email,
