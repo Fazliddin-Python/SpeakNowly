@@ -98,7 +98,7 @@ async def confirm_password_reset(
         raise HTTPException(status_code=exc.status_code, detail=detail)
 
     # 2. Reset limiter on success
-    await forget_limiter.reset(normalized_email)
+    await forget_limiter.reset_attempts(normalized_email)
 
     # 3. Change password
     await UserService.change_password(user.id, data.new_password)
