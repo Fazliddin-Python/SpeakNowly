@@ -126,7 +126,7 @@ async def confirm_email_update(
         raise HTTPException(status_code=exc.status_code, detail=detail)
 
     # 3. Reset limiter
-    await email_update_limiter.reset(new_email)
+    await email_update_limiter.reset_attempts(new_email)
 
     # 4. Update email
     await UserService.update_user(user_id, email=new_email)
