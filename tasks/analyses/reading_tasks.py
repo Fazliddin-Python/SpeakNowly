@@ -7,6 +7,10 @@ logger = logging.getLogger(__name__)
 
 @shared_task
 def analyse_reading_task(reading_id: int):
+    """
+    Celery task to analyze a reading.
+    This function is called by the Celery worker to perform the analysis in the background.
+    """
     logger.info("Celery: Start reading analysis for reading %s", reading_id)
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)

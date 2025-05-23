@@ -12,6 +12,9 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "too_many_attempts": "Too many attempts, please try again later",
         "internal_error": "Internal server error",
         "invalid_oauth2_token": "Invalid OAuth2 token",
+        "email_already_in_use": "This email is already in use",
+        "password_too_weak": "Password is too weak",
+        "invalid_email_format": "Invalid email format",
 
         # --- Verification/OTP ---
         "verification_sent": "Verification code has been sent",
@@ -51,6 +54,9 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "too_many_attempts": "Слишком много попыток, попробуйте позже",
         "internal_error": "Внутренняя ошибка сервера",
         "invalid_oauth2_token": "Неверный OAuth2 токен",
+        "email_already_in_use": "Этот email уже используется",
+        "password_too_weak": "Пароль слишком простой",
+        "invalid_email_format": "Некорректный формат email",
 
         # --- Verification/OTP ---
         "verification_sent": "Код подтверждения отправлен",
@@ -90,6 +96,9 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "too_many_attempts": "Juda ko'p urinishlar, iltimos keyinroq urinib ko'ring",
         "internal_error": "Ichki server xatosi",
         "invalid_oauth2_token": "Noto'g'ri OAuth2 token",
+        "email_already_in_use": "Bu email allaqachon ishlatilmoqda",
+        "password_too_weak": "Parol juda oddiy",
+        "invalid_email_format": "Email formati noto'g'ri",
 
         # --- Verification/OTP ---
         "verification_sent": "Tasdiqlash kodi yuborildi",
