@@ -1,22 +1,14 @@
-from typing import Optional, List
-from ..base import BaseSerializer, SafeSerializer
+from turtle import st
+from typing import Optional, List, Any
+from pydantic import BaseModel
+from datetime import datetime
 
-
-class ListeningSerializer(SafeSerializer):
-    """Serializer for listening tests (GET requests)."""
+# --- For creation (POST) ---
+class ListeningCreateSerializer(BaseModel):
     title: str
     description: str
 
-
-class ListeningPartSerializer(SafeSerializer):
-    """Serializer for parts of a listening test (GET requests)."""
-    listening_id: int
-    part_number: int
-    audio_file: str
-
-
-class ListeningSectionSerializer(SafeSerializer):
-    """Serializer for sections of a listening part (GET requests)."""
+class ListeningSectionCreateSerializer(BaseModel):
     part_id: int
     section_number: int
     start_index: int
@@ -25,26 +17,49 @@ class ListeningSectionSerializer(SafeSerializer):
     question_text: Optional[str]
     options: Optional[List[str]]
 
-
-class ListeningQuestionSerializer(SafeSerializer):
-    """Serializer for questions in a listening section (GET requests)."""
+class ListeningQuestionCreateSerializer(BaseModel):
     section_id: int
     index: int
     options: Optional[List[str]]
     correct_answer: str
 
+# --- For reading (GET) ---
+class ListeningSerializer(BaseModel):
+    id: int
+    title: str
+    description: str
 
-class UserListeningSessionSerializer(SafeSerializer):
-    """Serializer for user listening sessions (GET requests)."""
+class ListeningPartSerializer(BaseModel):
+    id: int
+    listening_id: int
+    part_number: int
+    audio_file: str
+
+class ListeningSectionSerializer(BaseModel):
+    id: int
+    part_id: int
+    section_number: int
+    start_index: int
+    end_index: int
+    question_type: str
+    question_text: Optional[str]
+    options: Optional[List[str]]
+
+class ListeningQuestionSerializer(BaseModel):
+    section_id: int
+    index: int
+    options: Optional[List[str]]
+    correct_answer: str
+
+class UserListeningSessionSerializer(BaseModel):
+    id: int
     user_id: int
     exam_id: int
     status: str
-    start_time: str
-    end_time: Optional[str]
+    start_time: datetime
+    end_time: Optional[datetime]
 
-
-class UserResponseSerializer(BaseSerializer):
-    """Serializer for user responses in listening tests (POST/PUT requests)."""
+class UserResponseSerializer(BaseModel):
     session_id: int
     user_id: int
     question_id: int

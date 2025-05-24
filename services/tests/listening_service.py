@@ -204,8 +204,11 @@ class ListeningService:
     @staticmethod
     async def create_question(data: dict) -> ListeningQuestion:
         """
-        Create a new listening question.
+        Create a new listening qusestion.
         """
+        # В сервисе перед create:
+        print("options type:", type(data.get("options")), data.get("options"))
+        print("correct_answer type:", type(data.get("correct_answer")), data.get("correct_answer"))
         return await ListeningQuestion.create(**data)
 
     @staticmethod

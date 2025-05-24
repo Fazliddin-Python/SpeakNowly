@@ -12,7 +12,7 @@ from ...serializers.tests.reading import (
 from services.tests.reading_service import ReadingService
 from utils.i18n import get_translation
 from utils.auth.auth import get_current_user
-from tasks.analyses.reading_tasks import analyse_reading_task
+from tasks.analyses import analyse_reading_task
 
 router = APIRouter()
 

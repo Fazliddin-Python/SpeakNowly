@@ -60,7 +60,7 @@ class ListeningQuestion(BaseModel):
     section = fields.ForeignKeyField("models.ListeningSection", on_delete=fields.CASCADE, related_name="questions", description="Related section")
     index = fields.IntField(description="Index of the question within the section")
     options = fields.JSONField(null=True, description="Options for the question")
-    correct_answer = fields.JSONField(description="Correct answer for the question")
+    correct_answer = fields.CharField(max_length=255)
 
     class Meta:
         table = "listening_questions"
