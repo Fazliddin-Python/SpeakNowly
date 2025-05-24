@@ -1,6 +1,6 @@
+import redis.asyncio as redis
 from datetime import timedelta
 from .base_limiter import BaseLimiter
-import redis.asyncio as redis
 
 class ForgetPasswordLimiter(BaseLimiter):
     """Limiter for forget-password OTP requests."""

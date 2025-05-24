@@ -8,7 +8,7 @@ from services.users.verification_service import VerificationService
 from services.users.user_service import UserService
 from utils.limiters.forget_password import ForgetPasswordLimiter
 from utils.i18n import get_translation
-from tasks.users.activity_tasks import log_user_activity
+from tasks.users import log_user_activity
 from models.users.verification_codes import VerificationType
 from config import REDIS_URL
 
@@ -101,7 +101,7 @@ async def confirm_password_reset(
     await forget_limiter.reset_attempts(normalized_email)
 
     # 3. Change password
-    await UserService.change_password(user.id, data.new_password)
+    await UserService.change_password(user.id, data.new_password, t)
 
     # 4. Delete unused codes
     await VerificationService.delete_unused_codes(

@@ -9,7 +9,7 @@ from services.users.verification_service import VerificationService
 from utils.auth.auth import create_access_token
 from utils.i18n import get_translation
 from models.users.verification_codes import VerificationType
-from tasks.users.activity_tasks import log_user_activity
+from tasks.users import log_user_activity
 from utils.limiters.register import RegistrationLimiter
 from config import REDIS_URL
 
@@ -61,7 +61,7 @@ async def register(
 
     # 3. Create new user or reuse unverified one
     if not existing:
-        user = await UserService.register(email=normalized_email, password=data.password)
+        user = await UserService.register(email=normalized_email, password=data.password, t=t)
         first_time = True
     else:
         user = existing

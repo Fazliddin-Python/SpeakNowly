@@ -43,6 +43,12 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
 
         # --- Other ---
         "invalid_callback_data": "Invalid callback data",
+        "question_not_found": "Question not found",
+        "listening_session_not_found": "Listening session not found",
+        "no_listening_tests": "No listening tests available",
+        "session_already_completed": "Session already completed",
+        "listening_test_not_found": "Listening test not found",
+        "answers_submitted": "Answers submitted successfully",
     },
     "ru": {
         # --- User/Auth ---
@@ -85,6 +91,12 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
 
         # --- Other ---
         "invalid_callback_data": "Неверные данные обратного вызова",
+        "question_not_found": "Вопрос не найден",
+        "listening_session_not_found": "Сессия прослушивания не найдена",
+        "no_listening_tests": "Нет доступных тестов прослушивания",
+        "session_already_completed": "Сессия уже завершена",
+        "listening_test_not_found": "Тест прослушивания не найден",
+        "answers_submitted": "Ответы успешно отправлены",
     },
     "uz": {
         # --- User/Auth ---
@@ -127,6 +139,12 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
 
         # --- Other ---
         "invalid_callback_data": "Noto'g'ri qayta chaqirish ma'lumotlari",
+        "question_not_found": "Savol topilmadi",
+        "listening_session_not_found": "Tinglash sessiyasi topilmadi",
+        "no_listening_tests": "Tinglash testlari mavjud emas",
+        "session_already_completed": "Sessiya allaqachon yakunlangan",
+        "listening_test_not_found": "Tinglash testi topilmadi",
+        "answers_submitted": "Javoblar muvaffaqiyatli yuborildi",
     },
 }
 

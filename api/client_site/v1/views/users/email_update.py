@@ -9,7 +9,7 @@ from services.users.verification_service import VerificationService
 from services.users.user_service import UserService
 from utils.auth.auth import get_current_user
 from utils.i18n import get_translation
-from tasks.users.activity_tasks import log_user_activity
+from tasks.users import log_user_activity
 from models.users.verification_codes import VerificationType
 from utils.limiters.email_update import EmailUpdateLimiter
 from config import REDIS_URL
@@ -133,8 +133,7 @@ async def confirm_email_update(
     logger.info(f"Trying to update user: user_id={user_id}, new_email={new_email}")
     user_check = await UserService.get_by_id(user_id)
     logger.info(f"UserService.get_by_id({user_id}) result: {user_check}")
-    user = await UserService.update_user(user_id, email=new_email)
-    print(user)
+    user = await UserService.update_user(user_id, t, email=new_email)
     # 5. Delete unused codes
     await VerificationService.delete_unused_codes(
         email=new_email,

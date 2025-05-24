@@ -4,69 +4,46 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [packages]
-# Web framework
-fastapi = { extras = ["all"], version = "*" }
-uvicorn = { extras = ["standard"], version = "*" }
-
-# ORM & migrations
-tortoise-orm = "*"
 aerich = "*"
-
-# HTTP clients & utils
+asyncpg = "*"
+celery = "*"
+fastapi = { extras = ["all"], version = "*" }
+google-auth = "*"
 httpx = "*"
-requests = "*"
-jinja2 = "*"
-
-# Auth / Security
-jwt = "*"
-python-jose = "*"
 jwcrypto = "*"
 passlib = "*"
-
-# OAuth
-google-auth = "*"
-
-# Celery & Redis
-celery = "*"
-redis = "*"
-
-# Database drivers
-asyncpg = "*" 
-
-# Configuration
-python-decouple = "*"
-python-dotenv = "*"
-
-# Miscellaneous
+pillow = "*"
+pyjwt = "*"
 pydantic = { extras = ["email"], version = "*" }
+python-decouple = "*"
+python-jose = "*"
 python-multipart = "*"
+redis = "*"
+requests = "*"
+tortoise-orm = "*"
+uvicorn = { extras = ["standard"], version = "*" }
 
 [dev-packages]
-# Linters & formatters
-black = "*"
-isort = "*"
+Faker = "*"
 autoflake = "*"
+black = "*"
+factory-boy = "*"
 flake8 = "*"
 flake8-bugbear = "*"
 flake8-comprehensions = "*"
 flake8-eradicate = "*"
 flake8-pie = "*"
-pyflakes = "*"
-
-# Testing
-pytest = "*"
-pytest-cov = "*"
-pytest-xdist = "*"
-factory-boy = "*"
-pytest-factoryboy = "*"
-Faker = "*"
-pytest-pretty = "*"
-pytest-benchmark = "*"
-
-# Config tooling
+isort = "*"
 openai = "*"
-tomlkit = "*"
 psutil = "*"
+pyflakes = "*"
+pytest = "*"
+pytest-benchmark = "*"
+pytest-cov = "*"
+pytest-factoryboy = "*"
+pytest-pretty = "*"
+pytest-xdist = "*"
+tomlkit = "*"
 
 [requires]
 python_version = "3.12"

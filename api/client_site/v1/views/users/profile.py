@@ -11,7 +11,7 @@ from ...serializers.users.profile import (
 from services.users.user_service import UserService
 from utils.auth.auth import get_current_user
 from utils.i18n import get_translation
-from tasks.users.activity_tasks import log_user_activity
+from tasks.users import log_user_activity
 
 router = APIRouter()
 bearer_scheme = HTTPBearer()
@@ -71,7 +71,7 @@ async def update_profile(
     for protected in ("id", "is_superuser", "tokens", "is_verified", "is_active"):
         update_fields.pop(protected, None)
 
-    updated_user = await UserService.update_user(current_user.id, **update_fields)
+    updated_user = await UserService.update_user(current_user.id, t, **update_fields)
     logger.info("Profile updated for user: %s", current_user.email)
     log_user_activity.delay(current_user.id, "profile_update")
 
@@ -106,7 +106,7 @@ async def update_password(
         logger.warning("Incorrect old password for user: %s", current_user.email)
         raise HTTPException(status_code=400, detail="Incorrect old password")
 
-    await UserService.change_password(current_user.id, data.new_password)
+    await UserService.change_password(current_user.id, data.new_password, t)
     logger.info("Password updated for user: %s", current_user.email)
     log_user_activity.delay(current_user.id, "password_update")
 

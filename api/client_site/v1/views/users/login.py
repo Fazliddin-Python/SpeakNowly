@@ -12,7 +12,7 @@ from services.users.user_service import UserService
 from utils.auth.auth import create_access_token, decode_access_token
 from utils.auth.oauth2_auth import oauth2_sign_in
 from utils.i18n import get_translation
-from tasks.users.activity_tasks import log_user_activity
+from tasks.users import log_user_activity
 from utils.limiters.login import LoginLimiter
 from config import REDIS_URL
 
@@ -34,70 +34,49 @@ async def login(
     t: dict = Depends(get_translation)
 ) -> AuthResponseSerializer:
     """
-    Authenticate a user via email/password and issue JWT.
+    Authenticate a user via email and password, then issue a JWT.
 
     Steps:
-    1. Normalize and validate email.
-    2. Check login rate limit.
-    3. Fetch user by email.
-    4. Check if user is active.
-    5. Verify password.
-    6. Check if email is verified.
-    7. Reset limiter on success.
-    8. Issue JWT and log activity.
-    9. Return response.
+    1. Normalize and validate the email.
+    2. Check login rate limiting.
+    3. Authenticate the user via the service (checks email, password, status, verification).
+    4. Reset limiter counter on successful login.
+    5. Update the user's last_login timestamp.
+    6. Generate a JWT token.
+    7. Log the successful login and user activity.
+    8. Return the response with the token.
     """
     email = data.email.lower().strip()
     logger.info("Login attempt for email: %s", email)
 
     try:
-        # 1. Rate-limit check
+        # 1. Check login rate limiting
         if await login_limiter.is_blocked(email):
             logger.warning("Login blocked due to too many attempts: %s", email)
             raise HTTPException(status_code=429, detail=t["too_many_attempts"])
 
-        # 2. Fetch user
-        user = await UserService.get_by_email(email)
-        if not user:
-            logger.warning("Login failed, user not found: %s", email)
-            await login_limiter.register_failed_attempt(email)
-            raise HTTPException(status_code=401, detail=t["invalid_credentials"])
+        # 2. Authenticate user via service (all checks inside)
+        user = await UserService.authenticate(email, data.password, t)
 
-        # 3. Check if user is active
-        if not user.is_active:
-            logger.warning("Login failed, inactive user: %s", email)
-            raise HTTPException(status_code=403, detail=t["inactive_user"])
-
-        # 4. Password verification (run in thread pool if bcrypt is sync)
-        loop = asyncio.get_event_loop()
-        password_valid = await loop.run_in_executor(None, user.check_password, data.password)
-        if not password_valid:
-            logger.warning("Login failed, incorrect password: %s", email)
-            await login_limiter.register_failed_attempt(email)
-            raise HTTPException(status_code=401, detail=t["invalid_credentials"])
-
-        # 5. Email verified
-        if not user.is_verified:
-            logger.warning("Login failed, email not verified: %s", email)
-            raise HTTPException(status_code=403, detail=t["email_not_verified"])
-
-        # 6. Successful login — reset limiter counter
+        # 3. Reset limiter counter on success
         await login_limiter.reset_attempts(email)
 
-        # 6.1. Update last_login
-        await UserService.update_user(user.id, last_login=datetime.utcnow())
+        # 4. Update last_login timestamp
+        await UserService.update_user(user.id, t, last_login=datetime.utcnow())
 
-        # 7. Issue JWT
+        # 5. Generate JWT token
         token = create_access_token(subject=str(user.id), email=user.email)
         logger.info("User logged in successfully: %s", email)
 
-        # 8. Log activity
+        # 6. Log user activity
         log_user_activity.delay(user.id, "login")
 
+        # 7. Return response with token
         return AuthResponseSerializer(token=token, auth_type="Bearer")
 
     except HTTPException as exc:
         logger.warning("HTTPException during login: %s\n%s", exc.detail, traceback.format_exc())
+        await login_limiter.register_failed_attempt(email)
         detail = exc.detail if isinstance(exc.detail, str) else t.get("internal_error", "Internal server error")
         raise HTTPException(status_code=exc.status_code, detail=detail)
     except Exception as exc:
@@ -149,7 +128,7 @@ async def oauth2_login(
             raise HTTPException(status_code=403, detail=t.get("inactive_user", "User is inactive"))
 
         logger.info("OAuth2 login successful for user_id=%s", user_id)
-        await UserService.update_user(user.id, last_login=datetime.utcnow())
+        await UserService.update_user(user.id, t, last_login=datetime.utcnow())
         log_user_activity.delay(user_id, f"oauth2_{data.auth_type}")
 
         return AuthResponseSerializer(token=access_token, auth_type="Bearer")

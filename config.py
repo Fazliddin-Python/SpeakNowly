@@ -63,7 +63,15 @@ CELERY_TIMEZONE = "UTC"
 REDIS_URL = config("REDIS_URL", default="redis://localhost:6379/0")
 CELERY_TASK_ROUTES = {
     "services.users.email_service.send_email_task": {"queue": "emails"},
+
+    # Analyses
+    "tasks.analyses.listening_tasks.analyse_listening_task": {"queue": "analyses"},
+    "tasks.analyses.reading_tasks.analyse_reading_task": {"queue": "analyses"},
+    "tasks.analyses.speaking_tasks.analyse_speaking_task": {"queue": "analyses"},
+    "tasks.analyses.writing_tasks.analyse_writing_task": {"queue": "analyses"},
     "tasks.users.activity_tasks.log_user_activity": {"queue": "user_activity"},
+    "tasks.comments_tasks.notify_admin_about_comment": {"queue": "notifications"},
+    "tasks.notifications_tasks.send_mass_notification": {"queue": "notifications"},
 }
 
 # === Api keys ===

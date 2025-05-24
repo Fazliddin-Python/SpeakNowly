@@ -3,8 +3,8 @@ from random import randint
 from datetime import datetime, timezone, timedelta
 from fastapi import HTTPException
 
-from services.users.email_service import EmailService
 from services.users.user_service import UserService
+from services.users.email_service import send_email_task
 from models.users.verification_codes import VerificationCode, VerificationType
 from models.users.users import User
 
@@ -23,7 +23,7 @@ class VerificationService:
         2. Check resend limiter (block if too frequent).
         3. Check if user is already verified (for registration).
         4. Generate a random verification code.
-        5. Send the code via email using EmailService.
+        5. Send the code via email using Celery.
         6. Save or update the code in the database.
         7. Return the code.
         """
@@ -51,15 +51,108 @@ class VerificationService:
         # 4. Generate a random code
         code = f"{randint(10000, 99999)}"
 
-        # 5. Send the code via email
-        await EmailService.send_email(
-            subject="Your Verification Code",
-            recipients=[email],
-            verification_type=verification_type,
-            code=code
-        )
+        # 5. Prepare email content
+        subject = "Your Verification Code"
+        body = f"Your verification code is: {code}"
+        html_body = f"""\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Your Login</title>
+  <style>
+    body {{
+      font-family: Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f9f9f9;
+      color: #333333;
+    }}
+    .container {{
+      max-width: 600px;
+      margin: 2rem auto;
+      background-color: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }}
+    .header {{
+      background-color: #4F6AFC;
+      text-align: center;
+      padding: 20px;
+      color: #ffffff;
+    }}
+    .header .website {{
+      font-size: 16px;
+      margin-top: 10px;
+      font-weight: bold;
+    }}
+    .content {{
+      padding: 20px 30px;
+      text-align: center;
+    }}
+    .content h1 {{
+      color: #4F6AFC;
+      font-size: 24px;
+      margin-bottom: 16px;
+    }}
+    .content p {{
+      margin: 0 0 16px;
+      line-height: 1.6;
+    }}
+    .content .code {{
+      font-size: 24px;
+      font-weight: bold;
+      color: #333333;
+      padding: 10px 20px;
+      background-color: #f4f4f4;
+      border-radius: 4px;
+      display: inline-block;
+      margin: 20px 0;
+    }}
+    .footer {{
+      text-align: center;
+      padding: 10px;
+      font-size: 12px;
+      color: #888888;
+      background-color: #f9f9f9;
+      border-top: 1px solid #dddddd;
+    }}
+    .footer a {{
+      color: #4F6AFC;
+      text-decoration: none;
+    }}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="website">
+        <h1 style="color: #ffffff; font-size: 32px; font-weight: bold; margin: 0; letter-spacing: 3px; text-transform: uppercase;">
+          <a href="https://speaknowly.com" style="color: #ffffff; text-decoration: none; display: block;">SPEAKNOWLY</a>
+        </h1>
+      </div>
+    </div>
+    <div class="content">
+      <h1>{verification_type}</h1>
+      <p>Please use the following verification code to log in to your account:</p>
+      <p class="code">{code}</p>
+      <p>If you did not request this code, you can safely ignore this email.</p>
+      <p>Thank you,<br>The Speaknowly Team</p>
+    </div>
+    <div class="footer">
+      &copy; {datetime.now().year} Speaknowly. All rights reserved.
+    </div>
+  </div>
+</body>
+</html>
+"""
 
-        # 6. Save or update the code in the database
+        # 6. Send email via Celery
+        send_email_task.delay(subject, [email], body, html_body)
+
+        # 7. Save or update the code in the database
         await VerificationCode.update_or_create(
             email=email,
             verification_type=otp_type,

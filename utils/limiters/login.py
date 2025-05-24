@@ -10,7 +10,6 @@ class LoginLimiter(BaseLimiter):
         max_attempts: int = 5,
         period: timedelta = timedelta(minutes=15)
     ):
-        # Prefix "login" + email will form keys like "login:user@example.com"
         super().__init__(redis_client, prefix="login")
         self.max_attempts = max_attempts
         self.period = period

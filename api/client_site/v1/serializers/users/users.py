@@ -1,5 +1,3 @@
-# serializers/users/user.py
-
 from pydantic import BaseModel, EmailStr, Field, validator
 from typing import Optional
 from datetime import datetime
@@ -16,12 +14,6 @@ class UserBaseSerializer(BaseModel):
     photo: Optional[str] = Field(None, description="URL of the user's photo")
     is_verified: bool = Field(..., description="Whether the user is verified")
     is_active: bool = Field(..., description="Whether the user account is active")
-
-    @validator("photo")
-    def validate_photo_url(cls, v):
-        if v and not v.startswith(("http://", "https://")):
-            raise ValueError("Photo URL must start with http:// or https://")
-        return v
 
     class Config:
         from_attributes = True

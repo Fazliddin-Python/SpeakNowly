@@ -2,7 +2,7 @@ import logging
 from fastapi import APIRouter, Depends, status
 from utils.auth.auth import get_current_user
 from utils.i18n import get_translation
-from tasks.users.activity_tasks import log_user_activity
+from tasks.users import log_user_activity
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

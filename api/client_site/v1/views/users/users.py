@@ -12,7 +12,7 @@ from ...serializers.users.users import (
 from services.users.user_service import UserService
 from utils.i18n import get_translation
 from utils.auth.auth import get_current_user
-from tasks.users.activity_tasks import log_user_activity
+from tasks.users import log_user_activity
 
 router = APIRouter()
 auth_scheme = HTTPBearer()
@@ -140,7 +140,7 @@ async def update_user(
                 detail=t["user_already_registered"]
             )
 
-    updated = await UserService.update_user(user_id=user_id, **data.dict(exclude_none=True))
+    updated = await UserService.admin_update_user(user_id=user_id, t=t, **data.dict(exclude_none=True))
     if not updated:
         logger.warning("User %d not found for update", user_id)
         raise HTTPException(
@@ -169,7 +169,7 @@ async def delete_user(
         raise HTTPException(status_code=403, detail="Permission denied")
 
     try:
-        await UserService.delete_user(user_id)
+        await UserService.delete_user(user_id, t)
     except HTTPException as exc:
         logger.warning("User %d not found for deletion", user_id)
         raise

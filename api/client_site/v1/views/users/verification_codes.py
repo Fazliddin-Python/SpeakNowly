@@ -11,7 +11,7 @@ from services.users.verification_service import VerificationService
 from services.users.user_service import UserService
 from utils.auth.auth import create_access_token
 from utils.i18n import get_translation
-from tasks.users.activity_tasks import log_user_activity
+from tasks.users import log_user_activity
 from models.users.verification_codes import VerificationType
 
 router = APIRouter()
@@ -55,7 +55,7 @@ async def verify_otp(
 
     # 3. Mark user as verified if registration
     if data.verification_type == VerificationType.REGISTER:
-        await UserService.update_user(user.id, is_verified=True)
+        await UserService.update_user(user.id, t, is_verified=True)
         logger.info("User %s marked as verified", user.email)
 
     # 4. Issue JWT token
