@@ -1,9 +1,30 @@
 import openai
-from typing import Dict
+from typing import Dict, List
+from config import OPENAI_API_KEY
+
+openai.api_key = OPENAI_API_KEY
 
 class ChatGPTIntegration:
-    def __init__(self, api_key: str):
-        openai.api_key = api_key
+    """
+    Integration with OpenAI ChatCompletion for evaluation tasks.
+    """
+
+    async def analyse_listening(self, system: str, user: str) -> str:
+        """
+        Send system/user prompts to ChatGPT and return raw content.
+
+        :param system: System-level instructions for the model.
+        :param user: User content containing answers or data to analyze.
+        :return: Model's response content as string.
+        """
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+        )
+        return response.choices[0].message.content
 
     async def analyse_writing(self, part1_answer: str, part2_answer: str) -> Dict:
         """

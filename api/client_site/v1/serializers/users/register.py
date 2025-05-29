@@ -1,5 +1,6 @@
 import re
 from pydantic import BaseModel, EmailStr, Field, validator
+from typing import Optional
 
 
 class RegisterSerializer(BaseModel):
@@ -28,5 +29,6 @@ class RegisterSerializer(BaseModel):
 
 class RegisterResponseSerializer(BaseModel):
     """Serializer for registration response."""
-    message: str = Field(..., description="Response message")
-    token: str = Field(..., description="JWT access token")
+    message: str
+    token: str
+    refresh_token: Optional[str] = None

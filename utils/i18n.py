@@ -49,6 +49,11 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "session_already_completed": "Session already completed",
         "listening_test_not_found": "Listening test not found",
         "answers_submitted": "Answers submitted successfully",
+        "session_cancelled": "Session cancelled successfully",
+        "no_reading_tests": "No reading tests available",
+        "reading_not_found": "Reading test not found",
+        "no_passages": "No passages available for reading test",
+        "reading_already_completed": "Reading test already completed",
     },
     "ru": {
         # --- User/Auth ---

@@ -68,7 +68,7 @@ async def update_profile(
 
     update_fields = data.dict(exclude_unset=True)
     update_fields.pop("email", None)
-    for protected in ("id", "is_superuser", "tokens", "is_verified", "is_active"):
+    for protected in ("id", "is_staff", "is_superuser", "tokens", "is_verified", "is_active"):
         update_fields.pop(protected, None)
 
     updated_user = await UserService.update_user(current_user.id, t, **update_fields)

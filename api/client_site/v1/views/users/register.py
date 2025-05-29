@@ -6,7 +6,7 @@ from redis.asyncio import Redis
 from ...serializers.users.register import RegisterSerializer, RegisterResponseSerializer
 from services.users.user_service import UserService
 from services.users.verification_service import VerificationService
-from utils.auth.auth import create_access_token
+from utils.auth.auth import create_access_token, create_refresh_token
 from utils.i18n import get_translation
 from models.users.verification_codes import VerificationType
 from tasks.users import log_user_activity
@@ -82,10 +82,11 @@ async def register(
 
     # 6. Issue JWT and response
     token = create_access_token(subject=str(user.id), email=user.email)
+    refresh_token = create_refresh_token(subject=str(user.id), email=user.email)
     msg_key = "verification_sent" if first_time else "verification_resent"
     logger.info("Verification code sent to %s; JWT issued", normalized_email)
 
     # 7. Log activity asynchronously
     log_user_activity.delay(user.id, "register")
 
-    return RegisterResponseSerializer(message=t[msg_key], token=token)
+    return RegisterResponseSerializer(message=t[msg_key], token=token, refresh_token=refresh_token)

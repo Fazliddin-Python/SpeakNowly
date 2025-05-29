@@ -1,23 +1,14 @@
-from celery import shared_task
-from services.analyses.listening_analyse_service import ListeningAnalyseService
-import asyncio
+from celery_app import celery_app
 import logging
 
 logger = logging.getLogger(__name__)
 
-@shared_task
-def analyse_listening_task(test_id: int):
-    """
-    Celery task to analyze a listening test.
-    This function is called by the Celery worker to perform the analysis in the background.
-    """
-    logger.info("Celery: Start listening analysis for test %s", test_id)
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(ListeningAnalyseService.analyse(test_id))
-        logger.info("Celery: Listening analysis for test %s finished", test_id)
-    except Exception as e:
-        logger.error("Celery: Error in listening analysis for test %s: %s", test_id, str(e))
-    finally:
-        loop.close()
+@celery_app.task
+def analyse_listening_task(session_id):
+    from services.analyses.listening_analyse_service import ListeningAnalyseService
+    import asyncio
+    asyncio.run(ListeningAnalyseService.analyse(session_id))
+
+def trigger_analysis(session_id):
+    from tasks.analyses.listening_tasks import analyse_listening_task
+    analyse_listening_task.delay(session_id)

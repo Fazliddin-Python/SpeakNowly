@@ -9,7 +9,7 @@ from redis.asyncio import Redis
 
 from ...serializers.users.login import LoginSerializer, OAuth2SignInSerializer, AuthResponseSerializer
 from services.users.user_service import UserService
-from utils.auth.auth import create_access_token, decode_access_token
+from utils.auth.auth import create_access_token, create_refresh_token, decode_access_token
 from utils.auth.oauth2_auth import oauth2_sign_in
 from utils.i18n import get_translation
 from tasks.users import log_user_activity
@@ -66,13 +66,14 @@ async def login(
 
         # 5. Generate JWT token
         token = create_access_token(subject=str(user.id), email=user.email)
+        refresh_token = create_refresh_token(subject=str(user.id), email=user.email)
         logger.info("User logged in successfully: %s", email)
 
         # 6. Log user activity
         log_user_activity.delay(user.id, "login")
 
         # 7. Return response with token
-        return AuthResponseSerializer(token=token, auth_type="Bearer")
+        return AuthResponseSerializer(token=token, refresh_token=refresh_token, auth_type="Bearer")
 
     except HTTPException as exc:
         logger.warning("HTTPException during login: %s\n%s", exc.detail, traceback.format_exc())
@@ -112,6 +113,7 @@ async def oauth2_login(
             client_id=data.client_id
         )
         access_token = result.get("access_token")
+        refresh_token = result.get("refresh_token")
         if not access_token:
             logger.warning("OAuth2 login failed: no access_token in result")
             raise HTTPException(status_code=401, detail=t.get("invalid_oauth2_token", "Invalid OAuth2 token"))
@@ -131,7 +133,7 @@ async def oauth2_login(
         await UserService.update_user(user.id, t, last_login=datetime.utcnow())
         log_user_activity.delay(user_id, f"oauth2_{data.auth_type}")
 
-        return AuthResponseSerializer(token=access_token, auth_type="Bearer")
+        return AuthResponseSerializer(token=access_token, refresh_token=refresh_token, auth_type="Bearer")
 
     except HTTPException as exc:
         logger.warning("HTTPException during OAuth2 login: %s\n%s", exc.detail, traceback.format_exc())

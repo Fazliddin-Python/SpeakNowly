@@ -5,7 +5,7 @@ from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 
 from utils.auth.apple_auth import decode_apple_id_token
-from utils.auth.auth import create_access_token
+from utils.auth.auth import create_access_token, create_refresh_token
 from models.users.users import User
 from config import GOOGLE_CLIENT_ID
 
@@ -47,4 +47,5 @@ async def oauth2_sign_in(
         await user.save()
 
     access_token = create_access_token(subject=str(user.id), email=user.email)
-    return {"access_token": access_token}
+    refresh_token = create_refresh_token(subject=str(user.id), email=user.email)
+    return {"access_token": access_token, "refresh_token": refresh_token}

@@ -12,7 +12,6 @@ from ...serializers.tests.reading import (
 from services.tests.reading_service import ReadingService
 from utils.i18n import get_translation
 from utils.auth.auth import get_current_user
-from tasks.analyses import analyse_reading_task
 
 router = APIRouter()
 
@@ -185,5 +184,15 @@ async def analyse_reading_test(
     user=Depends(get_current_user)
 ):
     """Start reading analysis asynchronously via Celery."""
+    from tasks.analyses.reading_tasks import analyse_reading_task
+    background_tasks.add_task(analyse_reading_task.delay, reading_id)
+    return {"message": "Reading analysis started. Check back later for results."}
+
+@router.post("/reading/{reading_id}/analyse/")
+async def analyse_reading(
+    reading_id: int,
+    background_tasks: BackgroundTasks
+):
+    from tasks.analyses import analyse_reading_task
     background_tasks.add_task(analyse_reading_task.delay, reading_id)
     return {"message": "Reading analysis started. Check back later for results."}

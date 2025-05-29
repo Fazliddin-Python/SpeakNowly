@@ -37,6 +37,22 @@ def create_access_token(
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
+def create_refresh_token(
+    subject: str,
+    email: str,
+    expires_delta: Optional[timedelta] = None
+) -> str:
+    """
+    Create a signed JWT refresh token with a longer expiration.
+    """
+    if expires_delta is None:
+        expires_delta = timedelta(days=30)
+    expire = datetime.now(timezone.utc) + expires_delta
+    expire_timestamp = int(expire.timestamp())
+    payload = {"sub": subject, "email": email, "exp": expire_timestamp, "type": "refresh"}
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
 def decode_access_token(token: str) -> TokenPayload:
     """
     Decode and validate the JWT access token.

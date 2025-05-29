@@ -1,115 +1,193 @@
 import random
 import logging
-from typing import List, Optional, Tuple
+from typing import List, Dict, Any
 from datetime import datetime, timezone
 
+from fastapi import HTTPException
+from tortoise.transactions import in_transaction
+
 from models.tests.listening import (
-    Listening, ListeningPart, ListeningSection, ListeningQuestion,
-    UserListeningSession, UserResponse
+    Listening,
+    ListeningPart,
+    ListeningSection,
+    ListeningQuestion,
+    UserListeningSession,
+    UserResponse,
 )
 
 logger = logging.getLogger(__name__)
 
 class ListeningService:
+    """
+    Service layer for handling listening test operations: managing tests, sessions,
+    and user responses. Interacts with Tortoise ORM models and triggers background
+    analysis tasks.
+    """
+
+    @staticmethod
+    async def _get_session(session_id: int, user_id: int) -> UserListeningSession:
+        """
+        Retrieve a UserListeningSession by ID and verify ownership.
+
+        :param session_id: ID of the listening session.
+        :param user_id: ID of the user requesting the session.
+        :return: UserListeningSession instance.
+        :raises HTTPException: if session not found or user unauthorized.
+        """
+        session = await UserListeningSession.get_or_none(id=session_id)
+        if not session or session.user_id != user_id:
+            logger.warning(
+                f"Session not found or forbidden: session_id={session_id}, user_id={user_id}"
+            )
+            raise HTTPException(status_code=404, detail="Listening session not found")
+        return session
+
     @staticmethod
     async def list_tests() -> List[Listening]:
         """
-        Get all listening tests.
+        Fetch all listening tests along with their nested parts, sections, and questions.
+
+        :return: List of Listening test instances.
         """
-        return await Listening.all()
+        logger.info("Fetching all listening tests")
+        return await Listening.all().prefetch_related("parts__sections__questions")
 
     @staticmethod
-    async def get_test(test_id: int) -> Optional[Listening]:
+    async def get_test(test_id: int) -> Listening:
         """
-        Get a listening test by ID.
+        Retrieve a single listening test by ID.
+
+        :param test_id: ID of the listening test.
+        :return: Listening instance.
+        :raises HTTPException: if test not found.
         """
-        return await Listening.get_or_none(id=test_id)
+        logger.info(f"Fetching listening test id={test_id}")
+        test = await Listening.get_or_none(id=test_id).prefetch_related(
+            "parts__sections__questions"
+        )
+        if not test:
+            logger.warning(f"Listening test not found: test_id={test_id}")
+            raise HTTPException(status_code=404, detail="Listening test not found")
+        return test
 
     @staticmethod
-    async def create_test(data: dict) -> Listening:
+    async def create_test(data: Dict[str, Any]) -> Listening:
         """
         Create a new listening test.
+
+        :param data: Dictionary containing test fields (title, description).
+        :return: Newly created Listening instance.
         """
+        logger.info(f"Creating listening test: {data}")
         return await Listening.create(**data)
 
     @staticmethod
-    async def delete_test(test_id: int) -> bool:
+    async def delete_test(test_id: int) -> None:
         """
-        Delete a listening test by ID.
+        Delete an existing listening test by ID.
+
+        :param test_id: ID of the test to delete.
+        :raises HTTPException: if test not found.
         """
-        test = await Listening.get_or_none(id=test_id)
-        if not test:
-            logger.warning("Listening test %s not found for deletion", test_id)
-            return False
-        await test.delete()
-        logger.info("Listening test %s deleted", test_id)
-        return True
+        logger.info(f"Deleting listening test id={test_id}")
+        deleted_count = await Listening.filter(id=test_id).delete()
+        if not deleted_count:
+            logger.warning(f"Listening test not found for delete: test_id={test_id}")
+            raise HTTPException(status_code=404, detail="Listening test not found")
 
     @staticmethod
-    async def start_session(user_id: int) -> Optional[UserListeningSession]:
+    async def start_session(user_id: int) -> UserListeningSession:
         """
-        Start a new listening session for a user.
+        Start a new listening session for a user by randomly selecting a test.
+
+        :param user_id: ID of the user starting the session.
+        :return: Newly created UserListeningSession instance.
+        :raises HTTPException: if no tests available.
         """
-        logger.info("User %s is starting a listening session", user_id)
+        logger.info(f"Starting listening session for user_id={user_id}")
         tests = await Listening.all()
         if not tests:
-            logger.warning("No listening tests available for user %s", user_id)
-            return None
-        selected = random.choice(tests)
+            logger.warning("No listening tests available to start session")
+            raise HTTPException(status_code=404, detail="No listening tests available")
+
+        selected_test = random.choice(tests)
         session = await UserListeningSession.create(
             user_id=user_id,
-            exam_id=selected.id,
+            exam_id=selected_test.id,
             start_time=datetime.now(timezone.utc),
             status="started",
         )
-        logger.info("Listening session %s started for user %s", session.id, user_id)
+        logger.info(
+            f"Created session_id={session.id} for user_id={user_id}, exam_id={selected_test.id}"
+        )
         return session
 
     @staticmethod
     async def submit_answers(
         session_id: int,
         user_id: int,
-        answers: List[dict]
-    ) -> Tuple[int, Optional[str]]:
+        answers: List[Dict[str, Any]],
+    ) -> int:
         """
-        Submit answers for a listening session and calculate the score.
+        Validate and record user answers for a listening session, compute score,
+        fill in unanswered questions, mark session complete, and enqueue analysis.
+
+        :param session_id: ID of the listening session.
+        :param user_id: ID of the user submitting answers.
+        :param answers: List of answer dicts with keys 'question' and 'user_answer'.
+        :return: Total score achieved by the user.
+        :raises HTTPException: on invalid session, forbidden, or re-submission.
         """
-        logger.info("User %s submits answers for session %s", user_id, session_id)
-        session = await UserListeningSession.get_or_none(id=session_id)
-        if not session:
-            logger.warning("Session %s not found for user %s", session_id, user_id)
-            return 0, "not_found"
-        if session.user_id != user_id:
-            logger.warning("User %s tried to submit answers for another user's session %s", user_id, session_id)
-            return 0, "forbidden"
-        if session.status == "completed":
-            logger.info("Session %s already completed", session_id)
-            return 0, "already_completed"
+        logger.info(f"Submitting answers for session_id={session_id}, user_id={user_id}")
+        async with in_transaction():
+            session = await ListeningService._get_session(session_id, user_id)
+            if session.status == "completed":
+                logger.warning(f"Attempt to resubmit completed session_id={session_id}")
+                raise HTTPException(status_code=400, detail="Session already completed")
 
-        total_score = 0
-        answered_ids = set()
-        for answer in answers:
-            question = await ListeningQuestion.get_or_none(id=answer["question_id"])
-            if not question:
-                logger.warning("Question %s not found in session %s", answer["question_id"], session_id)
-                return 0, f"question_{answer['question_id']}_not_found"
-            is_correct = question.correct_answer == answer["user_answer"]
-            score = 1 if is_correct else 0
-            total_score += score
-            await UserResponse.create(
-                session_id=session_id,
-                user_id=user_id,
-                question_id=answer["question_id"],
-                user_answer=answer["user_answer"],
-                is_correct=is_correct,
-                score=score,
-            )
-            answered_ids.add(answer["question_id"])
+            # remove old responses if any
+            await UserResponse.filter(session_id=session_id, user_id=user_id).delete()
 
-        # Mark unanswered questions as incorrect
-        all_questions = await ListeningQuestion.filter(section__part__listening_id=session.exam_id).all()
-        for q in all_questions:
-            if q.id not in answered_ids:
+            total_score = 0
+            answered_questions = set()
+
+            # record provided answers
+            for ans in answers:
+                question_id = ans.get("question_id")
+                user_answer = ans.get("user_answer")
+
+                # Приводим user_answer к списку, если это не список
+                if not isinstance(user_answer, list):
+                    user_answer = [user_answer]
+
+                question = await ListeningQuestion.get_or_none(id=question_id)
+                if not question:
+                    logger.warning(f"Invalid question_id={question_id} in submitted answers")
+                    raise HTTPException(
+                        status_code=404, detail=f"Question {question_id} not found"
+                    )
+
+                logger.info(f"user_answer={user_answer!r}, type={type(user_answer)}")
+
+                correct = set(map(str, question.correct_answer)) == set(map(str, user_answer))
+                score = 1 if correct else 0
+                total_score += score
+
+                await UserResponse.create(
+                    session_id=session_id,
+                    user_id=user_id,
+                    question_id=question_id,
+                    user_answer=user_answer,
+                    is_correct=correct,
+                    score=score,
+                )
+                answered_questions.add(question_id)
+
+            # fill unanswered questions with zero scores
+            unanswered = await ListeningQuestion.filter(
+                section__part__listening_id=session.exam_id
+            ).exclude(id__in=answered_questions).all()
+            for q in unanswered:
                 await UserResponse.create(
                     session_id=session_id,
                     user_id=user_id,
@@ -119,107 +197,223 @@ class ListeningService:
                     score=0,
                 )
 
-        session.status = "completed"
-        session.end_time = datetime.now(timezone.utc)
-        await session.save()
-        logger.info("Session %s completed for user %s, score: %d", session_id, user_id, total_score)
-        return total_score, None
+            # finalize session
+            session.status = "completed"
+            session.end_time = datetime.now(timezone.utc)
+            await session.save()
+
+        # trigger background analysis
+        from tasks.analyses.listening_tasks import analyse_listening_task
+        analyse_listening_task.delay(session_id)
+        logger.info(
+            f"Session_id={session_id} completed, total_score={total_score}"
+        )
+        return total_score
 
     @staticmethod
-    async def get_session(session_id: int) -> Optional[UserListeningSession]:
+    async def get_session(session_id: int, user_id: int) -> UserListeningSession:
         """
-        Get a listening session by ID.
+        Retrieve session details for a user.
         """
-        return await UserListeningSession.get_or_none(id=session_id)
+        return await ListeningService._get_session(session_id, user_id)
 
     @staticmethod
-    async def cancel_session(session_id: int, user_id: int) -> bool:
+    async def cancel_session(session_id: int, user_id: int) -> None:
         """
-        Cancel a listening session.
+        Cancel an ongoing session if not already completed or cancelled.
+
+        :param session_id: ID of the session to cancel.
+        :param user_id: ID of the user requesting cancellation.
+        :raises HTTPException: if session cannot be cancelled.
         """
-        session = await UserListeningSession.get_or_none(id=session_id)
-        if not session or session.user_id != user_id or session.status in ["completed", "cancelled"]:
-            logger.warning("Cannot cancel session %s for user %s", session_id, user_id)
-            return False
+        session = await ListeningService._get_session(session_id, user_id)
+        if session.status == "completed":
+            logger.warning(
+                f"Cancellation forbidden for session_id={session_id}, status={session.status}"
+            )
+            raise HTTPException(
+                status_code=400, detail="Session cannot be cancelled"
+            )
+        if session.status == "cancelled":
+            logger.info(f"Session_id={session_id} already cancelled")
+            return  # Просто возвращаем успех
         session.status = "cancelled"
         await session.save()
-        logger.info("Session %s cancelled for user %s", session_id, user_id)
-        return True
+        logger.info(f"Session_id={session_id} has been cancelled")
 
     @staticmethod
-    async def get_part(part_id: int) -> Optional[ListeningPart]:
-        """
-        Get a listening part by ID.
-        """
-        return await ListeningPart.get_or_none(id=part_id).prefetch_related("sections")
+    async def get_session_data(session_id: int, user_id: int) -> Dict[str, Any]:
+        session = await UserListeningSession.get(id=session_id, user_id=user_id).prefetch_related(
+            "exam__parts__sections__questions"
+        )
+        exam = session.exam
+        parts = await exam.parts.all().prefetch_related("sections__questions")
+        part_list = []
+        for part in parts:
+            sections = await part.sections.all().prefetch_related("questions")
+            section_list = []
+            for section in sections:
+                questions = await section.questions.all()
+                question_list = []
+                for q in questions:
+                    question_list.append({
+                        "id": q.id,
+                        "section_id": q.section_id,
+                        "index": q.index,
+                        "options": q.options,
+                        "correct_answer": q.correct_answer,
+                    })
+                section_list.append({
+                    "id": section.id,
+                    "part_id": section.part_id,
+                    "section_number": section.section_number,
+                    "start_index": section.start_index,
+                    "end_index": section.end_index,
+                    "question_type": section.question_type,
+                    "question_text": section.question_text,
+                    "options": section.options,
+                    "questions": question_list,
+                })
+            part_list.append({
+                "id": part.id,
+                "listening_id": part.listening_id,
+                "part_number": part.part_number,
+                "audio_file": part.audio_file,
+                "sections": section_list,
+            })
+        return {
+            "id": session.id,
+            "created_at": session.created_at,
+            "updated_at": session.updated_at,
+            "session_id": session.id,
+            "start_time": session.start_time,
+            "status": session.status,
+            "exam": {
+                "id": exam.id,
+                "title": exam.title,
+                "description": exam.description,
+            },
+            "parts": part_list,
+        }
 
     @staticmethod
-    async def list_sections() -> List[ListeningSection]:
-        """
-        Get all listening sections.
-        """
-        return await ListeningSection.all()
+    async def submit_answers(session_id: int, user_id: int, data: Dict[str, Any]) -> None:
+        session = await UserListeningSession.get(id=session_id, user_id=user_id)
+        if session.status == "completed":
+            raise HTTPException(status_code=400, detail="Session already completed")
+        all_answers = []
+        for part_answers in data["answers"].values():
+            all_answers.extend([a.dict() if hasattr(a, "dict") else a for a in part_answers])
+        async with in_transaction():
+            await UserResponse.filter(session_id=session_id, user_id=user_id).delete()
+            for ans in all_answers:
+                question_id = ans["question_id"]
+                answer = ans.get("answer", ans.get("user_answer"))
+
+                if not isinstance(answer, list):
+                    answer = [answer]
+
+                question = await ListeningQuestion.get_or_none(id=question_id)
+                if not question:
+                    raise HTTPException(status_code=404, detail=f"Question {question_id} not found")
+
+                correct = set(map(str, question.correct_answer)) == set(map(str, answer))
+                score = 1 if correct else 0
+
+                await UserResponse.create(
+                    session_id=session_id,
+                    user_id=user_id,
+                    question_id=question_id,
+                    user_answer=answer,
+                    is_correct=correct,
+                    score=score,
+                )
+            session.status = "completed"
+            session.end_time = datetime.now(timezone.utc)
+            await session.save()
+        # импорт внутри метода, чтобы избежать циклического импорта
+        from tasks.analyses.listening_tasks import analyse_listening_task
+        analyse_listening_task.delay(session_id)
 
     @staticmethod
-    async def get_section(section_id: int) -> Optional[ListeningSection]:
-        """
-        Get a listening section by ID.
-        """
-        return await ListeningSection.get_or_none(id=section_id)
+    async def get_analysis(session_id: int, user_id: int) -> Dict[str, Any]:
+        # Здесь должен быть вызов ListeningAnalyseService
+        from services.analyses.listening_analyse_service import ListeningAnalyseService
+        analyse_obj = await ListeningAnalyseService.get_analysis(session_id)
+        responses = await UserResponse.filter(session_id=session_id, user_id=user_id).prefetch_related("question")
+        resp_list = []
+        for r in responses:
+            resp_list.append({
+                "id": r.id,
+                "user_answer": r.user_answer,
+                "is_correct": r.is_correct,
+                "score": r.score,
+                "correct_answer": [r.question.correct_answer] if r.question else [],
+                "question_index": r.question.index if r.question else None,
+            })
+        return {
+            "session_id": session_id,
+            "analyse": {
+                "correct_answers": analyse_obj.correct_answers,
+                "overall_score": analyse_obj.overall_score,
+                "timing": str(analyse_obj.timing),
+                "feedback": analyse_obj.feedback,
+            },
+            "responses": resp_list,
+        }
 
     @staticmethod
-    async def create_section(data: dict) -> ListeningSection:
-        """
-        Create a new listening section.
-        """
+    async def get_part(part_id: int) -> ListeningPart:
+        part = await ListeningPart.get_or_none(id=part_id).prefetch_related("sections__questions")
+        if not part:
+            raise HTTPException(status_code=404, detail="Listening part not found")
+        return part
+
+    @staticmethod
+    async def create_part(data: Dict[str, Any]) -> ListeningPart:
+        return await ListeningPart.create(**data)
+
+    @staticmethod
+    async def list_sections() -> ListeningSection:
+        return await ListeningSection.all().prefetch_related("questions")
+
+    @staticmethod
+    async def get_section(section_id: int) -> ListeningSection:
+        section = await ListeningSection.get_or_none(id=section_id).prefetch_related("questions")
+        if not section:
+            raise HTTPException(status_code=404, detail="Listening section not found")
+        return section
+
+    @staticmethod
+    async def create_section(data: Dict[str, Any]) -> ListeningSection:
         return await ListeningSection.create(**data)
 
     @staticmethod
-    async def delete_section(section_id: int) -> bool:
-        """
-        Delete a listening section by ID.
-        """
-        section = await ListeningSection.get_or_none(id=section_id)
-        if not section:
-            logger.warning("Listening section %s not found for deletion", section_id)
-            return False
-        await section.delete()
-        logger.info("Listening section %s deleted", section_id)
-        return True
+    async def delete_section(section_id: int) -> None:
+        deleted = await ListeningSection.filter(id=section_id).delete()
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Listening section not found")
 
     @staticmethod
-    async def list_questions() -> List[ListeningQuestion]:
-        """
-        Get all listening questions.
-        """
+    async def list_questions() -> ListeningQuestion:
         return await ListeningQuestion.all()
 
     @staticmethod
-    async def get_question(question_id: int) -> Optional[ListeningQuestion]:
-        """
-        Get a listening question by ID.
-        """
-        return await ListeningQuestion.get_or_none(id=question_id)
+    async def get_question(question_id: int) -> ListeningQuestion:
+        question = await ListeningQuestion.get_or_none(id=question_id)
+        if not question:
+            raise HTTPException(status_code=404, detail="Listening question not found")
+        return question
 
     @staticmethod
-    async def create_question(data: dict) -> ListeningQuestion:
-        """
-        Create a new listening qusestion.
-        """
-        # В сервисе перед create:
-        print("options type:", type(data.get("options")), data.get("options"))
-        print("correct_answer type:", type(data.get("correct_answer")), data.get("correct_answer"))
+    async def create_question(data: Dict[str, Any]) -> ListeningQuestion:
+        ca = data.get("correct_answer")
+        if ca is not None and not isinstance(ca, list):
+            data["correct_answer"] = [ca]
         return await ListeningQuestion.create(**data)
 
     @staticmethod
-    async def delete_question(question_id: int) -> bool:
-        """
-        Delete a listening question by ID.
-        """
-        question = await ListeningQuestion.get_or_none(id=question_id)
-        if not question:
-            logger.warning("Listening question %s not found for deletion", question_id)
-            return False
-        await question.delete()
-        logger.info("Listening question %s deleted", question_id)
-        return True
+    async def delete_question(question_id: int) -> None:
+        deleted = await ListeningQuestion.filter(id=question_id).delete()
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Listening question not found")

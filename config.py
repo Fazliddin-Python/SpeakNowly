@@ -27,7 +27,22 @@ DATABASE_CONFIG = {
     "connections": {"default": DATABASE_URL},
     "apps": {
         "models": {
-            "models": ["models", "aerich.models"],
+            "models": [
+                "models.users.users",       # <-- путь к User, если есть
+                "models.tests.listening",   # <-- путь к вашим моделям Listening
+                "models.tests.reading",      # <-- путь к вашим моделям Reading
+                "models.tests.speaking",     # <-- путь к вашим моделям Speaking
+                "models.tests.writing",      # <-- путь к вашим моделям Writing
+                "models.analyses",           # <-- путь к вашим моделям Analyses
+                "models.comments",           # <-- путь к вашим моделям Comments
+                "models.notifications",      # <-- путь к вашим моделям Notifications
+                "models.tariffs",          # <-- путь к вашим моделям Tariffs
+                "models.payments",         # <-- путь к вашим моделям Payments
+                "models.users",              # <-- путь к вашим моделям Users
+                "models.tests",              # <-- путь к вашим моделям Tests
+                "models.transactions",         # <-- путь к вашим моделям Translations
+                "aerich.models"
+            ],
             "default_connection": "default",
         }
     },

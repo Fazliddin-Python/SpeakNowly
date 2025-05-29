@@ -1,20 +1,19 @@
-from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Any
+from pydantic import BaseModel, Field
+from datetime import timedelta
+from .base import SafeSerializer, BaseModel
 
 class ListeningAnalyseSerializer(BaseModel):
-    id: int
+    """Serializer for listening session analysis results."""
     session_id: int
-    user_id: int
+    user_id: Optional[int] = None
     correct_answers: int
     overall_score: float
-    timing: str
+    timing: Optional[Any] = None
+    status: str
+    feedback: Optional[Any] = None
 
-    class Config:
-        from_attributes = True
-
-
-class ReadingAnalyseSerializer(BaseModel):
-    id: int
+class ReadingAnalyseSerializer(SafeSerializer):
     reading_id: int
     user_id: int
     correct_answers: int
@@ -22,12 +21,7 @@ class ReadingAnalyseSerializer(BaseModel):
     timing: str
     feedback: str
 
-    class Config:
-        from_attributes = True
-
-
-class SpeakingAnalyseSerializer(BaseModel):
-    id: int
+class SpeakingAnalyseSerializer(SafeSerializer):
     speaking_id: int
     feedback: Optional[str]
     overall_band_score: Optional[float]
@@ -41,12 +35,7 @@ class SpeakingAnalyseSerializer(BaseModel):
     pronunciation_feedback: Optional[str]
     duration: Optional[str]
 
-    class Config:
-        from_attributes = True
-
-
-class WritingAnalyseSerializer(BaseModel):
-    id: int
+class WritingAnalyseSerializer(SafeSerializer):
     writing_id: int
     task_achievement_feedback: str
     task_achievement_score: float
@@ -62,6 +51,3 @@ class WritingAnalyseSerializer(BaseModel):
     timing_time: Optional[str]
     overall_band_score: float
     total_feedback: str
-
-    class Config:
-        from_attributes = True

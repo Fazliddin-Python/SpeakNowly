@@ -127,7 +127,7 @@ class UserService:
         user = await UserService.get_by_email(email)
         if not user:
             logger.info(f"Login failed, user not found: {email}")
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=t["invalid_credentials"])
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=t["invalid_credentials"])
 
         if not user.is_active:
             logger.info(f"Login failed, inactive user: {email}")
@@ -137,7 +137,7 @@ class UserService:
         password_valid = await loop.run_in_executor(None, user.check_password, password)
         if not password_valid:
             logger.info(f"Login failed, incorrect password: {email}")
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=t["invalid_credentials"])
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=t["invalid_credentials"])
 
         if not user.is_verified:
             logger.info(f"Login failed, email not verified: {email}")

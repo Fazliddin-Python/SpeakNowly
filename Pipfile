@@ -5,23 +5,25 @@ verify_ssl = true
 
 [packages]
 aerich = "*"
-asyncpg = "*"
+asyncpg = ">=0.29.0"
 celery = "*"
-fastapi = { extras = ["all"], version = "*" }
 google-auth = "*"
 httpx = "*"
 jwcrypto = "*"
 passlib = "*"
 pillow = "*"
 pyjwt = "*"
-pydantic = { extras = ["email"], version = "*" }
+pydantic = "*"
 python-decouple = "*"
 python-jose = "*"
 python-multipart = "*"
 redis = "*"
 requests = "*"
-tortoise-orm = "*"
+tortoise-orm = ">=0.20.0"
 uvicorn = { extras = ["standard"], version = "*" }
+tenacity = "*"
+openai = "*"
+fastapi = {extras = ["all"], version = "*"}
 
 [dev-packages]
 Faker = "*"

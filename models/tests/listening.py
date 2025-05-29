@@ -60,7 +60,7 @@ class ListeningQuestion(BaseModel):
     section = fields.ForeignKeyField("models.ListeningSection", on_delete=fields.CASCADE, related_name="questions", description="Related section")
     index = fields.IntField(description="Index of the question within the section")
     options = fields.JSONField(null=True, description="Options for the question")
-    correct_answer = fields.CharField(max_length=255)
+    correct_answer = fields.JSONField(description="Correct answer(s) for the question")  # <-- изменено
 
     class Meta:
         table = "listening_questions"
@@ -83,7 +83,7 @@ class UserResponse(BaseModel):
     session = fields.ForeignKeyField("models.UserListeningSession", on_delete=fields.CASCADE, related_name="responses", description="Related session")
     user = fields.ForeignKeyField("models.User", on_delete=fields.CASCADE, description="User who provided the response")
     question = fields.ForeignKeyField("models.ListeningQuestion", on_delete=fields.CASCADE, description="Related question")
-    user_answer = fields.JSONField(description="User's answer to the question")
+    user_answer = fields.JSONField(null=True, description="User's answer")
     is_correct = fields.BooleanField(default=False, description="Whether the user's answer is correct")
     score = fields.IntField(default=0, description="Score for the response")
 
@@ -91,3 +91,8 @@ class UserResponse(BaseModel):
         table = "user_responses"
         verbose_name = "User Response"
         verbose_name_plural = "User Responses"
+
+    async def save(self, *args, **kwargs):
+        if self.user_answer is not None and not isinstance(self.user_answer, (str, int, float, list, dict)):
+            self.user_answer = str(self.user_answer)
+        await super().save(*args, **kwargs)
