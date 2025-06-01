@@ -97,7 +97,7 @@ class UserService:
             user = User(email=email, **extra_fields)
             user.set_password(password)
             await user.save()
-            default_tariff = await Tariff.filter(is_default=True).first()
+            default_tariff = await Tariff.get_default_tariff()
             if default_tariff:
                 user.tariff = default_tariff
                 user.tokens = default_tariff.tokens

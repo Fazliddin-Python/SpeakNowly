@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from jose import jwt, JWTError, ExpiredSignatureError
 
 from config import SECRET_KEY, ALGORITHM
-from utils.auth.auth import decode_access_token, create_access_token, create_refresh_token
+from utils.auth.auth import create_access_token, create_refresh_token
 
 router = APIRouter()
 

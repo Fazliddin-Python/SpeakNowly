@@ -1,95 +1,75 @@
 import asyncio
 from typing import Optional, List, Any, Dict, Union
 from datetime import datetime
-from pydantic import Field
-from ...serializers.base import BaseSerializer, SafeSerializer
+from pydantic import Field, field_validator, model_validator, HttpUrl, BaseModel, ValidationInfo
 
-# --- For creation (POST) ---
-class ListeningCreateSerializer(BaseSerializer):
-    """Serializer for creating a Listening test."""
-    title: str = Field(..., max_length=255, description="Title of the listening test")
-    description: str = Field(..., description="Detailed description of the listening test")
+from ...serializers.base import BaseSerializer
+from models.tests.listening import (
+    QuestionType,
+    Listening,
+    ListeningPart,
+    ListeningSection,
+    ListeningQuestion,
+    UserListeningSession,
+    PartNumber,
+)
 
-class ListeningPartCreateSerializer(BaseSerializer):
-    """Serializer for creating a part within a Listening test."""
-    listening_id: int = Field(..., gt=0, description="ID of the parent listening test")
-    part_number: int = Field(..., ge=1, le=4, description="Part number (1-4) of the test")
-    audio_file: str = Field(..., description="Path or URL to the audio file for this part")
 
-class ListeningSectionCreateSerializer(BaseSerializer):
-    """Serializer for creating a section within a listening part."""
-    part_id: int = Field(..., gt=0, description="ID of the parent listening part")
-    section_number: int = Field(..., ge=1, description="Section index within the part")
-    start_index: int = Field(..., ge=0, description="Start timestamp or index in the audio file")
-    end_index: int = Field(..., ge=0, description="End timestamp or index in the audio file")
-    question_type: str = Field(..., description="Type of questions in this section (enum)")
-    question_text: Optional[str] = Field(None, description="Prompt text for the section")
-    options: Optional[List[str]] = Field(None, description="Shared options for questions, if applicable")
-
-class ListeningQuestionCreateSerializer(BaseSerializer):
-    """Serializer for creating a question within a section."""
-    section_id: int = Field(..., gt=0, description="ID of the parent listening section")
-    index: int = Field(..., ge=1, description="Position index of the question within the section")
-    options: Optional[List[str]] = Field(None, description="Answer options for choice-type questions")
-    correct_answer: Any = Field(..., description="Correct answer (string or list, depending on type)")
-
-class UserResponseCreateSerializer(BaseSerializer):
-    """Serializer for submitting a user's answer to a question. Session and user are inferred."""
-    question_id: int = Field(..., gt=0, description="ID of the question being answered")
-    user_answer: Any = Field(..., description="User-provided answer (string, list, etc.)")
-
-# --- For reading (GET) ---
-
-class ExamShortSerializer(SafeSerializer):
-    title: str
-    description: str
+class UserListeningSessionSerializer(BaseModel):
+    id: int = Field(..., description="ID of the listening session")
+    user_id: int = Field(..., description="ID of the user")
+    exam_id: int = Field(..., description="ID of the exam")
+    status: str = Field(..., description="Status of the session")
+    start_time: Optional[datetime] = Field(None, description="Start time of the session")
+    end_time: Optional[datetime] = Field(None, description="End time of the session")
 
     @classmethod
-    async def from_orm(cls, obj):
+    async def from_orm(cls, obj: UserListeningSession) -> "UserListeningSessionSerializer":
         return cls(
             id=obj.id,
-            title=obj.title,
-            description=obj.description,
+            user_id=obj.user_id,
+            exam_id=obj.exam_id,
+            status=obj.status,
+            start_time=obj.start_time,
+            end_time=obj.end_time,
         )
 
-class ListeningQuestionOptionSerializer(SafeSerializer):
-    options: Union[Dict[str, Union[str, int]], List[str]]
-    question_text: Optional[str]
 
-class ListeningQuestionSerializer(SafeSerializer):
-    """Serializer for reading a question with options and correct answer."""
-    section_id: int
-    index: int
-    options: Optional[Union[dict, list, str, int]]
-    correct_answer: Any
+class ListeningQuestionSerializer(BaseModel):
+    id: int = Field(..., description="ID of the question")
+    section_id: int = Field(..., description="ID of the parent section")
+    index: int = Field(..., description="Position index of the question")
+    question_text: Optional[str] = Field(None, description="Text of the question")
+    options: Optional[List[str]] = Field(None, description="Answer options for the question")
+    correct_answer: Any = Field(..., description="Correct answer")
 
     @classmethod
-    async def from_orm(cls, obj):
+    async def from_orm(cls, obj: ListeningQuestion) -> "ListeningQuestionSerializer":
         return cls(
             id=obj.id,
             section_id=obj.section_id,
             index=obj.index,
+            question_text=obj.question_text,
             options=obj.options,
             correct_answer=obj.correct_answer,
-            created_at=getattr(obj, "created_at", None),
-            updated_at=getattr(obj, "updated_at", None),
         )
 
-class ListeningSectionSerializer(SafeSerializer):
-    """Serializer for reading a section with nested questions."""
-    part_id: int
-    section_number: int
-    start_index: int
-    end_index: int
-    question_type: str
-    question_text: Optional[str]
-    options: Optional[List[str]]
-    questions: List[ListeningQuestionSerializer]
+
+class ListeningSectionSerializer(BaseModel):
+    id: int = Field(..., description="ID of the section")
+    part_id: int = Field(..., description="ID of the parent part")
+    section_number: int = Field(..., description="Section number")
+    start_index: int = Field(..., description="Start index in the audio")
+    end_index: int = Field(..., description="End index in the audio")
+    question_type: QuestionType = Field(..., description="Type of questions")
+    question_text: Optional[str] = Field(None, description="Text for the section")
+    options: Optional[List[str]] = Field(None, description="Shared options for the section")
+    questions: Optional[List[ListeningQuestionSerializer]] = Field(None, description="List of questions")
 
     @classmethod
-    async def from_orm(cls, obj):
-        questions = await obj.questions.all() if hasattr(obj, "questions") else []
-        serialized = [await ListeningQuestionSerializer.from_orm(q) for q in questions]
+    async def from_orm(cls, obj: ListeningSection) -> "ListeningSectionSerializer":
+        questions_qs = await obj.questions.order_by("index").all()
+        questions = [await ListeningQuestionSerializer.from_orm(q) for q in questions_qs]
         return cls(
             id=obj.id,
             part_id=obj.part_id,
@@ -99,109 +79,324 @@ class ListeningSectionSerializer(SafeSerializer):
             question_type=obj.question_type,
             question_text=obj.question_text,
             options=obj.options,
-            questions=serialized,
-            created_at=getattr(obj, "created_at", None),
-            updated_at=getattr(obj, "updated_at", None),
+            questions=questions,
         )
 
-class ListeningPartSerializer(SafeSerializer):
-    """Serializer for reading a part with nested sections."""
-    listening_id: int
-    part_number: int
-    audio_file: str
-    sections: List[ListeningSectionSerializer]
+
+class ListeningPartSerializer(BaseModel):
+    id: int = Field(..., description="ID of the part")
+    listening_id: int = Field(..., description="ID of the parent listening")
+    part_number: PartNumber = Field(..., description="Part number")
+    audio_file: str = Field(..., description="Audio file URL")
+    sections: Optional[List[ListeningSectionSerializer]] = Field(None, description="List of sections in the part")
 
     @classmethod
-    async def from_orm(cls, obj):
-        sections = await obj.sections.all() if hasattr(obj, "sections") else []
-        serialized = [await ListeningSectionSerializer.from_orm(s) for s in sections]
+    async def from_orm(cls, obj: ListeningPart) -> "ListeningPartSerializer":
+        sections_qs = await obj.sections.order_by("section_number").all()
+        sections = [await ListeningSectionSerializer.from_orm(s) for s in sections_qs]
         return cls(
             id=obj.id,
             listening_id=obj.listening_id,
             part_number=obj.part_number,
             audio_file=obj.audio_file,
-            sections=serialized,
-            created_at=getattr(obj, "created_at", None),
-            updated_at=getattr(obj, "updated_at", None),
+            sections=sections,
         )
 
-class ListeningSerializer(SafeSerializer):
-    """Serializer for reading listening test with nested parts."""
-    title: str = Field(..., description="Title of the listening test")
-    description: str = Field(..., description="Description of the listening test")
-    parts: List[ListeningPartSerializer] = Field(
-        default_factory=list,
-        description="List of nested parts within the test"
-    )
+
+class ListeningSerializer(BaseModel):
+    id: int = Field(..., description="ID of the listening test")
+    title: str = Field(..., description="Title of the listening")
+    description: str = Field(..., description="Description of the listening")
+    parts: Optional[List[ListeningPartSerializer]] = Field(None, description="List of parts in the listening test")
 
     @classmethod
-    async def from_orm(cls, obj):
-        parts = await obj.parts.all() if hasattr(obj, "parts") else []
-        serialized = [await ListeningPartSerializer.from_orm(p) for p in parts]
+    async def from_orm(cls, obj: Listening) -> "ListeningSerializer":
+        parts_qs = await obj.parts.order_by("part_number").all()
+        parts = [await ListeningPartSerializer.from_orm(p) for p in parts_qs]
         return cls(
             id=obj.id,
             title=obj.title,
             description=obj.description,
-            parts=serialized,
-            created_at=getattr(obj, "created_at", None),
-            updated_at=getattr(obj, "updated_at", None),
+            parts=parts,
         )
 
-class ListeningDataSerializer(SafeSerializer):
-    """Serializer for sending all data for a listening session to the frontend."""
-    session_id: int
-    start_time: Optional[datetime]
-    status: str
-    exam: ExamShortSerializer
-    parts: List[ListeningPartSerializer]
 
-class UserListeningSessionSerializer(SafeSerializer):
-    """Serializer for reading user session details."""
-    id: int
-    user_id: int
-    exam_id: int
-    status: str
-    start_time: datetime
-    end_time: Optional[datetime]
-    exam: ExamShortSerializer
+class ListeningCreateSerializer(BaseSerializer):
+    """Create a new Listening test."""
+    title: str = Field(..., max_length=255, description="Title of the listening test")
+    description: str = Field(..., description="Detailed description of the listening test")
 
-    @classmethod
-    async def from_orm(cls, obj):
-        exam_obj = await obj.exam
-        exam_serialized = await ExamShortSerializer.from_orm(exam_obj)
-        return cls(
-            id=obj.id,
-            created_at=getattr(obj, "created_at", None),
-            updated_at=getattr(obj, "updated_at", None),
-            user_id=obj.user_id,
-            exam_id=obj.exam_id,
-            status=obj.status,
-            start_time=obj.start_time,
-            end_time=obj.end_time,
-            exam=exam_serialized,
-        )
+    @field_validator("title")
+    def title_must_not_be_empty(cls, v: str) -> str:
+        """Title cannot be empty or whitespace."""
+        v_stripped = v.strip()
+        if not v_stripped:
+            raise ValueError("title must not be empty or whitespace")
+        return v_stripped
 
-class UserResponseSerializer(BaseSerializer):
-    """Serializer for reading user responses to questions."""
-    session_id: int = Field(..., description="ID of the listening session")
-    user_id: int = Field(..., description="ID of the user")
-    question_id: int = Field(..., description="ID of the question")
-    user_answer: Any = Field(..., description="User's submitted answer")
-    is_correct: bool = Field(..., description="Whether the answer was correct")
-    score: int = Field(..., description="Score awarded for the response")
+    @field_validator("description")
+    def description_must_not_be_empty(cls, v: str) -> str:
+        """Description cannot be empty or whitespace."""
+        v_stripped = v.strip()
+        if not v_stripped:
+            raise ValueError("description must not be empty or whitespace")
+        return v_stripped
 
 
-# Для приёма ответов
+class ListeningPartCreateSerializer(BaseSerializer):
+    """Create a new part for an existing Listening test."""
+    listening_id: int = Field(..., gt=0, description="ID of the parent listening test")
+    part_number: int = Field(..., ge=1, le=4, description="Part number (1-4) of the test")
+    audio_file: HttpUrl = Field(..., description="URL to the audio file for this part")
+
+    @field_validator("part_number")
+    def part_number_in_enum(cls, v: int) -> int:
+        """Part number must be between 1 and 4."""
+        if v not in {1, 2, 3, 4}:
+            raise ValueError("part_number must be between 1 and 4")
+        return v
+
+
+class ListeningSectionCreateSerializer(BaseSerializer):
+    """Create a new section within a Listening part."""
+    part_id: int = Field(..., gt=0, description="ID of the parent listening part")
+    section_number: int = Field(..., ge=1, description="Section index within the part")
+    start_index: int = Field(..., ge=0, description="Start timestamp or index in the audio file")
+    end_index: int = Field(..., ge=0, description="End timestamp or index in the audio file")
+    question_type: QuestionType = Field(..., description="Type of questions in this section (enum)")
+    question_text: Optional[str] = Field(None, description="Prompt text for the section")
+    options: Optional[List[str]] = Field(None, description="Shared options for questions, if applicable")
+
+    @model_validator(mode="after")
+    def check_indices_and_options(self) -> "ListeningSectionCreateSerializer":
+        start_idx = self.start_index
+        end_idx = self.end_index
+        qtype = self.question_type
+        opts = self.options
+        if end_idx < start_idx:
+            raise ValueError("end_index must be greater than or equal to start_index")
+        if qtype in {QuestionType.CHOICE, QuestionType.MULTIPLE_ANSWERS, QuestionType.MATCHING}:
+            if not opts or not isinstance(opts, list):
+                raise ValueError(f"For question_type='{qtype.value}', 'options' must be a non-empty list of strings")
+            for item in opts:
+                if not isinstance(item, str) or not item.strip():
+                    raise ValueError("Each element in 'options' must be a non-empty string")
+        else:
+            self.options = None
+            if qtype in {QuestionType.FORM_COMPLETION, QuestionType.SENTENCE_COMPLETION, QuestionType.CLOZE_TEST}:
+                qt = self.question_text
+                if not qt or not qt.strip():
+                    raise ValueError(f"For question_type='{qtype.value}', 'question_text' must be a non-empty string")
+        return self
+
+    @field_validator("section_number")
+    def section_number_must_be_positive(cls, v: int) -> int:
+        """Section number must be at least 1."""
+        if v < 1:
+            raise ValueError("section_number must be at least 1")
+        return v
+
+
+class ListeningQuestionCreateSerializer(BaseSerializer):
+    """Create a new question within a Listening section."""
+    section_id: int = Field(..., gt=0, description="ID of the parent listening section")
+    index: int = Field(..., ge=1, description="Position index of the question within the section")
+    question_text: Optional[str] = Field(None, description="Text of the question")
+    options: Optional[List[str]] = Field(None, description="Answer options for choice-type questions")
+    correct_answer: Any = Field(..., description="Correct answer (string, list, or dict, depending on type)")
+
+    @field_validator("index")
+    def index_positive(cls, v: int) -> int:
+        """Index must be at least 1."""
+        if v < 1:
+            raise ValueError("index must be at least 1")
+        return v
+
+    @field_validator("options", mode="before")
+    def options_must_be_list_of_strings_if_present(cls, v: Optional[List[Any]]) -> Optional[List[str]]:
+        """
+        If options are provided, ensure they form a non-empty list of non-empty strings.
+        """
+        if v is None:
+            return None
+        if not isinstance(v, list) or not v:
+            raise ValueError("options must be a non-empty list of strings")
+        validated: List[str] = []
+        for item in v:
+            if not isinstance(item, str) or not item.strip():
+                raise ValueError("Each element in options must be a non-empty string")
+            validated.append(item.strip())
+        return validated
+
+    @field_validator("correct_answer")
+    def validate_correct_answer(cls, v: Any) -> Any:
+        """
+        correct_answer must be:
+          - a non-empty string
+          - a non-empty list of strings or ints
+          - a non-empty dict with non-empty string keys and string/int values
+        """
+        if v is None:
+            raise ValueError("correct_answer must not be empty")
+        if isinstance(v, str):
+            if not v.strip():
+                raise ValueError("correct_answer string must not be empty or whitespace")
+            return v.strip()
+        if isinstance(v, list):
+            if not v:
+                raise ValueError("correct_answer list must not be empty")
+            for elem in v:
+                if not isinstance(elem, (str, int)):
+                    raise ValueError("Elements of correct_answer list must be str or int")
+                if isinstance(elem, str) and not elem.strip():
+                    raise ValueError("Elements of correct_answer list must not be empty strings")
+            return v
+        if isinstance(v, dict):
+            if not v:
+                raise ValueError("correct_answer dict must not be empty")
+            for key, val in v.items():
+                if not isinstance(key, str) or not key.strip():
+                    raise ValueError("Keys of correct_answer dict must be non-empty strings")
+                if not isinstance(val, (str, int)):
+                    raise ValueError("Values of correct_answer dict must be str or int")
+                if isinstance(val, str) and not val.strip():
+                    raise ValueError("Values of correct_answer dict must not be empty strings")
+            return v
+        raise ValueError("correct_answer must be str, int, list, or dict")
+
+
 class AnswerSerializer(BaseSerializer):
-    question_id: int
-    answer: Union[str, int, list]
+    """Serializer for a single answer submission."""
+    question_id: int = Field(..., description="ID of the question being answered")
+    answer: Union[str, int, list] = Field(..., description="User's answer to the question")
+
+    @field_validator("question_id")
+    def validate_question_id(cls, v: int) -> int:
+        """question_id must be a positive integer."""
+        if v <= 0:
+            raise ValueError("question_id must be a positive integer")
+        return v
+
+    @field_validator("answer")
+    def validate_answer(cls, v: Any) -> Any:
+        """
+        answer must be:
+          - a non-empty string
+          - a non-empty list of strings or ints
+          - an int
+        """
+        if v is None:
+            raise ValueError("answer must not be None")
+        if isinstance(v, str):
+            if not v.strip():
+                raise ValueError("answer string must not be empty or whitespace")
+            return v.strip()
+        if isinstance(v, list):
+            if not v:
+                raise ValueError("answer list must not be empty")
+            for elem in v:
+                if not isinstance(elem, (str, int)):
+                    raise ValueError("elements of answer list must be str or int")
+                if isinstance(elem, str) and not elem.strip():
+                    raise ValueError("elements of answer list must not be empty strings")
+            return v
+        if isinstance(v, int):
+            return v
+        raise ValueError("answer must be str, int, or list")
+
 
 class ListeningAnswerSerializer(BaseSerializer):
-    test_id: int
-    answers: Dict[str, List[AnswerSerializer]]
+    """
+    Submit answers for a listening test.
+    Expects a dict mapping section_id to a list of AnswerSerializer.
+    """
+    test_id: int = Field(..., description="ID of the listening test")
+    answers: Dict[int, List[AnswerSerializer]] = Field(..., description="Mapping from section_id to list of answers")
 
-# Для анализа
-class ListeningAnalyseResponseSerializer(SafeSerializer):
-    session_id: int
-    analyse: Dict[str, Any]
-    responses: List[Dict[str, Any]]
+    @field_validator("test_id")
+    def validate_test_id(cls, v: int) -> int:
+        """test_id must be a positive integer."""
+        if v <= 0:
+            raise ValueError("test_id must be a positive integer")
+        return v
+
+    @field_validator("answers")
+    def validate_answers(cls, v: Dict[Any, Any]) -> Dict[int, List[AnswerSerializer]]:
+        """
+        answers must be a non-empty dict where:
+          - keys are positive integers (section IDs)
+          - values are non-empty lists of AnswerSerializer
+        """
+        if not isinstance(v, dict) or not v:
+            raise ValueError("answers must be a non-empty dictionary")
+        validated: Dict[int, List[AnswerSerializer]] = {}
+        for key, answers_list in v.items():
+            try:
+                section_key = int(key)
+            except (ValueError, TypeError):
+                raise ValueError(f"Section key '{key}' must be an integer or string convertible to int")
+            if section_key <= 0:
+                raise ValueError(f"Section key '{section_key}' must be a positive integer")
+            if not isinstance(answers_list, list) or not answers_list:
+                raise ValueError(f"answers for section '{section_key}' must be a non-empty list")
+            validated_list: List[AnswerSerializer] = []
+            for ans in answers_list:
+                if not isinstance(ans, AnswerSerializer):
+                    raise ValueError("Each answer must be an instance of AnswerSerializer")
+                validated_list.append(ans)
+            validated[section_key] = validated_list
+        return validated
+
+
+class ExamShortSerializer(BaseModel):
+    """Return minimal exam information."""
+    id: int = Field(..., description="Unique identifier of the exam")
+    title: str = Field(..., description="Title of the exam")
+    description: str = Field(..., description="Description of the exam")
+
+    @classmethod
+    async def from_orm(cls, obj: Listening) -> "ExamShortSerializer":
+        return cls(id=obj.id, title=obj.title, description=obj.description)
+
+
+class PartSlimSerializer(BaseModel):
+    """Return minimal part information."""
+    id: int = Field(..., description="Unique identifier of the part")
+    part_number: int = Field(..., description="Part number (1-4) of the test")
+    audio_file: str = Field(..., description="URL to the audio file for this part")
+
+    @classmethod
+    async def from_orm(cls, obj: ListeningPart) -> "PartSlimSerializer":
+        return cls(id=obj.id, part_number=obj.part_number, audio_file=obj.audio_file)
+
+
+class ListeningDataSlimSerializer(BaseModel):
+    """Full data for a listening session (exam + parts)."""
+    session_id: int = Field(..., description="ID of the listening session")
+    start_time: Optional[datetime] = Field(None, description="Start timestamp of the session")
+    status: str = Field(..., description="Current status of the session")
+    exam: ExamShortSerializer = Field(..., description="Basic exam info")
+    parts: List[PartSlimSerializer] = Field(..., description="List of parts in the listening test")
+
+    @classmethod
+    async def from_orm(cls, session_obj: UserListeningSession) -> "ListeningDataSlimSerializer":
+        exam_obj = await session_obj.exam
+        exam_serialized = await ExamShortSerializer.from_orm(exam_obj)
+
+        parts_qs = exam_obj.parts.order_by("part_number").all() if hasattr(exam_obj, "parts") else []
+        parts_list = [await PartSlimSerializer.from_orm(p) for p in parts_qs]
+
+        return cls(
+            session_id=session_obj.id,
+            start_time=session_obj.start_time,
+            status=session_obj.status,
+            exam=exam_serialized,
+            parts=parts_list,
+        )
+
+
+class ListeningAnalyseResponseSerializer(BaseModel):
+    """Analysis results for a listening session."""
+    session_id: int = Field(..., description="ID of the listening session")
+    analyse: Dict[str, Any] = Field(..., description="Analysis data for the session")
+    responses: List[Dict[str, Any]] = Field(..., description="List of user responses with details")

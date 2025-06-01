@@ -19,11 +19,12 @@ python-jose = "*"
 python-multipart = "*"
 redis = "*"
 requests = "*"
-tortoise-orm = ">=0.20.0"
+tortoise-orm = "*"
 uvicorn = { extras = ["standard"], version = "*" }
-tenacity = "*"
 openai = "*"
-fastapi = {extras = ["all"], version = "*"}
+fastapi = "*"
+pytest = "*"
+pytest-asyncio = "*"
 
 [dev-packages]
 Faker = "*"
@@ -40,11 +41,6 @@ openai = "*"
 psutil = "*"
 pyflakes = "*"
 pytest = "*"
-pytest-benchmark = "*"
-pytest-cov = "*"
-pytest-factoryboy = "*"
-pytest-pretty = "*"
-pytest-xdist = "*"
 tomlkit = "*"
 
 [requires]

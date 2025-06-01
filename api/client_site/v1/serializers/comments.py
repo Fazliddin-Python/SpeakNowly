@@ -1,53 +1,90 @@
-from pydantic import Field, validator
+from email import message
+from pydantic import Field, field_validator
 from typing import Optional, Dict
-from datetime import datetime, timezone
-from .base import SafeSerializer, BaseSerializer
+from datetime import datetime
+
+from .base import BaseSerializer, SafeSerializer
 
 
 class CommentBaseSerializer(BaseSerializer):
-    """Base serializer for a comment."""
+    """
+    Base serializer for a comment.
+    """
     text: str = Field(..., description="Comment text")
-    rate: float = Field(..., ge=0, le=5, description="Rating (0 to 5)")
+    rate: float = Field(..., ge=1, le=5, description="Rating (1 to 5)")
 
-    @validator("text")
-    def validate_text(cls, value):
-        if len(value.strip()) == 0:
-            raise ValueError("Comment text cannot be empty")
-        if len(value) > 500:
+    @field_validator("text")
+    def validate_text(cls, value: str) -> str:
+        """
+        Ensure that 'text' is not empty or whitespace-only, and does not exceed 500 characters.
+        """
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Comment text cannot be empty or whitespace")
+        if len(stripped) > 500:
             raise ValueError("Comment text cannot exceed 500 characters")
-        return value
+        return stripped
 
 
 class CommentCreateSerializer(CommentBaseSerializer):
-    """Serializer for creating a comment."""
+    """
+    Serializer for creating a comment.
+    (Inherits all validations from CommentBaseSerializer.)
+    """
     pass
 
 
 class CommentUpdateSerializer(BaseSerializer):
-    """Serializer for updating a comment."""
+    """
+    Serializer for updating a comment.
+    Both 'text' and 'rate' are optional, but if provided must satisfy base constraints.
+    """
     text: Optional[str] = Field(None, description="Updated comment text")
-    rate: Optional[float] = Field(None, ge=0, le=5, description="Updated rating (0 to 5)")
+    rate: Optional[float] = Field(None, ge=1, le=5, description="Updated rating (1 to 5)")
 
-    @validator("text")
-    def validate_text(cls, value):
-        if value and len(value.strip()) == 0:
-            raise ValueError("Comment text cannot be empty")
-        if value and len(value) > 500:
+    @field_validator("text")
+    def validate_text(cls, value: Optional[str]) -> Optional[str]:
+        """
+        If 'text' is provided, ensure it is not empty/whitespace-only and ≤ 500 characters.
+        """
+        if value is None:
+            return None 
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Comment text cannot be empty or whitespace")
+        if len(stripped) > 500:
             raise ValueError("Comment text cannot exceed 500 characters")
+        return stripped
+
+    @field_validator("rate")
+    def validate_rate(cls, value: Optional[float]) -> Optional[float]:
+        """
+        If 'rate' is provided, ensure it lies between 1 and 5.
+        """
+        if value is None:
+            return None
+        if not (1 <= value <= 5):
+            raise ValueError("Rating must be between 1 and 5")
         return value
 
 
 class CommentListSerializer(SafeSerializer):
-    """Serializer for listing comments."""
+    """
+    Serializer for listing comments.
+    """
     text: str = Field(..., description="Comment text")
-    user: Dict[str, Optional[str]] = Field(..., description="User details")
-    rate: float = Field(..., description="Rating")
+    user: Dict[str, Optional[str]] = Field(..., description="User details (e.g., username, email)")
+    rate: float = Field(..., description="Rating of the comment")
     status: str = Field(..., description="Status of the comment")
 
 
 class CommentDetailSerializer(SafeSerializer):
-    """Serializer for detailed comment information."""
+    """
+    Serializer for detailed comment information.
+    """
     text: str = Field(..., description="Comment text")
     user_id: int = Field(..., description="ID of the user who created the comment")
-    rate: float = Field(..., description="Rating")
+    rate: float = Field(..., description="Rating of the comment")
     status: str = Field(..., description="Status of the comment")
+    created_at: datetime = Field(..., description="When the comment was created")
+    message: Optional[str] = Field(..., description="Optional message for the comment")

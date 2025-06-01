@@ -1,27 +1,27 @@
 from celery import Celery
+from config import (
+    CELERY_BROKER_URL,
+    CELERY_RESULT_BACKEND,
+    CELERY_ACCEPT_CONTENT,
+    CELERY_TASK_SERIALIZER,
+    CELERY_RESULT_SERIALIZER,
+    CELERY_TIMEZONE,
+    CELERY_TASK_ROUTES,
+    CELERY_INCLUDE,
+)
 
 celery_app = Celery(
     "tasks",
-    broker="redis://localhost:6379/0",
-    backend="redis://localhost:6379/0",
-    include=[
-        "tasks.users.activity_tasks",
-        "services.users.email_service",
-        "tasks.analyses.listening_tasks",
-        "tasks.analyses.reading_tasks",
-        "tasks.analyses.speaking_tasks",
-        "tasks.analyses.writing_tasks",
-    ],
+    broker=CELERY_BROKER_URL,
+    backend=CELERY_RESULT_BACKEND,
+    include=CELERY_INCLUDE,
 )
 
 celery_app.conf.update(
-    task_routes={
-        "services.users.email_service.send_email_task": {"queue": "emails"},
-        "tasks.analyses.listening_tasks.analyse_listening_task": {"queue": "analyses"},
-        "tasks.analyses.reading_tasks.analyse_reading_task": {"queue": "analyses"},
-        "tasks.analyses.speaking_tasks.analyse_speaking_task": {"queue": "analyses"},
-        "tasks.analyses.writing_tasks.analyse_writing_task": {"queue": "analyses"},
-        "tasks.users.activity_tasks.log_user_activity": {"queue": "user_activity"},
-    }
+    task_routes=CELERY_TASK_ROUTES,
+    accept_content=CELERY_ACCEPT_CONTENT,
+    task_serializer=CELERY_TASK_SERIALIZER,
+    result_serializer=CELERY_RESULT_SERIALIZER,
+    timezone=CELERY_TIMEZONE,
 )
 

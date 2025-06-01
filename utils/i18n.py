@@ -15,6 +15,8 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "email_already_in_use": "This email is already in use",
         "password_too_weak": "Password is too weak",
         "invalid_email_format": "Invalid email format",
+        "permission_denied": "Permission denied",
+        "not_enough_tokens": "You don't have enough tokens.",
 
         # --- Verification/OTP ---
         "verification_sent": "Verification code has been sent",
@@ -45,6 +47,8 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "invalid_callback_data": "Invalid callback data",
         "question_not_found": "Question not found",
         "listening_session_not_found": "Listening session not found",
+        "listening_part_not_found": "Listening part not found",
+        "listening_section_not_found": "Listening section not found",
         "no_listening_tests": "No listening tests available",
         "session_already_completed": "Session already completed",
         "listening_test_not_found": "Listening test not found",
@@ -54,6 +58,14 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "reading_not_found": "Reading test not found",
         "no_passages": "No passages available for reading test",
         "reading_already_completed": "Reading test already completed",
+
+        # --- Additional keys used in ListeningService ---
+        "parent_listening_not_found": "Parent listening test not found",
+        "parent_part_not_found": "Parent listening part not found",
+        "parent_section_not_found": "Parent listening section not found",
+        "section_not_found": "Section not found in the specified test",
+        "invalid_payload": "Payload must contain 'test_id' and 'answers'",
+        "invalid_section_key": "Section key is invalid",
     },
     "ru": {
         # --- User/Auth ---
@@ -68,6 +80,8 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "email_already_in_use": "Этот email уже используется",
         "password_too_weak": "Пароль слишком простой",
         "invalid_email_format": "Некорректный формат email",
+        "permission_denied": "Доступ запрещён",
+        "not_enough_tokens": "У вас недостаточно токенов.",
 
         # --- Verification/OTP ---
         "verification_sent": "Код подтверждения отправлен",
@@ -91,17 +105,32 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         # --- Payments ---
         "payment_not_found": "Платеж не найден",
         "payment_already_exists": "Платеж за этот тариф уже существует и активен",
-        "payment_confirmed": "Платеж подтвержден и токены добавлены",
+        "payment_confirmed": "Платеж подтверждён и токены добавлены",
         "payment_failed": "Платеж не прошел",
 
         # --- Other ---
         "invalid_callback_data": "Неверные данные обратного вызова",
         "question_not_found": "Вопрос не найден",
         "listening_session_not_found": "Сессия прослушивания не найдена",
+        "listening_part_not_found": "Часть прослушивания не найдена",
+        "listening_section_not_found": "Раздел прослушивания не найден",
         "no_listening_tests": "Нет доступных тестов прослушивания",
         "session_already_completed": "Сессия уже завершена",
         "listening_test_not_found": "Тест прослушивания не найден",
         "answers_submitted": "Ответы успешно отправлены",
+        "session_cancelled": "Сессия успешно отменена",
+        "no_reading_tests": "Нет доступных тестов чтения",
+        "reading_not_found": "Тест чтения не найден",
+        "no_passages": "Нет доступных отрывков для теста чтения",
+        "reading_already_completed": "Тест чтения уже завершён",
+
+        # --- Additional keys used in ListeningService ---
+        "parent_listening_not_found": "Родительский тест прослушивания не найден",
+        "parent_part_not_found": "Родительская часть прослушивания не найдена",
+        "parent_section_not_found": "Родительский раздел прослушивания не найден",
+        "section_not_found": "Раздел не найден в указанном тесте",
+        "invalid_payload": "Тело запроса должно содержать 'test_id' и 'answers'",
+        "invalid_section_key": "Ключ раздела указан некорректно",
     },
     "uz": {
         # --- User/Auth ---
@@ -116,6 +145,8 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "email_already_in_use": "Bu email allaqachon ishlatilmoqda",
         "password_too_weak": "Parol juda oddiy",
         "invalid_email_format": "Email formati noto'g'ri",
+        "permission_denied": "Ruxsat yo'q",
+        "not_enough_tokens": "Sizda yetarli tokenlar yo'q.",
 
         # --- Verification/OTP ---
         "verification_sent": "Tasdiqlash kodi yuborildi",
@@ -146,17 +177,34 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "invalid_callback_data": "Noto'g'ri qayta chaqirish ma'lumotlari",
         "question_not_found": "Savol topilmadi",
         "listening_session_not_found": "Tinglash sessiyasi topilmadi",
+        "listening_part_not_found": "Tinglash qismi topilmadi",
+        "listening_section_not_found": "Tinglash bo‘limi topilmadi",
         "no_listening_tests": "Tinglash testlari mavjud emas",
         "session_already_completed": "Sessiya allaqachon yakunlangan",
         "listening_test_not_found": "Tinglash testi topilmadi",
         "answers_submitted": "Javoblar muvaffaqiyatli yuborildi",
+        "session_cancelled": "Sessiya muvaffaqiyatli bekor qilindi",
+        "no_reading_tests": "O'qish testlari mavjud emas",
+        "reading_not_found": "O'qish testi topilmadi",
+        "no_passages": "O'qish testi uchun mavjud parchalar yo'q",
+        "reading_already_completed": "O'qish testi allaqachon yakunlangan",
+
+        # --- Additional keys used in ListeningService ---
+        "parent_listening_not_found": "Tinglash testi topilmadi",
+        "parent_part_not_found": "Tinglash qismi topilmadi",
+        "parent_section_not_found": "Tinglash bo‘limi topilmadi",
+        "section_not_found": "Bo‘lim ushbu testda topilmadi",
+        "invalid_payload": "So‘rovda 'test_id' va 'answers' bo‘lishi kerak",
+        "invalid_section_key": "Bo‘lim kaliti noto‘g‘ri",
     },
 }
 
+
 def get_translation(request: Request) -> Dict[str, str]:
     """
-    Dependency that returns the dictionary of translations for the requested language.
-    Defaults to English if the language is not supported.
+    Return translation dictionary based on Accept-Language header.
+    Supported languages: en, ru, uz. Defaults to English.
     """
-    lang = request.headers.get("Accept-Language", "en").split(",")[0]
-    return _TRANSLATIONS.get(lang, _TRANSLATIONS["en"])
+    raw_lang = request.headers.get("Accept-Language", "en").split(",")[0]
+    lang_prefix = raw_lang.split("-")[0].lower()
+    return _TRANSLATIONS.get(lang_prefix, _TRANSLATIONS["en"])

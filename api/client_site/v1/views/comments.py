@@ -1,6 +1,6 @@
 import logging
 from fastapi import APIRouter, HTTPException, Depends, Query, status
-from typing import List, Optional
+from typing import List, Dict, Optional
 from tortoise.exceptions import DoesNotExist
 
 from models.comments import Comment
@@ -11,10 +11,10 @@ from ..serializers.comments import (
     CommentDetailSerializer,
 )
 from tasks.comments_tasks import notify_admin_about_comment
+from utils.auth.auth import get_current_user
 from utils.i18n import get_translation
 
 logger = logging.getLogger(__name__)
-
 router = APIRouter()
 
 
@@ -24,39 +24,52 @@ async def get_comments(
     page_size: int = Query(10, ge=1)
 ):
     """
-    Get a paginated list of comments.
+    List comments in a paginated fashion.
     """
     offset = (page - 1) * page_size
-    comments = await Comment.all().offset(offset).limit(page_size).prefetch_related("user")
+    comments = (
+        await Comment.all()
+        .offset(offset)
+        .limit(page_size)
+        .prefetch_related("user")
+    )
     logger.info("Fetched %d comments (page %d)", len(comments), page)
-    return [
-        {
+    result: List[Dict] = []
+    for comment in comments:
+        user = await comment.user
+        result.append({
             "id": comment.id,
             "text": comment.text,
             "user": {
-                "id": comment.user.id,
-                "first_name": getattr(comment.user, "first_name", None),
-                "last_name": getattr(comment.user, "last_name", None),
-                "photo": getattr(comment.user, "photo", None),
+                "id": user.id,
+                "first_name": getattr(user, "first_name", None),
+                "last_name": getattr(user, "last_name", None),
+                "photo": getattr(user, "photo", None),
             },
             "rate": comment.rate,
             "status": comment.status,
             "created_at": comment.created_at,
-        }
-        for comment in comments
-    ]
+        })
+    return result
 
 
-@router.post("/", response_model=CommentDetailSerializer, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=CommentDetailSerializer,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_comment(
     comment_data: CommentCreateSerializer,
-    t: dict = Depends(get_translation)
+    user=Depends(get_current_user),
+    t: dict = Depends(get_translation),
 ):
     """
-    Create a new comment and notify admin asynchronously.
+    Create a new comment as the current user and notify admin.
     """
-    comment = await Comment.create(**comment_data.dict())
-    logger.info("User %s created comment %s", comment.user_id, comment.id)
+    data = comment_data.dict()
+    data["user_id"] = user.id
+    comment = await Comment.create(**data)
+    logger.info("User %s created comment %s", user.id, comment.id)
     notify_admin_about_comment.delay(comment.id)
     return {
         "id": comment.id,
@@ -72,10 +85,10 @@ async def create_comment(
 @router.get("/{comment_id}/", response_model=CommentDetailSerializer)
 async def get_comment(
     comment_id: int,
-    t: dict = Depends(get_translation)
+    t: dict = Depends(get_translation),
 ):
     """
-    Get a single comment by ID.
+    Retrieve a single comment by its ID.
     """
     try:
         comment = await Comment.get(id=comment_id).prefetch_related("user")
@@ -83,7 +96,7 @@ async def get_comment(
         return {
             "id": comment.id,
             "text": comment.text,
-            "user_id": comment.user.id,
+            "user_id": comment.user_id,
             "rate": comment.rate,
             "status": comment.status,
             "created_at": comment.created_at,
@@ -91,20 +104,27 @@ async def get_comment(
         }
     except DoesNotExist:
         logger.warning("Comment %s not found", comment_id)
-        raise HTTPException(status_code=404, detail=t.get("comment_not_found", "Comment not found"))
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=t.get("comment_not_found", "Comment not found")
+        )
 
 
 @router.put("/{comment_id}/", response_model=CommentDetailSerializer)
 async def update_comment(
     comment_id: int,
     comment_data: CommentUpdateSerializer,
-    t: dict = Depends(get_translation)
+    user=Depends(get_current_user),
+    t: dict = Depends(get_translation),
 ):
     """
-    Update an existing comment.
+    Update an existing comment. Only fields provided will be changed.
     """
     try:
         comment = await Comment.get(id=comment_id)
+        if comment.user_id != user.id:
+            logger.warning("User %s unauthorized to update comment %s", user.id, comment_id)
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=t["permission_denied"])
         updated = False
         if comment_data.text is not None:
             comment.text = comment_data.text
@@ -127,20 +147,31 @@ async def update_comment(
         }
     except DoesNotExist:
         logger.warning("Comment %s not found for update", comment_id)
-        raise HTTPException(status_code=404, detail=t.get("comment_not_found", "Comment not found"))
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=t.get("comment_not_found", "Comment not found")
+        )
 
 
 @router.delete("/{comment_id}/", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_comment(
     comment_id: int,
-    t: dict = Depends(get_translation)
+    user=Depends(get_current_user),
+    t: dict = Depends(get_translation),
 ):
     """
-    Delete a comment by ID.
+    Delete a comment by its ID. Only the author can delete.
     """
-    deleted_count = await Comment.filter(id=comment_id).delete()
-    if not deleted_count:
+    try:
+        comment = await Comment.get(id=comment_id)
+        if comment.user_id != user.id:
+            logger.warning("User %s unauthorized to delete comment %s", user.id, comment_id)
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=t["permission_denied"])
+        await comment.delete()
+        logger.info("Comment %s deleted", comment_id)
+    except DoesNotExist:
         logger.warning("Comment %s not found for deletion", comment_id)
-        raise HTTPException(status_code=404, detail=t.get("comment_not_found", "Comment not found"))
-    logger.info("Comment %s deleted", comment_id)
-    return {"message": t.get("comment_deleted", "Comment deleted successfully")}
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=t.get("comment_not_found", "Comment not found")
+        )

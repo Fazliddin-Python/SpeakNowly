@@ -28,19 +28,19 @@ DATABASE_CONFIG = {
     "apps": {
         "models": {
             "models": [
-                "models.users.users",       # <-- путь к User, если есть
-                "models.tests.listening",   # <-- путь к вашим моделям Listening
-                "models.tests.reading",      # <-- путь к вашим моделям Reading
-                "models.tests.speaking",     # <-- путь к вашим моделям Speaking
-                "models.tests.writing",      # <-- путь к вашим моделям Writing
-                "models.analyses",           # <-- путь к вашим моделям Analyses
-                "models.comments",           # <-- путь к вашим моделям Comments
-                "models.notifications",      # <-- путь к вашим моделям Notifications
-                "models.tariffs",          # <-- путь к вашим моделям Tariffs
-                "models.payments",         # <-- путь к вашим моделям Payments
-                "models.users",              # <-- путь к вашим моделям Users
-                "models.tests",              # <-- путь к вашим моделям Tests
-                "models.transactions",         # <-- путь к вашим моделям Translations
+                "models.users.users",
+                "models.tests.listening",
+                "models.tests.reading",
+                "models.tests.speaking",
+                "models.tests.writing",
+                "models.analyses",
+                "models.comments",
+                "models.notifications",
+                "models.tariffs",
+                "models.payments",
+                "models.users",
+                "models.tests",
+                "models.transactions",
                 "aerich.models"
             ],
             "default_connection": "default",
@@ -76,17 +76,25 @@ CELERY_TIMEZONE = "UTC"
 
 REDIS_URL = config("REDIS_URL", default="redis://localhost:6379/0")
 CELERY_TASK_ROUTES = {
+    "tasks.users.activity_tasks.log_user_activity": {"queue": "user_activity"},
     "services.users.email_service.send_email_task": {"queue": "emails"},
-
-    # Analyses
     "tasks.analyses.listening_tasks.analyse_listening_task": {"queue": "analyses"},
     "tasks.analyses.reading_tasks.analyse_reading_task": {"queue": "analyses"},
     "tasks.analyses.speaking_tasks.analyse_speaking_task": {"queue": "analyses"},
     "tasks.analyses.writing_tasks.analyse_writing_task": {"queue": "analyses"},
-    "tasks.users.activity_tasks.log_user_activity": {"queue": "user_activity"},
-    "tasks.comments_tasks.notify_admin_about_comment": {"queue": "notifications"},
+    "tasks.comments_tasks.notify_admin_about_comment": {"queue": "comments"},
     "tasks.notifications_tasks.send_mass_notification": {"queue": "notifications"},
 }
+CELERY_INCLUDE = [
+    "tasks.users.activity_tasks",
+    "services.users.email_service",
+    "tasks.analyses.listening_tasks",
+    "tasks.analyses.reading_tasks",
+    "tasks.analyses.speaking_tasks",
+    "tasks.analyses.writing_tasks",
+    "tasks.comments_tasks",
+    "tasks.notifications_tasks",
+]
 
 # === Api keys ===
 GOOGLE_CLIENT_ID = config("GOOGLE_CLIENT_ID", default="")

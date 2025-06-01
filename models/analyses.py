@@ -9,6 +9,8 @@ class ListeningAnalyse(BaseModel):
     correct_answers = fields.IntField(default=0, description="Number of correct answers")
     overall_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Overall score")
     timing = fields.TimeDeltaField(description="Time taken for the test")
+    feedback = fields.JSONField(null=True, description="Qualitative feedback from ChatGPT")
+    status = fields.CharField(max_length=32, default="pending", description="Status of analysis")
 
     class Meta:
         table = "listening_analyses"

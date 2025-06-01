@@ -1,10 +1,13 @@
 import re
-from pydantic import BaseModel, EmailStr, Field, validator
 from typing import Optional
+
+from pydantic import BaseModel, EmailStr, Field, validator
 
 
 class RegisterSerializer(BaseModel):
-    """Serializer for user registration."""
+    """
+    Serializer for user registration.
+    """
     email: EmailStr = Field(..., description="User's email address")
     password: str = Field(..., min_length=8, description="User's password (minimum 8 characters)")
 
@@ -28,7 +31,8 @@ class RegisterSerializer(BaseModel):
 
 
 class RegisterResponseSerializer(BaseModel):
-    """Serializer for registration response."""
-    message: str
-    token: str
-    refresh_token: Optional[str] = None
+    """
+    Serializer for registration response.
+    Now returns only a confirmation message (no tokens).
+    """
+    message: str = Field(..., description="Informational message about the registration step")
