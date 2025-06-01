@@ -87,32 +87,61 @@ async def list_tariff_sales(tariff_id: int):
         raise HTTPException(status_code=404, detail="No sales found for this tariff")
 
 
-@router.get("/", response_model=List[TariffSerializer])
+@router.get("/", response_model=List[TariffDetailSerializer])
 async def list_tariffs(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1),
     lang: str = Query("en", description="Language code: en, ru, uz")
 ):
     """
-    List all tariffs with pagination.
+    List all active tariffs with pagination and language support.
+    - `page`: Page number for pagination (default is 1).
+    - `page_size`: Number of tariffs per page (default is 10).
+    - `lang`: Language code for tariff names and descriptions (default is "en").
     """
-
-    cache_key = f"tariffs:{lang}:page={page}:size={page_size}"
-    cached = await cache.get(cache_key)
-    if cached:
-        return cached
+    if page < 1 or page_size < 1:
+        raise HTTPException(status_code=400, detail="Page and page_size must be greater than 0")
     offset = (page - 1) * page_size
-    tariffs = await Tariff.filter(is_active=True).offset(offset).limit(page_size)
-    # Map only the requested language fields
+    tariffs = await Tariff.filter(is_active=True)\
+        .offset(offset).limit(page_size)\
+        .prefetch_related("features__feature", "category")
     result = []
     for tariff in tariffs:
         result.append({
             "id": tariff.id,
-            "name": getattr(tariff, f"name_{lang}", tariff.name_en),
-            "description": getattr(tariff, f"description_{lang}", tariff.description_en),
-            # ...other fields...
+            "created_at": tariff.created_at,
+            "updated_at": tariff.updated_at,
+            "category": {
+                "id": tariff.category.id if tariff.category else None,
+                "created_at": tariff.category.created_at if tariff.category else None,
+                "updated_at": tariff.category.updated_at if tariff.category else None,
+                "name": getattr(tariff.category, f"name_{lang}", getattr(tariff.category, "name", "")) if tariff.category else "",
+                "name_uz": getattr(tariff.category, "name_uz", ""),
+                "name_ru": getattr(tariff.category, "name_ru", ""),
+                "name_en": getattr(tariff.category, "name_en", ""),
+                "sale": getattr(tariff.category, "sale", 0),
+                "is_active": getattr(tariff.category, "is_active", False),
+            } if tariff.category else None,
+            "name": getattr(tariff, f"name_{lang}", getattr(tariff, "name", "")),
+            "old_price": getattr(tariff, "old_price", 0),
+            "price": getattr(tariff, "price", 0),
+            "price_in_stars": getattr(tariff, "price_in_stars", 0),
+            "description": getattr(tariff, "description", ""),
+            "description_uz": getattr(tariff, "description_uz", ""),
+            "description_ru": getattr(tariff, "description_ru", ""),
+            "description_en": getattr(tariff, "description_en", ""),
+            "tokens": getattr(tariff, "tokens", 0),
+            "duration": getattr(tariff, "duration", 0),
+            "is_active": getattr(tariff, "is_active", False),
+            "is_default": getattr(tariff, "is_default", False),
+            "features": [
+                {
+                    "name": f.feature.name,
+                    "description": f.feature.description
+                } for f in getattr(tariff, "features", [])
+                if f.feature 
+            ]
         })
-    await cache.set(cache_key, result, expire=3600)
     return result
 
 

@@ -29,19 +29,19 @@ class TariffFeatureSerializer(SafeSerializer):
 
 class TariffSerializer(SafeSerializer):
     """Serializer for basic tariff information."""
-    category_id: Optional[int]
-    name: str
-    old_price: Optional[int]
-    price: int
-    price_in_stars: int
-    description: str
-    description_uz: Optional[str]
-    description_ru: Optional[str]
-    description_en: Optional[str]
-    tokens: int
-    duration: int
-    is_active: bool
-    is_default: bool
+    category_id: Optional[int] = None
+    name: Optional[str] = ""
+    old_price: Optional[float] = 0
+    price: Optional[float] = 0
+    price_in_stars: Optional[int] = 0
+    description: Optional[str] = ""
+    description_uz: Optional[str] = ""
+    description_ru: Optional[str] = ""
+    description_en: Optional[str] = ""
+    tokens: Optional[int] = 0
+    duration: Optional[int] = 0
+    is_active: Optional[bool] = False
+    is_default: Optional[bool] = False
 
     @validator("price", "price_in_stars", "tokens", "duration")
     def validate_positive_values(cls, value):
