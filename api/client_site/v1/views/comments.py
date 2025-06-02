@@ -1,6 +1,6 @@
 import logging
 from fastapi import APIRouter, HTTPException, Depends, Query, status
-from typing import List, Dict, Optional
+from typing import List, Dict
 from tortoise.exceptions import DoesNotExist
 
 from models.comments import Comment
@@ -34,6 +34,7 @@ async def get_comments(
         .prefetch_related("user")
     )
     logger.info("Fetched %d comments (page %d)", len(comments), page)
+
     result: List[Dict] = []
     for comment in comments:
         user = await comment.user
@@ -42,9 +43,9 @@ async def get_comments(
             "text": comment.text,
             "user": {
                 "id": user.id,
-                "first_name": getattr(user, "first_name", None),
-                "last_name": getattr(user, "last_name", None),
-                "photo": getattr(user, "photo", None),
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "photo": user.photo,
             },
             "rate": comment.rate,
             "status": comment.status,
@@ -68,16 +69,25 @@ async def create_comment(
     """
     data = comment_data.dict()
     data["user_id"] = user.id
+    data["status"] = "active"
     comment = await Comment.create(**data)
     logger.info("User %s created comment %s", user.id, comment.id)
     notify_admin_about_comment.delay(comment.id)
+
+    user_obj = await comment.user
     return {
         "id": comment.id,
         "text": comment.text,
-        "user_id": comment.user_id,
+        "user": {
+            "id": user_obj.id,
+            "first_name": user_obj.first_name,
+            "last_name": user_obj.last_name,
+            "photo": user_obj.photo,
+        },
         "rate": comment.rate,
         "status": comment.status,
         "created_at": comment.created_at,
+        "updated_at": comment.updated_at if hasattr(comment, "updated_at") else None,
         "message": t.get("comment_created", "Comment created successfully"),
     }
 
@@ -93,14 +103,21 @@ async def get_comment(
     try:
         comment = await Comment.get(id=comment_id).prefetch_related("user")
         logger.info("Fetched comment %s", comment_id)
+        user = await comment.user
         return {
             "id": comment.id,
             "text": comment.text,
-            "user_id": comment.user_id,
+            "user": {
+                "id": user.id,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "photo": user.photo,
+            },
             "rate": comment.rate,
             "status": comment.status,
             "created_at": comment.created_at,
-            "updated_at": comment.updated_at,
+            "updated_at": comment.updated_at if hasattr(comment, "updated_at") else None,
+            "message": None,
         }
     except DoesNotExist:
         logger.warning("Comment %s not found", comment_id)
@@ -124,7 +141,11 @@ async def update_comment(
         comment = await Comment.get(id=comment_id)
         if comment.user_id != user.id:
             logger.warning("User %s unauthorized to update comment %s", user.id, comment_id)
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=t["permission_denied"])
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=t.get("permission_denied", "You do not have permission to modify this comment")
+            )
+
         updated = False
         if comment_data.text is not None:
             comment.text = comment_data.text
@@ -135,14 +156,21 @@ async def update_comment(
         if updated:
             await comment.save()
             logger.info("Comment %s updated", comment_id)
+
+        user_obj = await comment.user
         return {
             "id": comment.id,
             "text": comment.text,
-            "user_id": comment.user_id,
+            "user": {
+                "id": user_obj.id,
+                "first_name": user_obj.first_name,
+                "last_name": user_obj.last_name,
+                "photo": user_obj.photo,
+            },
             "rate": comment.rate,
             "status": comment.status,
             "created_at": comment.created_at,
-            "updated_at": comment.updated_at,
+            "updated_at": comment.updated_at if hasattr(comment, "updated_at") else None,
             "message": t.get("comment_updated", "Comment updated successfully"),
         }
     except DoesNotExist:
@@ -166,7 +194,10 @@ async def delete_comment(
         comment = await Comment.get(id=comment_id)
         if comment.user_id != user.id:
             logger.warning("User %s unauthorized to delete comment %s", user.id, comment_id)
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=t["permission_denied"])
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=t.get("permission_denied", "You do not have permission to delete this comment")
+            )
         await comment.delete()
         logger.info("Comment %s deleted", comment_id)
     except DoesNotExist:

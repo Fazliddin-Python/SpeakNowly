@@ -13,7 +13,8 @@ class CommentBaseSerializer(BaseSerializer):
     text: str = Field(..., description="Comment text")
     rate: float = Field(..., ge=1, le=5, description="Rating (1 to 5)")
 
-    @field_validator("text")
+    @field_validator("text", mode="before")
+    @classmethod
     def validate_text(cls, value: str) -> str:
         """
         Ensure that 'text' is not empty or whitespace-only, and does not exceed 500 characters.
@@ -42,7 +43,8 @@ class CommentUpdateSerializer(BaseSerializer):
     text: Optional[str] = Field(None, description="Updated comment text")
     rate: Optional[float] = Field(None, ge=1, le=5, description="Updated rating (1 to 5)")
 
-    @field_validator("text")
+    @field_validator("text", mode="before")
+    @classmethod
     def validate_text(cls, value: Optional[str]) -> Optional[str]:
         """
         If 'text' is provided, ensure it is not empty/whitespace-only and ≤ 500 characters.
@@ -57,6 +59,7 @@ class CommentUpdateSerializer(BaseSerializer):
         return stripped
 
     @field_validator("rate")
+    @classmethod
     def validate_rate(cls, value: Optional[float]) -> Optional[float]:
         """
         If 'rate' is provided, ensure it lies between 1 and 5.
@@ -68,12 +71,19 @@ class CommentUpdateSerializer(BaseSerializer):
         return value
 
 
+class CommentListUserSerializer(BaseSerializer):
+    id: int
+    first_name: Optional[str]
+    last_name: Optional[str]
+    photo: Optional[str]
+
+
 class CommentListSerializer(SafeSerializer):
     """
     Serializer for listing comments.
     """
     text: str = Field(..., description="Comment text")
-    user: Dict[str, Optional[str]] = Field(..., description="User details (e.g., username, email)")
+    user: CommentListUserSerializer
     rate: float = Field(..., description="Rating of the comment")
     status: str = Field(..., description="Status of the comment")
 
@@ -83,8 +93,9 @@ class CommentDetailSerializer(SafeSerializer):
     Serializer for detailed comment information.
     """
     text: str = Field(..., description="Comment text")
-    user_id: int = Field(..., description="ID of the user who created the comment")
+    user: CommentListUserSerializer
     rate: float = Field(..., description="Rating of the comment")
     status: str = Field(..., description="Status of the comment")
     created_at: datetime = Field(..., description="When the comment was created")
-    message: Optional[str] = Field(..., description="Optional message for the comment")
+    updated_at: Optional[datetime] = Field(None, description="When the comment was updated")
+    message: Optional[str] = Field(None, description="Optional message for the comment")
