@@ -21,7 +21,7 @@ async def list_plans(
 ):
     """
     Return all plans with nested tariffs and features.
-    Language is determined from Accept-Language header (en, ru, uz).
+    Uses Accept-Language header to pick one of: en, ru, uz.
     """
     raw_lang = request.headers.get("Accept-Language", "en").split(",")[0]
     lang = raw_lang.split("-")[0].lower()
@@ -54,10 +54,13 @@ async def list_plans(
                 if not feat:
                     continue
 
+                f_name = _translate(feat, "name", lang)
+                f_desc = _translate(feat, "description", lang)
+
                 feature_info = FeatureInfo(
                     id=feat.id,
-                    name=feat.name or "",
-                    description=feat.description or ""
+                    name=f_name,
+                    description=f_desc
                 )
                 feat_item = FeatureItemInfo(
                     id=tf.id,
