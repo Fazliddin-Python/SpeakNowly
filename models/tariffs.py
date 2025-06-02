@@ -57,7 +57,13 @@ class Tariff(BaseModel):
 
 class Feature(BaseModel):
     name = fields.CharField(max_length=255, unique=True, description="Feature Name")
+    name_uz = fields.CharField(max_length=255, null=True, description="Feature Name (Uzbek)")
+    name_ru = fields.CharField(max_length=255, null=True, description="Feature Name (Russian)")
+    name_en = fields.CharField(max_length=255, null=True, description="Feature Name (English)")
     description = fields.TextField(null=True, description="Description")
+    description_uz = fields.TextField(null=True, description="Description (Uzbek)")
+    description_ru = fields.TextField(null=True, description="Description (Russian)")
+    description_en = fields.TextField(null=True, description="Description (English)")
 
     class Meta:
         table = "features"
