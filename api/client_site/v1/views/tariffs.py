@@ -119,27 +119,26 @@ async def list_tariffs(
                 "name_uz": getattr(tariff.category, "name_uz", ""),
                 "name_ru": getattr(tariff.category, "name_ru", ""),
                 "name_en": getattr(tariff.category, "name_en", ""),
-                "sale": getattr(tariff.category, "sale", 0),
+                "sale": float(getattr(tariff.category, "sale", 0)),
                 "is_active": getattr(tariff.category, "is_active", False),
             } if tariff.category else None,
             "name": getattr(tariff, f"name_{lang}", getattr(tariff, "name", "")),
-            "old_price": getattr(tariff, "old_price", 0),
-            "price": getattr(tariff, "price", 0),
-            "price_in_stars": getattr(tariff, "price_in_stars", 0),
-            "description": getattr(tariff, "description", ""),
-            "description_uz": getattr(tariff, "description_uz", ""),
-            "description_ru": getattr(tariff, "description_ru", ""),
-            "description_en": getattr(tariff, "description_en", ""),
-            "tokens": getattr(tariff, "tokens", 0),
-            "duration": getattr(tariff, "duration", 0),
+            "old_price": float(getattr(tariff, "old_price", 0) or 0),
+            "price": float(getattr(tariff, "price", 0) or 0),
+            "price_in_stars": getattr(tariff, "price_in_stars", 0) or 0,
+            "description": getattr(tariff, "description", "") or "",
+            "description_uz": getattr(tariff, "description_uz", "") or "",
+            "description_ru": getattr(tariff, "description_ru", "") or "",
+            "description_en": getattr(tariff, "description_en", "") or "",
+            "tokens": getattr(tariff, "tokens", 0) or 0,
+            "duration": getattr(tariff, "duration", 0) or 0,
             "is_active": getattr(tariff, "is_active", False),
             "is_default": getattr(tariff, "is_default", False),
             "features": [
                 {
                     "name": f.feature.name,
                     "description": f.feature.description
-                } for f in getattr(tariff, "features", [])
-                if f.feature 
+                } for f in getattr(tariff, "features", []) if f.feature
             ]
         })
     return result
