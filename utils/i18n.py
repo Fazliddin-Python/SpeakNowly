@@ -58,6 +58,7 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "reading_not_found": "Reading test not found",
         "no_passages": "No passages available for reading test",
         "reading_already_completed": "Reading test already completed",
+        "invalid_language": "Invalid language selected",
 
         # --- Additional keys used in ListeningService ---
         "parent_listening_not_found": "Parent listening test not found",
@@ -123,6 +124,7 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "reading_not_found": "Тест чтения не найден",
         "no_passages": "Нет доступных отрывков для теста чтения",
         "reading_already_completed": "Тест чтения уже завершён",
+        "invalid_language": "Выбран неверный язык",
 
         # --- Additional keys used in ListeningService ---
         "parent_listening_not_found": "Родительский тест прослушивания не найден",
@@ -188,6 +190,7 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "reading_not_found": "O'qish testi topilmadi",
         "no_passages": "O'qish testi uchun mavjud parchalar yo'q",
         "reading_already_completed": "O'qish testi allaqachon yakunlangan",
+        "invalid_language": "Noto'g'ri til tanlandi",
 
         # --- Additional keys used in ListeningService ---
         "parent_listening_not_found": "Tinglash testi topilmadi",

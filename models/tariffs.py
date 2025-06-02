@@ -8,7 +8,7 @@ class TariffCategory(BaseModel):
     name_uz = fields.CharField(max_length=255, null=True, description="Name (Uzbek)")
     name_ru = fields.CharField(max_length=255, null=True, description="Name (Russian)")
     name_en = fields.CharField(max_length=255, null=True, description="Name (English)")
-    sale = fields.DecimalField(max_digits=5, decimal_places=2, default=0, description="Sale %")
+    sale = fields.DecimalField(max_digits=7, decimal_places=2, default=0, description="Sale %")
     is_active = fields.BooleanField(default=True, description="Active")
 
     class Meta:
@@ -23,6 +23,9 @@ class TariffCategory(BaseModel):
 class Tariff(BaseModel):
     category = fields.ForeignKeyField("models.TariffCategory", related_name="tariffs", null=True, description="Category")
     name = fields.CharField(max_length=255, description="Name")
+    name_uz = fields.CharField(max_length=255, null=True, description="Name (Uzbek)")
+    name_ru = fields.CharField(max_length=255, null=True, description="Name (Russian)")
+    name_en = fields.CharField(max_length=255, null=True, description="Name (English)")
     old_price = fields.DecimalField(max_digits=10, decimal_places=2, null=True, description="Old Price")
     price = fields.DecimalField(max_digits=10, decimal_places=2, description="Current Price")
     price_in_stars = fields.IntField(default=0, description="Price in Stars")
@@ -32,6 +35,7 @@ class Tariff(BaseModel):
     description_en = fields.TextField(null=True, description="Description (English)")
     tokens = fields.IntField(description="Tokens included")
     duration = fields.IntField(default=30, description="Duration (in days)")
+    redirect_url = fields.CharField(max_length=512, null=True, description="Redirect URL")
     is_active = fields.BooleanField(default=True, description="Active")
     is_default = fields.BooleanField(default=False, description="Default")
 
