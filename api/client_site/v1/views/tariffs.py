@@ -11,7 +11,18 @@ router = APIRouter()
 
 
 def _translate(obj, field: str, lang: str) -> str:
-    return getattr(obj, f"{field}_{lang}", None) or getattr(obj, field, "") or ""
+    """
+    1) Try <field>_<lang>
+    2) If missing, try <field>_en
+    3) Finally fallback to <field>
+    """
+    val = getattr(obj, f"{field}_{lang}", None)
+    if val:
+        return val
+    en = getattr(obj, f"{field}_en", None)
+    if en:
+        return en
+    return getattr(obj, field, "") or ""
 
 
 @router.get("/", response_model=List[PlanInfo])
@@ -21,7 +32,7 @@ async def list_plans(
 ):
     """
     Return all plans with nested tariffs and features.
-    Uses Accept-Language header to pick one of: en, ru, uz.
+    Uses Accept-Language header to choose: en, ru, uz.
     """
     raw_lang = request.headers.get("Accept-Language", "en").split(",")[0]
     lang = raw_lang.split("-")[0].lower()
