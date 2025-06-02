@@ -4,7 +4,6 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-# from jinja2 import Template
 from fastapi import HTTPException
 
 from config import (
@@ -17,6 +16,7 @@ from config import (
 from celery_app import celery_app
 
 logger = logging.getLogger("email_service")
+
 
 class EmailService:
     """
@@ -36,14 +36,15 @@ class EmailService:
         if not body and not html_body:
             raise HTTPException(status_code=400, detail="Email body is required")
 
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = subject
-        msg['From'] = EMAIL_FROM
-        msg['To'] = ', '.join(recipients)
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = EMAIL_FROM
+        msg["To"] = ", ".join(recipients)
+
         if body:
-            msg.attach(MIMEText(body, 'plain'))
+            msg.attach(MIMEText(body, "plain"))
         if html_body:
-            msg.attach(MIMEText(html_body, 'html'))
+            msg.attach(MIMEText(html_body, "html"))
 
         try:
             server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10)
@@ -56,6 +57,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"SMTP send error: {e}")
             raise HTTPException(status_code=503, detail="Failed to send email")
+
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=10)
 def send_email_task(self, subject, recipients, body=None, html_body=None):

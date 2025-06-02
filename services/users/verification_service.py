@@ -11,6 +11,7 @@ from models.users.users import User
 CODE_TTL = timedelta(minutes=10)
 logger = logging.getLogger("verification_service")
 
+
 class VerificationService:
     """
     Service for handling email verification during registration and other flows.
@@ -53,14 +54,14 @@ class VerificationService:
 
         # 5. Prepare email content
         subject = "Your Verification Code"
-        body = f"Your verification code is: {code}"
+        body = f"Your verification code is: {code}\n\nThis code is valid for 10 minutes."
         html_body = f"""\
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Verify Your Login</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verify Your Email</title>
   <style>
     body {{
       font-family: Helvetica, Arial, sans-serif;
@@ -135,11 +136,11 @@ class VerificationService:
       </div>
     </div>
     <div class="content">
-      <h1>{verification_type}</h1>
-      <p>Please use the following verification code to log in to your account:</p>
+      <h1>{otp_type.name.replace('_', ' ').capitalize()}</h1>
+      <p>Please use the following verification code. This code is valid for 10 minutes:</p>
       <p class="code">{code}</p>
       <p>If you did not request this code, you can safely ignore this email.</p>
-      <p>Thank you,<br>The Speaknowly Team</p>
+      <p>Thank you,<br />The Speaknowly Team</p>
     </div>
     <div class="footer">
       &copy; {datetime.now().year} Speaknowly. All rights reserved.

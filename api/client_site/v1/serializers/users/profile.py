@@ -10,6 +10,8 @@ class ProfileSerializer(BaseModel):
     last_name: Optional[str] = Field(None, description="User's last name")
     age: Optional[int] = Field(None, ge=0, le=120, description="User's age")
     photo: Optional[str] = Field(None, description="URL of the user's photo")
+    tokens: int = Field(..., description="User's token balance")
+    is_premium: bool = Field(..., description="Whether the user has a premium tariff")
 
     @validator("photo")
     def validate_photo_url(cls, value: Optional[str]) -> Optional[str]:

@@ -34,7 +34,7 @@ async def login(
     t: dict = Depends(get_translation)
 ) -> AuthResponseSerializer:
     """
-    Authenticate a user via email and password, then issue a JWT.
+    Authenticate a user via email and password, then issue JWT.
 
     Steps:
     1. Normalize and validate the email.
@@ -42,9 +42,9 @@ async def login(
     3. Authenticate the user via the service (checks email, password, status, verification).
     4. Reset limiter counter on successful login.
     5. Update the user's last_login timestamp.
-    6. Generate a JWT token.
+    6. Generate JWT tokens (access and refresh).
     7. Log the successful login and user activity.
-    8. Return the response with the token.
+    8. Return the response with both tokens.
     """
     email = data.email.lower().strip()
     logger.info("Login attempt for email: %s", email)
@@ -53,7 +53,7 @@ async def login(
         # 1. Check login rate limiting
         if await login_limiter.is_blocked(email):
             logger.warning("Login blocked due to too many attempts: %s", email)
-            raise HTTPException(status_code=429, detail=t["too_many_attempts"])
+            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=t["too_many_attempts"])
 
         # 2. Authenticate user via service (all checks inside)
         user = await UserService.authenticate(email, data.password, t)
@@ -64,16 +64,16 @@ async def login(
         # 4. Update last_login timestamp
         await UserService.update_user(user.id, t, last_login=datetime.utcnow())
 
-        # 5. Generate JWT token
-        token = create_access_token(subject=str(user.id), email=user.email)
+        # 5. Generate JWT tokens
+        access_token = create_access_token(subject=str(user.id), email=user.email)
         refresh_token = create_refresh_token(subject=str(user.id), email=user.email)
         logger.info("User logged in successfully: %s", email)
 
         # 6. Log user activity
         log_user_activity.delay(user.id, "login")
 
-        # 7. Return response with token
-        return AuthResponseSerializer(token=token, refresh_token=refresh_token, auth_type="Bearer")
+        # 7. Return response with tokens
+        return AuthResponseSerializer(access_token=access_token, refresh_token=refresh_token, auth_type="Bearer")
 
     except HTTPException as exc:
         logger.warning("HTTPException during login: %s\n%s", exc.detail, traceback.format_exc())
@@ -82,7 +82,7 @@ async def login(
         raise HTTPException(status_code=exc.status_code, detail=detail)
     except Exception as exc:
         logger.error("Unexpected error during login: %s\n%s", exc, traceback.format_exc())
-        raise HTTPException(status_code=500, detail=t.get("internal_error", "Internal server error"))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=t.get("internal_error", "Internal server error"))
 
 
 @router.post(
@@ -102,8 +102,8 @@ async def oauth2_login(
     2. Authenticate via oauth2_sign_in utility.
     3. Decode JWT and extract user ID.
     4. Check user status.
-    5. Log activity.
-    6. Return response.
+    5. Update last_login and log activity.
+    6. Return response with both tokens.
     """
     logger.info("OAuth2 login attempt type=%s", data.auth_type)
     try:
@@ -116,7 +116,7 @@ async def oauth2_login(
         refresh_token = result.get("refresh_token")
         if not access_token:
             logger.warning("OAuth2 login failed: no access_token in result")
-            raise HTTPException(status_code=401, detail=t.get("invalid_oauth2_token", "Invalid OAuth2 token"))
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=t.get("invalid_oauth2_token", "Invalid OAuth2 token"))
 
         payload = decode_access_token(access_token)
         user_id = int(payload["sub"])
@@ -124,16 +124,16 @@ async def oauth2_login(
         user = await UserService.get_by_id(user_id)
         if not user:
             logger.warning("OAuth2 login failed: user not found (id=%s)", user_id)
-            raise HTTPException(status_code=404, detail=t.get("user_not_found", "User not found"))
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t.get("user_not_found", "User not found"))
         if not user.is_active:
             logger.warning("OAuth2 login failed: inactive user (id=%s)", user_id)
-            raise HTTPException(status_code=403, detail=t.get("inactive_user", "User is inactive"))
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=t.get("inactive_user", "User is inactive"))
 
-        logger.info("OAuth2 login successful for user_id=%s", user_id)
         await UserService.update_user(user.id, t, last_login=datetime.utcnow())
         log_user_activity.delay(user_id, f"oauth2_{data.auth_type}")
+        logger.info("OAuth2 login successful for user_id=%s", user_id)
 
-        return AuthResponseSerializer(token=access_token, refresh_token=refresh_token, auth_type="Bearer")
+        return AuthResponseSerializer(access_token=access_token, refresh_token=refresh_token, auth_type="Bearer")
 
     except HTTPException as exc:
         logger.warning("HTTPException during OAuth2 login: %s\n%s", exc.detail, traceback.format_exc())
@@ -141,4 +141,4 @@ async def oauth2_login(
         raise HTTPException(status_code=exc.status_code, detail=detail)
     except Exception as exc:
         logger.error("Unexpected error during OAuth2 login: %s\n%s", exc, traceback.format_exc())
-        raise HTTPException(status_code=500, detail=t.get("internal_error", "Internal server error"))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=t.get("internal_error", "Internal server error"))
