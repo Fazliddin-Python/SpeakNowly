@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 
 MINIO_BUCKET = "user-photo"
 minio_client = Minio(
-    "136.243.2.242:9000",
-    # "localhost:9000",
+    # "136.243.2.242:9000",
+    "localhost:9000",
     access_key="minioadmin",
     secret_key="minioadmin123",
     secure=False
