@@ -5,7 +5,8 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from tortoise.transactions import in_transaction
 
-from models.tests.reading import Passage, Question, Variant, Reading, Answer as ReadingAnswer, User
+from models.tests.reading import Passage, Question, Variant, Reading, Answer as ReadingAnswer
+from models.users import User
 from utils.check_tokens import check_user_tokens  # if you have token logic
 
 logger = logging.getLogger(__name__)
