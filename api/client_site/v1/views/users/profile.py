@@ -1,8 +1,11 @@
 import logging
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.security import HTTPBearer
 from typing import Dict
+from minio import Minio
+from uuid import uuid4
+from io import BytesIO
 
 from ...serializers.users.profile import (
     ProfileSerializer,
@@ -18,6 +21,13 @@ router = APIRouter()
 bearer_scheme = HTTPBearer()
 logger = logging.getLogger(__name__)
 
+MINIO_BUCKET = "user-photo"
+minio_client = Minio(
+    "localhost:9000",
+    access_key="minioadmin",
+    secret_key="minioadmin123",
+    secure=False
+)
 
 @router.get(
     "/me/",
@@ -64,7 +74,10 @@ async def get_profile(
     status_code=status.HTTP_200_OK
 )
 async def update_profile(
-    data: ProfileUpdateSerializer,
+    first_name: str = Form(None),
+    last_name: str = Form(None),
+    age: int = Form(None),
+    photo: UploadFile = File(None),
     current_user=Depends(get_current_user),
     t: Dict[str, str] = Depends(get_translation)
 ) -> ProfileSerializer:
@@ -83,9 +96,34 @@ async def update_profile(
         logger.warning("Inactive user tried to update profile: %s", current_user.email)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=t["inactive_user"])
 
-    update_fields = data.dict(exclude_unset=True)
-    for protected in ("email", "id", "is_staff", "is_superuser", "tokens", "is_verified", "is_active"):
-        update_fields.pop(protected, None)
+    update_fields = {}
+    if first_name is not None:
+        update_fields["first_name"] = first_name
+    if last_name is not None:
+        update_fields["last_name"] = last_name
+    if age is not None:
+        update_fields["age"] = age
+
+    # Обработка фото через MinIO
+    if photo is not None:
+        if photo.content_type not in ("image/jpeg", "image/png", "image/gif"):
+            raise HTTPException(status_code=400, detail="Invalid image type")
+        file_ext = photo.filename.split('.')[-1]
+        file_name = f"profile_photos/{current_user.id}/{uuid4()}.{file_ext}"
+        file_content = await photo.read()
+        try:
+            minio_client.put_object(
+                bucket_name=MINIO_BUCKET,
+                object_name=file_name,
+                data=BytesIO(file_content),
+                length=len(file_content),
+                content_type=photo.content_type,
+            )
+        except Exception as e:
+            logger.error("MinIO upload error: %s", e)
+            raise HTTPException(status_code=500, detail="Failed to upload image")
+        photo_url = f"https://api.speaknowly.com/minio-console/browser/user-photo/{file_name}"
+        update_fields["photo"] = photo_url
 
     updated_user = await UserService.update_user(current_user.id, t, **update_fields)
     logger.info("Profile updated for user: %s", current_user.email)
@@ -93,7 +131,6 @@ async def update_profile(
 
     # Ensure tariff relationship is loaded before checking is_premium
     await updated_user.fetch_related("tariff")
-
     tokens_balance = updated_user.tokens
     is_premium = updated_user.is_premium
 

@@ -25,6 +25,7 @@ openai = "*"
 fastapi = "*"
 pytest = "*"
 pytest-asyncio = "*"
+minio = "*"
 
 [dev-packages]
 Faker = "*"
