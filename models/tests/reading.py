@@ -28,11 +28,12 @@ class Answer(BaseModel):
 
     status = fields.CharField(max_length=12, default=NOT_ANSWERED, description="Status of the answer")
     user = fields.ForeignKeyField('models.User', related_name='user_answers', on_delete=fields.CASCADE, description="Related user")
+    reading = fields.ForeignKeyField('models.Reading', related_name='user_answers', null=True, on_delete=fields.CASCADE, description="Related reading")
     question = fields.ForeignKeyField('models.Question', related_name='answers', on_delete=fields.CASCADE, description="Related question")
     variant = fields.ForeignKeyField('models.Variant', related_name='user_answers', null=True, on_delete=fields.SET_NULL, description="Selected variant")
-    text = fields.TextField(description="Answer text")
+    text = fields.TextField(null=True, description="Answer text")
     explanation = fields.TextField(null=True, description="Explanation for the answer")
-    is_correct = fields.BooleanField(default=False, description="Whether the answer is correct")
+    is_correct = fields.BooleanField(null=True, description="Whether the answer is correct")
     correct_answer = fields.TextField(null=True, default="default", description="Correct answer text")
 
     class Meta:
@@ -44,11 +45,13 @@ class Answer(BaseModel):
         return f"Answer to {self.question.text}"
     
 class Passage(BaseModel):
-    level = fields.CharField(max_length=50, description="Difficulty level of the passage")
-    number = fields.IntField(description="Number of the passage")
+    level = fields.CharEnumField(
+        enum_type=Constants.PassageLevel, default=Constants.PassageLevel.EASY, description="Difficulty level of the passage"
+    )
+    number = fields.IntField(null=True, description="Number of the passage")
     title = fields.CharField(max_length=255, description="Title of the passage")
     text = fields.TextField(description="Text content of the passage")
-    skills = fields.JSONField(description="Skills associated with the passage")
+    skills = fields.TextField(null=True, description="Skills associated with the passage")
 
     class Meta:
         table = "reading_passages"
@@ -59,11 +62,10 @@ class Passage(BaseModel):
         return self.title
     
 class Question(BaseModel):
-    passage = fields.ForeignKeyField('models.Passage', related_name='questions', on_delete=fields.CASCADE, description="Related passage")
+    passage = fields.ForeignKeyField('models.Passage', related_name='questions', null=True, on_delete=fields.CASCADE, description="Related passage")
     text = fields.TextField(description="Text of the question")
-    type = fields.CharField(max_length=50, description="Type of the question")
+    type = fields.CharEnumField(enum_type=Constants.QuestionType, description="Type of the question")
     score = fields.IntField(description="Score for the question")
-    correct_answer = fields.TextField(description="Correct answer for the question")
 
     class Meta:
         table = "reading_questions"
