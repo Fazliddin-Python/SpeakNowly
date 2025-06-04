@@ -25,7 +25,7 @@ def create_access_token(
     Create a signed JWT access token that expires after a specified time.
     """
     if expires_delta is None:
-        expires_delta = timedelta(days=7)
+        expires_delta = timedelta(days=1)
     expire = datetime.now(timezone.utc) + expires_delta
     expire_timestamp = int(expire.timestamp())
     payload = {"sub": subject, "email": email, "exp": expire_timestamp, "type": "access"}

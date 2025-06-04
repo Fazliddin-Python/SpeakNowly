@@ -3,8 +3,11 @@ import logging
 from typing import List, Dict, Any
 from datetime import datetime, timezone
 
-from fastapi import HTTPException, Request, status
+from fastapi import HTTPException, Request, status, UploadFile
 from tortoise.transactions import in_transaction
+from minio import Minio
+from uuid import uuid4
+from io import BytesIO
 
 from models.tests.listening import (
     Listening,
@@ -18,6 +21,14 @@ from utils.check_tokens import check_user_tokens
 
 logger = logging.getLogger(__name__)
 
+MINIO_BUCKET = "listening-audio"
+minio_client = Minio(
+    # "136.243.2.242:9000",
+    "localhost:9000",
+    access_key="minioadmin",
+    secret_key="minioadmin123",
+    secure=False
+)
 
 class ListeningService:
     """
@@ -96,30 +107,48 @@ class ListeningService:
         return part
 
     @staticmethod
-    async def create_part(data: Dict[str, Any]) -> ListeningPart:
+    async def create_part(
+        listening_id: int,
+        part_number: int,
+        audio_file: UploadFile,
+        t: dict,
+    ):
         """
-        Create a new listening part. Ensures parent test exists and part_number is unique.
+        Create a ListeningPart and upload its audio file to MinIO.
         """
-        listening = await Listening.get_or_none(id=data["listening_id"])
-        if not listening:
-            logger.error(f"Parent listening test not found (id={data['listening_id']})")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Parent listening test not found"
-            )
-
-        exists = await ListeningPart.get_or_none(
-            listening_id=data["listening_id"], part_number=data["part_number"]
-        )
-        if exists:
-            logger.error(f"Duplicate part_number {data['part_number']} for listening_id={data['listening_id']}")
+        # 1. Upload audio file to MinIO
+        if audio_file.content_type not in ("audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav"):
+            logger.error("Invalid audio type: %s", audio_file.content_type)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Part number {data['part_number']} already exists for this listening test"
+                detail=t.get("invalid_audio_type", "Invalid audio type")
             )
+        file_ext = audio_file.filename.split('.')[-1]
+        file_name = f"part_audio/{uuid4()}.{file_ext}"
+        file_content = await audio_file.read()
+        try:
+            minio_client.put_object(
+                bucket_name=MINIO_BUCKET,
+                object_name=file_name,
+                data=BytesIO(file_content),
+                length=len(file_content),
+                content_type=audio_file.content_type,
+            )
+        except Exception as e:
+            logger.error("MinIO upload error: %s", e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=t.get("audio_upload_failed", "Failed to upload audio")
+            )
+        audio_url = f"https://api.speaknowly.com/minio-console/browser/{MINIO_BUCKET}/{file_name}"
 
-        part = await ListeningPart.create(**data)
-        logger.info(f"Created listening part id={part.id} under listening_id={part.listening_id}")
+        # 2. Create ListeningPart
+        part = await ListeningPart.create(
+            listening_id=listening_id,
+            part_number=part_number,
+            audio_file=audio_url,
+        )
+        logger.info(f"Created ListeningPart id={part.id} for listening_id={listening_id}")
         return part
 
     # --- SECTION OPERATIONS ---

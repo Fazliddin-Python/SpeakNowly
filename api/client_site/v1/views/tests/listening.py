@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status, Request
+from fastapi import APIRouter, Form, HTTPException, Depends, status, Request, UploadFile, File
 from typing import List, Any
 import asyncio
 import logging
@@ -150,7 +150,9 @@ async def get_listening_part(
     summary="Create listening part",
 )
 async def create_listening_part(
-    payload: ListeningPartCreateSerializer,
+    listening_id: int = Form(...),
+    part_number: int = Form(...),
+    audio_file: UploadFile = File(...),
     _: Any = Depends(admin_required),
     t: dict = Depends(get_translation),
     __: Any = Depends(audit_action("create_listening_part")),
@@ -159,7 +161,12 @@ async def create_listening_part(
     Create a new listening part. Requires admin privileges.
     """
     logger.info("Admin creating a new listening part")
-    part = await ListeningService.create_part(payload.dict())
+    part = await ListeningService.create_part(
+        listening_id=listening_id,
+        part_number=part_number,
+        audio_file=audio_file,
+        t=t,
+    )
     return await ListeningPartSerializer.from_orm(part)
 
 
