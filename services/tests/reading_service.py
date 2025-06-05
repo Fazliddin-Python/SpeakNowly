@@ -234,8 +234,13 @@ class ReadingService:
 
     @staticmethod
     async def cancel_reading(session_id: int, user_id: int) -> bool:
-        deleted = await Reading.filter(id=session_id, user_id=user_id).delete()
-        return bool(deleted)
+        session = await Reading.get_or_none(id=session_id, user_id=user_id)
+        if not session:
+            return False
+        session.status = "cancelled"
+        session.end_time = datetime.utcnow()
+        await session.save()
+        return True
 
     @staticmethod
     async def restart_reading(session_id: int, user_id: int) -> Tuple[Optional[Reading], Optional[str]]:
