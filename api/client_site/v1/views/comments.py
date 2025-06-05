@@ -19,21 +19,12 @@ router = APIRouter()
 
 
 @router.get("/", response_model=List[CommentListSerializer])
-async def get_comments(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(10, ge=1)
-):
+async def get_comments():
     """
-    List comments in a paginated fashion.
+    List all comments (no pagination).
     """
-    offset = (page - 1) * page_size
-    comments = (
-        await Comment.all()
-        .offset(offset)
-        .limit(page_size)
-        .prefetch_related("user")
-    )
-    logger.info("Fetched %d comments (page %d)", len(comments), page)
+    comments = await Comment.all().prefetch_related("user").order_by("-id")
+    logger.info("Fetched %d comments", len(comments))
 
     result: List[Dict] = []
     for comment in comments:

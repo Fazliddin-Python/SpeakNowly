@@ -59,6 +59,11 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "no_passages": "No passages available for reading test",
         "reading_already_completed": "Reading test already completed",
         "invalid_language": "Invalid language selected",
+        "passage_not_found": "Passage not found",
+        "passage_number_exists": "Passage with this number already exists",
+        "variant_not_found": "Variant not found",
+        "reading_not_completed": "Reading test is not completed",
+        "reading_cancelled": "Reading session cancelled successfully",
 
         # --- Additional keys used in ListeningService ---
         "parent_listening_not_found": "Parent listening test not found",
@@ -125,6 +130,11 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "no_passages": "Нет доступных отрывков для теста чтения",
         "reading_already_completed": "Тест чтения уже завершён",
         "invalid_language": "Выбран неверный язык",
+        "passage_not_found": "Отрывок не найден",
+        "passage_number_exists": "Отрывок с этим номером уже существует",
+        "variant_not_found": "Вариант не найден",
+        "reading_not_completed": "Тест чтения не завершён",
+        "reading_cancelled": "Сессия чтения успешно отменена",
 
         # --- Additional keys used in ListeningService ---
         "parent_listening_not_found": "Родительский тест прослушивания не найден",
@@ -191,6 +201,11 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "no_passages": "O'qish testi uchun mavjud parchalar yo'q",
         "reading_already_completed": "O'qish testi allaqachon yakunlangan",
         "invalid_language": "Noto'g'ri til tanlandi",
+        "passage_not_found": "Parcha topilmadi",
+        "passage_number_exists": "Bu raqamli parcha allaqachon mavjud",
+        "variant_not_found": "Variant topilmadi",
+        "reading_not_completed": "O'qish testi yakunlanmagan",
+        "reading_cancelled": "O'qish sessiyasi muvaffaqiyatli bekor qilindi",
 
         # --- Additional keys used in ListeningService ---
         "parent_listening_not_found": "Tinglash testi topilmadi",

@@ -20,6 +20,12 @@ class MessageListSerializer(SafeSerializer):
     is_read: bool = Field(..., description="Whether the message is read")
 
 
+class MessageDetailSerializer(SafeSerializer):
+    title: str
+    description: Optional[str]
+    content: Optional[str]
+
+
 class ReadStatusSerializer(SafeSerializer):
     """Serializer for read status of a notification."""
     message_id: int
