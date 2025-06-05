@@ -64,6 +64,8 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "variant_not_found": "Variant not found",
         "reading_not_completed": "Reading test is not completed",
         "reading_cancelled": "Reading session cancelled successfully",
+        "session_not_found": "Session not found",
+        "session_not_completed": "Session is not completed",
 
         # --- Additional keys used in ListeningService ---
         "parent_listening_not_found": "Parent listening test not found",
@@ -135,6 +137,8 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "variant_not_found": "Вариант не найден",
         "reading_not_completed": "Тест чтения не завершён",
         "reading_cancelled": "Сессия чтения успешно отменена",
+        "session_not_found": "Сессия не найдена",
+        "session_not_completed": "Сессия не завершена",
 
         # --- Additional keys used in ListeningService ---
         "parent_listening_not_found": "Родительский тест прослушивания не найден",
@@ -206,6 +210,8 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "variant_not_found": "Variant topilmadi",
         "reading_not_completed": "O'qish testi yakunlanmagan",
         "reading_cancelled": "O'qish sessiyasi muvaffaqiyatli bekor qilindi",
+        "session_not_found": "Sessiya topilmadi",
+        "session_not_completed": "Sessiya yakunlanmagan",
 
         # --- Additional keys used in ListeningService ---
         "parent_listening_not_found": "Tinglash testi topilmadi",

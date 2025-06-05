@@ -164,35 +164,31 @@ class ReadingService:
 
     @staticmethod
     async def start_reading(user_id: int) -> Tuple[Reading, Optional[str]]:
-        # create a new Reading record, attach all passages by some logic
-        # e.g., pick passages in order:
         passages = await Passage.all()
         if not passages:
             return None, "no_passages"
-        new_reading = await Reading.create(
+        new_session = await Reading.create(
             user_id=user_id,
             status="pending",
             start_time=datetime.utcnow(),
             score=0.0,
             duration=60,
         )
-        # associate all passages (m2m) in sorted order
-        await new_reading.passages.add(*passages)
-        return new_reading, None
+        await new_session.passages.add(*passages)
+        return new_session, None
 
     @staticmethod
-    async def get_reading(reading_id: int) -> Optional[Reading]:
-        reading = await Reading.get_or_none(id=reading_id).prefetch_related("passages", "user")
-        return reading
+    async def get_reading(session_id: int) -> Optional[Reading]:
+        return await Reading.get_or_none(id=session_id).prefetch_related("passages", "user")
 
     @staticmethod
     async def submit_answers(
-        reading_id: int, user_id: int, answers: List[Any]
+        session_id: int, user_id: int, answers: List[Any]
     ) -> Tuple[float, Optional[str]]:
-        reading = await Reading.get_or_none(id=reading_id, user_id=user_id)
-        if not reading:
-            return 0.0, "not_found"
-        if reading.status == "completed":
+        session = await Reading.get_or_none(id=session_id, user_id=user_id)
+        if not session:
+            return 0.0, "session_not_found"
+        if session.status == "completed":
             return 0.0, "already_completed"
 
         total_score = 0.0
@@ -217,73 +213,68 @@ class ReadingService:
                 await ReadingAnswer.create(
                     user_id=user_id,
                     question_id=question_id,
-                    reading_id=reading_id,
+                    reading_id=session_id,
                     text=raw_answer,
                     explanation=None,
                     is_correct=is_correct,
                     correct_answer=correct_text,
                     status="answered"
                 )
-            reading.status = "completed"
-            reading.end_time = datetime.utcnow()
-            reading.score = total_score
-            await reading.save()
+            session.status = "completed"
+            session.end_time = datetime.utcnow()
+            session.score = total_score
+            await session.save()
 
-        # Вызов анализа после завершения теста
         try:
-            await ReadingAnalyseService.analyse_reading(reading_id)
+            await ReadingAnalyseService.analyse_reading(session_id)
         except Exception as e:
-            logger.error(f"Failed to analyse reading {reading_id}: {e}")
+            logger.error(f"Failed to analyse reading session {session_id}: {e}")
 
         return total_score, None
 
     @staticmethod
-    async def cancel_reading(reading_id: int, user_id: int) -> bool:
-        deleted = await Reading.filter(id=reading_id, user_id=user_id).delete()
+    async def cancel_reading(session_id: int, user_id: int) -> bool:
+        deleted = await Reading.filter(id=session_id, user_id=user_id).delete()
         return bool(deleted)
 
     @staticmethod
-    async def restart_reading(reading_id: int, user_id: int) -> Tuple[Optional[Reading], Optional[str]]:
-        reading = await Reading.get_or_none(id=reading_id, user_id=user_id)
-        if not reading:
-            return None, "not_found"
-        if reading.status != "completed":
+    async def restart_reading(session_id: int, user_id: int) -> Tuple[Optional[Reading], Optional[str]]:
+        session = await Reading.get_or_none(id=session_id, user_id=user_id)
+        if not session:
+            return None, "session_not_found"
+        if session.status != "completed":
             return None, "not_completed"
-        # delete old user answers
-        await ReadingAnswer.filter(reading_id=reading_id, user_id=user_id).delete()
-        reading.status = "pending"
-        reading.start_time = datetime.utcnow()
-        reading.end_time = None
-        reading.score = 0.0
-        await reading.save()
-        return reading, None
+        await ReadingAnswer.filter(reading_id=session_id, user_id=user_id).delete()
+        session.status = "pending"
+        session.start_time = datetime.utcnow()
+        session.end_time = None
+        session.score = 0.0
+        await session.save()
+        return session, None
 
     @staticmethod
     async def list_readings_for_user(user_id: int) -> List[Reading]:
         return await Reading.filter(user_id=user_id).all()
 
     @staticmethod
-    async def list_passages_in_reading(reading_id: int) -> List[Passage]:
-        reading = await Reading.get_or_none(id=reading_id).prefetch_related("passages")
-        if not reading:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reading not found")
-        return await reading.passages.all()
+    async def list_passages_in_reading(session_id: int) -> List[Passage]:
+        session = await Reading.get_or_none(id=session_id).prefetch_related("passages")
+        if not session:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+        return await session.passages.all()
 
     @staticmethod
-    async def analyse_reading(reading_id: int, user_id: int) -> Dict[str, Any]:
-        reading = await Reading.get_or_none(id=reading_id, user_id=user_id).prefetch_related("passages")
-        if not reading:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reading not found")
-        # assemble analysis result per passage
+    async def analyse_reading(session_id: int, user_id: int) -> Dict[str, Any]:
+        session = await Reading.get_or_none(id=session_id, user_id=user_id).prefetch_related("passages")
+        if not session:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
         result = []
-        for passage in await reading.passages.all():
-            # load all questions for this passage
+        for passage in await session.passages.all():
             questions_qs = await passage.questions.all()
             questions_data = []
             for question in questions_qs:
-                # get the user answer
                 ua = await ReadingAnswer.get_or_none(
-                    question_id=question.id, user_id=user_id, reading_id=reading_id
+                    question_id=question.id, user_id=user_id, reading_id=session_id
                 )
                 questions_data.append({
                     "id": question.id,
@@ -303,7 +294,4 @@ class ReadingService:
                 "text": passage.text,
                 "questions": questions_data,
             })
-        # also include pagination or score/time info if needed
         return {"results": result}
-
-

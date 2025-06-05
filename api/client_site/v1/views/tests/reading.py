@@ -277,7 +277,7 @@ async def start_reading_session(
     _: Any = Depends(active_user),
     t: Dict[str, str] = Depends(get_translation),
     __: Any = Depends(audit_action("start_reading")),
-    payload: StartReadingSerializer = Depends(),  # not strictly needed, we ignore reading_id here
+    payload: StartReadingSerializer = Depends(),
     user=Depends(get_current_user),
 ):
     reading, error = await ReadingService.start_reading(user.id)
@@ -287,30 +287,30 @@ async def start_reading_session(
 
 
 @router.get(
-    "/{reading_id}/",
+    "/{session_id}/",
     response_model=ReadingSerializer,
     summary="Get a reading session by ID",
 )
 async def get_reading_session(
-    reading_id: int,
+    session_id: int,
     _: Any = Depends(active_user),
     t: Dict[str, str] = Depends(get_translation),
     __: Any = Depends(audit_action("get_reading")),
     user=Depends(get_current_user),
 ):
-    reading = await ReadingService.get_reading(reading_id)
+    reading = await ReadingService.get_reading(session_id)
     if not reading or reading.user_id != user.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t["reading_not_found"])
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t["session_not_found"])
     return ReadingSerializer.from_orm(reading)
 
 
 @router.post(
-    "/{reading_id}/passages/{passage_id}/submit/",
+    "/{session_id}/passages/{passage_id}/submit/",
     status_code=status.HTTP_201_CREATED,
     summary="Submit answers for a passage",
 )
 async def submit_passage_answers(
-    reading_id: int,
+    session_id: int,
     passage_id: int,
     payload: SubmitPassageAnswerSerializer,
     _: Any = Depends(active_user),
@@ -319,67 +319,65 @@ async def submit_passage_answers(
     user=Depends(get_current_user),
 ):
     total_score, error = await ReadingService.submit_answers(
-        reading_id, user.id, payload.answers
+        session_id, user.id, payload.answers
     )
-    if error == "not_found":
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t["reading_not_found"])
+    if error == "session_not_found":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t["session_not_found"])
     if error == "already_completed":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=t["reading_already_completed"])
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=t["session_already_completed"])
     if error and error.startswith("question_"):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t["question_not_found"])
     return {"message": t["answers_submitted"], "total_score": total_score}
 
 
 @router.post(
-    "/{reading_id}/cancel/",
+    "/{session_id}/cancel/",
     status_code=status.HTTP_200_OK,
     summary="Cancel a reading session",
 )
 async def cancel_reading_session(
-    reading_id: int,
+    session_id: int,
     _: Any = Depends(active_user),
     t: Dict[str, str] = Depends(get_translation),
     __: Any = Depends(audit_action("cancel_reading")),
     user=Depends(get_current_user),
 ):
-    ok = await ReadingService.cancel_reading(reading_id, user.id)
+    ok = await ReadingService.cancel_reading(session_id, user.id)
     if not ok:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t["reading_not_found"])
-    return {"message": t["reading_cancelled"]}
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t["session_not_found"])
+    return {"message": t["session_cancelled"]}
 
 
 @router.post(
-    "/{reading_id}/restart/",
+    "/{session_id}/restart/",
     response_model=ReadingSerializer,
     summary="Restart a completed reading session",
 )
 async def restart_reading_session(
-    reading_id: int,
+    session_id: int,
     _: Any = Depends(active_user),
     t: Dict[str, str] = Depends(get_translation),
     __: Any = Depends(audit_action("restart_reading")),
     user=Depends(get_current_user),
 ):
-    reading, error = await ReadingService.restart_reading(reading_id, user.id)
-    if error == "not_found":
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t["reading_not_found"])
+    reading, error = await ReadingService.restart_reading(session_id, user.id)
+    if error == "session_not_found":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t["session_not_found"])
     if error == "not_completed":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=t["reading_not_completed"])
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=t["session_not_completed"])
     return ReadingSerializer.from_orm(reading)
 
 
 @router.get(
-    "/{reading_id}/analysis/",
-    summary="Get analysis results for a reading session (paginated)",
+    "/{session_id}/analysis/",
+    summary="Get analysis results for a reading session",
 )
 async def analyze_reading(
-    reading_id: int,
-    # page: int = Query(1, ge=1),
-    # page_size: int = Query(10, ge=1),
+    session_id: int,
     _: Any = Depends(active_user),
     t: Dict[str, str] = Depends(get_translation),
     __: Any = Depends(audit_action("analyse_reading")),
     user=Depends(get_current_user),
 ):
-    analysis = await ReadingService.analyse_reading(reading_id, user.id)
+    analysis = await ReadingService.analyse_reading(session_id, user.id)
     return analysis
