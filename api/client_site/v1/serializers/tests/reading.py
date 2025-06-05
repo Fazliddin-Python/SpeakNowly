@@ -33,7 +33,7 @@ class QuestionListSerializer(SafeSerializer):
     @classmethod
     async def from_orm(cls, obj: QuestionModel) -> "QuestionListSerializer":
         variants_qs = await obj.variants.all()
-        variants = [await VariantSerializer.from_orm(v) for v in variants_qs]
+        variants = [VariantSerializer.from_orm(v) for v in variants_qs]
         return cls(
             id=obj.id,
             passage_id=obj.passage_id,
