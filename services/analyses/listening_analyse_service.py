@@ -57,13 +57,12 @@ class ListeningAnalyseService:
         # 3. Prepare ChatGPT prompt
         system_msg = (
             "You are an expert IELTS listening examiner. "
-            "A test taker has completed up to 40 listening questions. "
-            "You only have access to the user's answers (not the audio or questions themselves). "
+            "You are evaluating a student's listening answers. "
             "Your tasks:\n"
-            "- Count the number of correct answers (assume the answers are in order).\n"
-            "- Estimate the IELTS listening band score based on correct answers (0-40).\n"
-            "- Provide structured feedback in English on listening skills (strengths, weaknesses, suggestions).\n"
-            "- Return ONLY a valid JSON object in this format WITHOUT extra text:\n"
+            "- Count the number of correct answers.\n"
+            "- Estimate an IELTS listening band score (0.0 to 9.0).\n"
+            "- Write structured feedback for the student.\n"
+            "Output a valid JSON in this format ONLY:\n"
             "{\n"
             '  "correct_answers": <int>,\n'
             '  "overall_score": <float>,\n'
@@ -74,7 +73,10 @@ class ListeningAnalyseService:
             "  }\n"
             "}"
         )
-        user_msg = "\n".join(f"Question {i+1}: {ans}" for i, ans in enumerate(answers))
+
+        user_msg = "Student’s answers:\n" + "\n".join(
+            f"Question {i+1}: {ans or '[blank]'}" for i, ans in enumerate(answers)
+        )
 
         # 4. Call ChatGPT API
         chatgpt = ChatGPTIntegration()
@@ -124,24 +126,19 @@ class ListeningAnalyseService:
         """
         analyse = await ListeningAnalyse.get_or_none(session_id=session_id)
         if not analyse:
-            # Return an empty-structured response if no analysis exists
             return {
                 "session_id": session_id,
                 "analyse": {},
                 "responses": []
             }
 
-        # Build the nested analyse dictionary
-        analyse_data = {
-            "correct_answers": analyse.correct_answers,
-            "overall_score": float(analyse.overall_score),
-            "timing": str(analyse.timing),
-            "feedback": analyse.feedback,
-        }
-
-        # We don't include individual responses here; that can be fetched separately if needed
         return {
             "session_id": session_id,
-            "analyse": analyse_data,
+            "analyse": {
+                "correct_answers": analyse.correct_answers,
+                "overall_score": float(analyse.overall_score),
+                "timing": str(analyse.timing),
+                "feedback": analyse.feedback,
+            },
             "responses": []
         }

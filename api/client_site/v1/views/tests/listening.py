@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Form, HTTPException, Depends, status, Request, UploadFile, File
-from typing import List, Any
 import asyncio
 import logging
+from typing import List, Any, Dict
 
 from services.tests.listening_service import ListeningService
 from ...serializers.tests.listening import (
@@ -326,153 +326,74 @@ async def delete_listening_question(
     status_code=status.HTTP_201_CREATED,
     summary="Start a new listening session",
 )
-async def start_listening_session(
+async def start_session(
     request: Request,
     user=Depends(active_user),
-    t: dict = Depends(get_translation),
+    t=Depends(get_translation),
     _: Any = Depends(audit_action("start_listening_session")),
 ):
-    """
-    Start a new listening session for the current user. Deducts tokens if available.
-    """
-    logger.info(f"User {user.id} is starting a new listening session")
-    session = await ListeningService.start_session(user, request, t=t)
-    return await UserListeningSessionSerializer.from_orm(session)
-
-
-@router.get(
-    "/session/{session_id}",
-    response_model=UserListeningSessionSerializer,
-    summary="Get session details",
-)
-async def get_listening_session(
-    session_id: int,
-    user=Depends(active_user),
-    t: dict = Depends(get_translation),
-    _: Any = Depends(audit_action("get_listening_session")),
-):
-    """
-    Retrieve details of a specific listening session for the user.
-    """
-    logger.info(f"Retrieving session details for session_id={session_id}, user_id={user.id}")
-    session = await ListeningService.get_session(session_id, user.id, t=t)
+    session = await ListeningService.start_session(user, request, t)
     return await UserListeningSessionSerializer.from_orm(session)
 
 
 @router.post(
     "/session/{session_id}/cancel",
     status_code=status.HTTP_200_OK,
-    summary="Cancel listening session",
+    summary="Cancel a listening session",
 )
-async def cancel_listening_session(
+async def cancel_session(
     session_id: int,
     user=Depends(active_user),
-    t: dict = Depends(get_translation),
+    t=Depends(get_translation),
     _: Any = Depends(audit_action("cancel_listening_session")),
 ):
-    """
-    Cancel an ongoing listening session if it is not already completed.
-    """
-    logger.info(f"User {user.id} requested cancellation of session_id={session_id}")
-    await ListeningService.cancel_session(session_id, user.id, t=t)
+    await ListeningService.cancel_session(session_id, user.id, t)
     return {"detail": t["session_cancelled"]}
-
-
-@router.get(
-    "/session/{session_id}/data",
-    response_model=ListeningDataSlimSerializer,  # <<< swapped to slim version
-    summary="Get session data",
-)
-async def get_listening_data(
-    session_id: int,
-    user=Depends(active_user),
-    t: dict = Depends(get_translation),
-    _: Any = Depends(audit_action("get_listening_data")),
-):
-    """
-    Retrieve all data required for a listening session, but only send back the fields that the frontend expects.
-    """
-    logger.info(f"Retrieving session data for session_id={session_id}, user_id={user.id}")
-    data_dict = await ListeningService.get_session_data(session_id, user.id, t=t)
-
-    # Build a “slim” parts array matching front’s IListeningData:
-    slim_parts = []
-    for part in data_dict["parts"]:
-        slim_parts.append({
-            "id": part["id"],
-            "part_number": part["part_number"],
-            "audio_file": part["audio_file"],
-        })
-
-    return {
-        "session_id": data_dict["session_id"],
-        "start_time": data_dict["start_time"],
-        "status": data_dict["status"],
-        "exam": data_dict["exam"],
-        "parts": slim_parts,
-    }
 
 
 @router.post(
     "/session/{session_id}/submit",
     status_code=status.HTTP_200_OK,
-    summary="Submit answers for session",
+    summary="Submit listening answers",
 )
-async def submit_listening_answers(
+async def submit_answers(
     session_id: int,
     payload: ListeningAnswerSerializer,
     user=Depends(active_user),
-    t: dict = Depends(get_translation),
+    t=Depends(get_translation),
     _: Any = Depends(audit_action("submit_listening_answers")),
 ):
-    """
-    Submit answers for a listening session. Calculates scores and marks session completed.
-    Frontend must send 'answers' keyed by numeric section_id.
-    """
-    logger.info(f"User {user.id} submitting answers for session_id={session_id}")
-    await ListeningService.submit_answers(session_id, user.id, payload.dict(), t=t)
-    return {"detail": t.get("answers_submitted", "Answers submitted successfully")}
+    total = await ListeningService.submit_answers(session_id, user.id, payload.dict(), t)
+    return {"detail": t["answers_submitted"], "total_correct": total}
+
+
+@router.get(
+    "/session/{session_id}/data",
+    response_model=ListeningDataSlimSerializer,
+    summary="Get session data",
+)
+async def get_session_data(
+    session_id: int,
+    user=Depends(active_user),
+    t=Depends(get_translation),
+    _: Any = Depends(audit_action("get_listening_data")),
+):
+    # fetch minimal data (exam + parts)
+    return await ListeningDataSlimSerializer.from_orm(
+        await ListeningService.get_session_data(session_id, user.id, t),
+    )
 
 
 @router.get(
     "/session/{session_id}/analyse",
     response_model=ListeningAnalyseResponseSerializer,
-    summary="Get session analysis",
+    summary="Get listening analysis",
 )
-async def get_listening_analysis(
+async def get_analysis(
     session_id: int,
     user=Depends(active_user),
-    t: dict = Depends(get_translation),
+    t=Depends(get_translation),
     _: Any = Depends(audit_action("get_listening_analysis")),
 ):
-    """
-    Retrieve analysis results for a completed listening session.
-    """
-    logger.info(f"Retrieving analysis for session_id={session_id}, user_id={user.id}")
-    result = await ListeningService.get_analysis(session_id, user.id, t=t)
-
-    # Build a payload that exactly matches IListeningAnalyse:
-    analyse_dict = result["analyse"]
-    # drop “feedback” if present, because IListeningAnalyse only expects correct_answers, overall_score, timing:
-    slim_analyse = {
-        "correct_answers": analyse_dict.get("correct_answers"),
-        "overall_score": analyse_dict.get("overall_score"),
-        "timing": analyse_dict.get("timing"),
-    }
-    # keep responses but drop any extra keys not in TS type
-    slim_responses = []
-    for r in result["responses"]:
-        slim_responses.append({
-            "id": r["id"],
-            "user_answer": r["user_answer"],
-            "is_correct": r["is_correct"],
-            "score": r["score"],
-            "correct_answer": r["correct_answer"],
-            "question_index": r["question_index"],
-        })
-
-    return {
-        "session_id": result["session_id"],
-        "analyse": slim_analyse,
-        "responses": slim_responses,
-    }
+    result = await ListeningService.get_analysis(session_id, user.id, t)
+    return result

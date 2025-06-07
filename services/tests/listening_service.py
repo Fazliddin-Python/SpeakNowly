@@ -14,9 +14,11 @@ from models.tests.listening import (
     ListeningPart,
     ListeningSection,
     ListeningQuestion,
+    ListeningSessionStatus,
     UserListeningSession,
     UserResponse,
 )
+from models.transactions import TransactionType
 from utils.check_tokens import check_user_tokens
 
 logger = logging.getLogger(__name__)
@@ -358,26 +360,18 @@ class ListeningService:
         """
         tests = await Listening.all()
         if not tests:
-            logger.error("No listening tests available to start a session")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=t["no_listening_tests"]
-            )
-        selected_test = random.choice(tests)
-        price = getattr(selected_test, "price", 1)
+            raise HTTPException(404, detail=t["no_listening_tests"])
+        selected = random.choice(tests)
 
-        # Deduct tokens or raise 402
-        from models.transactions import TransactionType
-
+        # token check
         await check_user_tokens(user, TransactionType.TEST_LISTENING, request, t)
 
         session = await UserListeningSession.create(
             user_id=user.id,
-            exam_id=selected_test.id,
+            exam_id=selected.id,
             start_time=datetime.now(timezone.utc),
-            status="started"
+            status=ListeningSessionStatus.STARTED.value,
         )
-        logger.info(f"Started listening session id={session.id} for user_id={user.id} on test_id={selected_test.id}")
         return session
 
     @staticmethod
@@ -392,21 +386,14 @@ class ListeningService:
         """
         Cancel an ongoing session if not already completed.
         """
-        session = await ListeningService._get_session(session_id, user_id, t)
-        if session.status == "completed":
-            logger.warning(f"Attempt to cancel already completed session (id={session_id})")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=t["session_already_completed"]
-            )
-        if session.status == "cancelled":
-            logger.info(f"Session id={session_id} is already cancelled")
-            return
-
-        session.status = "cancelled"
+        session = await UserListeningSession.get_or_none(id=session_id, user_id=user_id)
+        if not session:
+            raise HTTPException(404, detail=t["session_not_found"])
+        if session.status == ListeningSessionStatus.COMPLETED.value:
+            raise HTTPException(400, detail=t["session_already_completed"])
+        session.status = ListeningSessionStatus.CANCELLED.value
         session.end_time = datetime.now(timezone.utc)
-        await session.save()
-        logger.info(f"Cancelled listening session id={session_id}")
+        await session.save(update_fields=["status", "end_time"])
 
     @staticmethod
     async def get_session_data(session_id: int, user_id: int, t: dict) -> Dict[str, Any]:
@@ -484,144 +471,84 @@ class ListeningService:
 
     @staticmethod
     async def submit_answers(
-        session_id: int,
-        user_id: int,
-        payload: Dict[str, Any],  # {"test_id": int, "answers": { section_id: [ {question_id, answer}, ... ] } }
-        t: dict,
-    ) -> int:
+        session_id: int, user_id: int, payload: Dict[str,Any], t: Dict[str,str]
+    ) -> int:   
         """
-        Save user answers, calculate score, set unanswered to incorrect, mark session completed, and trigger analysis.
+        payload = {"test_id": int, "answers": { section_id: [ { "question_id": int, "answer": str|list } ] } }
         """
         test_id = payload.get("test_id")
         answers_dict = payload.get("answers")
         if test_id is None or answers_dict is None:
-            logger.error("Invalid payload for submit_answers: missing test_id or answers")
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=t["invalid_payload"]
-            )
+            raise HTTPException(422, detail=t["invalid_payload"])
 
-        async with in_transaction():
-            session = await ListeningService._get_session(session_id, user_id, t)
-            if session.status == "completed":
-                logger.warning(f"Attempt to resubmit answers for completed session (id={session_id})")
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=t["session_already_completed"]
+        session = await UserListeningSession.get_or_none(id=session_id, user_id=user_id)
+        if not session:
+            raise HTTPException(404, detail=t["session_not_found"])
+        if session.status == ListeningSessionStatus.COMPLETED.value:
+            raise HTTPException(400, detail=t["session_already_completed"])
+
+        # clear old
+        await UserResponse.filter(session_id=session_id, user_id=user_id).delete()
+
+        total_correct = 0
+        # iterate answers
+        for sec_key, ans_list in answers_dict.items():
+            try:
+                section_id = int(sec_key)
+            except:
+                raise HTTPException(422, detail=t["invalid_section_key"])
+
+            for ans in ans_list:
+                q = await ListeningQuestion.get_or_none(
+                    id=ans["question_id"], section_id=section_id
+                )
+                if not q:
+                    raise HTTPException(404, detail=t["question_not_found"])
+
+                user_ans = ans["answer"]
+                # normalize to list of strings
+                if not isinstance(user_ans, list):
+                    user_ans = [user_ans]
+                correct_set = set(map(str, q.correct_answer))
+                user_set = set(map(str, user_ans))
+                is_correct = (correct_set == user_set)
+                if is_correct:
+                    total_correct += 1
+
+                await UserResponse.create(
+                    session_id=session_id,
+                    user_id=user_id,
+                    question_id=q.id,
+                    user_answer=user_ans,
+                    is_correct=is_correct,
+                    score=1 if is_correct else 0,
                 )
 
-            # Delete any previous responses for this session
-            await UserResponse.filter(session_id=session_id, user_id=user_id).delete()
+        # finish session
+        session.status = ListeningSessionStatus.COMPLETED.value
+        session.end_time = datetime.now(timezone.utc)
+        await session.save(update_fields=["status", "end_time"])
 
-            total_score = 0
-            answered_questions = set()
-
-            # Iterate over each section in the payload
-            for sec_key, answers_list in answers_dict.items():
-                try:
-                    section_id = int(sec_key)
-                except (ValueError, TypeError):
-                    logger.error(f"Invalid section key in payload: '{sec_key}'")
-                    raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                        detail=t["invalid_section_key"]
-                    )
-
-                # Verify section belongs to the specified test
-                section = await ListeningSection.get_or_none(id=section_id, part__listening_id=test_id)
-                if not section:
-                    logger.warning(f"Section {section_id} not found in test {test_id}")
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail=t["section_not_found"]
-                    )
-
-                # Process each answer in this section
-                for ans_item in answers_list:
-                    question_id = ans_item.get("question_id")
-                    user_answer = ans_item.get("answer")
-                    if question_id is None or user_answer is None:
-                        logger.error("Answer missing question_id or answer field")
-                        raise HTTPException(
-                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=t["invalid_payload"]
-                        )
-
-                    # Verify question belongs to the section
-                    question = await ListeningQuestion.get_or_none(id=question_id, section_id=section_id)
-                    if not question:
-                        logger.warning(f"Question {question_id} not found in section {section_id}")
-                        raise HTTPException(
-                            status_code=status.HTTP_404_NOT_FOUND,
-                            detail=t["question_not_found"]
-                        )
-
-                    # Normalize user_answer into a list
-                    if isinstance(user_answer, list):
-                        ua_list = user_answer
-                    else:
-                        ua_list = [user_answer]
-
-                    # Compare sets of stringified answers for correctness
-                    correct_set = set(map(str, question.correct_answer))
-                    user_set = set(map(str, ua_list))
-                    is_correct = (correct_set == user_set)
-                    score = 1 if is_correct else 0
-                    total_score += score
-
-                    await UserResponse.create(
-                        session_id=session_id,
-                        user_id=user_id,
-                        question_id=question_id,
-                        user_answer=ua_list,
-                        is_correct=is_correct,
-                        score=score,
-                    )
-                    answered_questions.add(question_id)
-
-            # Mark all unanswered questions in this test as incorrect
-            all_q_ids = await ListeningQuestion.filter(
-                section__part__listening_id=test_id
-            ).values_list("id", flat=True)
-            for qid in all_q_ids:
-                if qid not in answered_questions:
-                    await UserResponse.create(
-                        session_id=session_id,
-                        user_id=user_id,
-                        question_id=qid,
-                        user_answer=None,
-                        is_correct=False,
-                        score=0,
-                    )
-
-            # Complete the session
-            session.status = "completed"
-            session.end_time = datetime.now(timezone.utc)
-            await session.save()
-            logger.info(f"Session id={session_id} marked completed with total_score={total_score}")
-
-        # Trigger asynchronous analysis task
+        # kick off async analysis task (feedback only)
         from tasks.analyses.listening_tasks import analyse_listening_task
         analyse_listening_task.delay(session_id)
-        logger.info(f"Analysis task queued for session_id={session_id}")
 
-        return total_score
+        return total_correct
 
     @staticmethod
-    async def get_analysis(session_id: int, user_id: int, t: dict) -> Dict[str, Any]:
-        """
-        Retrieve analysis results and detailed user responses for a session.
-        """
-        # Ensure session exists and belongs to user
-        await ListeningService._get_session(session_id, user_id, t)
-
-        # Fetch analysis result from analysis service
+    async def get_analysis(session_id: int, user_id: int, t: Dict[str, str]) -> Dict[str, Any]:
         from services.analyses.listening_analyse_service import ListeningAnalyseService
-        analyse_obj = await ListeningAnalyseService.get_analysis(session_id)
-        analyse_data = analyse_obj.analyse if hasattr(analyse_obj, "analyse") else {}
 
-        # Gather detailed responses
-        responses = await UserResponse.filter(session_id=session_id, user_id=user_id).prefetch_related("question")
+        session = await UserListeningSession.get_or_none(id=session_id, user_id=user_id)
+        if not session:
+            raise HTTPException(404, detail=t["session_not_found"])
+
+        analyse = await ListeningAnalyseService.get_analysis(session_id)
+
+        responses = await UserResponse.filter(
+            session_id=session_id, user_id=user_id
+        ).prefetch_related("question").all()
+
         resp_list = []
         for r in responses:
             resp_list.append({
@@ -631,14 +558,11 @@ class ListeningService:
                 "score": r.score,
                 "correct_answer": r.question.correct_answer if r.question else None,
                 "question_index": r.question.index if r.question else None,
-                "created_at": r.created_at,
-                "updated_at": r.updated_at,
             })
 
-        logger.info(f"Returning analysis for session_id={session_id}")
         return {
             "session_id": session_id,
-            "analyse": analyse_data,
+            "analyse": analyse["analyse"],
             "responses": resp_list,
         }
 

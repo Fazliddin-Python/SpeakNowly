@@ -1,27 +1,22 @@
+# services/tests/reading_service.py
+
 import logging
 from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
 from tortoise.transactions import in_transaction
 
-from models.tests.reading import Passage, Question, Variant, Reading, Answer as ReadingAnswer
-from models.users import User
-from utils.check_tokens import check_user_tokens  # if you have token logic
+from models.tests.reading import Passage, Question, Variant, Reading, Answer
+from services.chatgpt.integration import ChatGPTIntegration
 from services.analyses.reading_analyse_service import ReadingAnalyseService
+from models.tests.constants import Constants
 
 logger = logging.getLogger(__name__)
 
 
 class ReadingService:
-    """
-    Service layer for Reading: handles CRUD for passages, questions, variants, 
-    plus business logic for starting/submitting/cancelling/restarting a reading session.
-    """
-
-    # -----------------------------
-    #   Passage CRUD (admin)
-    # -----------------------------
+    # --- admin CRUD omitted for brevity (same as in router calls) ---
 
     @staticmethod
     async def list_passages(t: dict) -> List[Passage]:
@@ -29,53 +24,34 @@ class ReadingService:
 
     @staticmethod
     async def get_passage(passage_id: int, t: dict) -> Passage:
-        passage = await Passage.get_or_none(id=passage_id)
-        if not passage:
-            logger.warning(f"Passage not found (id={passage_id})")
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t["passage_not_found"])
-        return passage
+        p = await Passage.get_or_none(id=passage_id)
+        if not p:
+            raise HTTPException(status_code=404, detail=t["passage_not_found"])
+        return p
 
     @staticmethod
     async def create_passage(data: Dict[str, Any], t: dict) -> Passage:
-        # ensure number is unique
-        exists = await Passage.filter(number=data["number"]).exists()
-        if exists:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=t["passage_number_exists"]
-            )
-        new_passage = await Passage.create(**data)
-        logger.info(f"Created Passage id={new_passage.id}")
-        return new_passage
+        if await Passage.filter(number=data["number"]).exists():
+            raise HTTPException(status_code=400, detail=t["passage_number_exists"])
+        return await Passage.create(**data)
 
     @staticmethod
     async def update_passage(passage_id: int, data: Dict[str, Any], t: dict) -> Passage:
+        p = await Passage.get_or_none(id=passage_id)
+        if not p:
+            raise HTTPException(status_code=404, detail=t["passage_not_found"])
         if "number" in data:
-            exists = await Passage.filter(number=data["number"]).exclude(id=passage_id).exists()
-            if exists:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=t["passage_number_exists"]
-                )
-        passage = await Passage.get_or_none(id=passage_id)
-        if not passage:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t["passage_not_found"])
-        for field, value in data.items():
-            setattr(passage, field, value)
-        await passage.save()
-        logger.info(f"Updated Passage id={passage_id}")
-        return passage
+            if await Passage.filter(number=data["number"]).exclude(id=passage_id).exists():
+                raise HTTPException(status_code=400, detail=t["passage_number_exists"])
+        for k,v in data.items():
+            setattr(p, k, v)
+        await p.save()
+        return p
 
     @staticmethod
     async def delete_passage(passage_id: int, t: dict) -> None:
-        deleted = await Passage.filter(id=passage_id).delete()
-        if not deleted:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t["passage_not_found"])
-        logger.info(f"Deleted Passage id={passage_id}")
-
-    # -----------------------------
-    #   Question CRUD (admin)
-    # -----------------------------
+        if not await Passage.filter(id=passage_id).delete():
+            raise HTTPException(status_code=404, detail=t["passage_not_found"])
 
     @staticmethod
     async def list_questions(t: dict) -> List[Question]:
@@ -83,42 +59,31 @@ class ReadingService:
 
     @staticmethod
     async def get_question(question_id: int, t: dict) -> Question:
-        question = await Question.get_or_none(id=question_id).prefetch_related("variants")
-        if not question:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t["question_not_found"])
-        return question
+        q = await Question.get_or_none(id=question_id).prefetch_related("variants")
+        if not q:
+            raise HTTPException(status_code=404, detail=t["question_not_found"])
+        return q
 
     @staticmethod
     async def create_question(data: Dict[str, Any], t: dict) -> Question:
-        # ensure the parent passage exists
-        passage = await Passage.get_or_none(id=data["passage_id"])
-        if not passage:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t["passage_not_found"])
-        new_question = await Question.create(**data)
-        logger.info(f"Created Question id={new_question.id}")
-        return new_question
+        if not await Passage.filter(id=data["passage_id"]).exists():
+            raise HTTPException(status_code=404, detail=t["passage_not_found"])
+        return await Question.create(**data)
 
     @staticmethod
     async def update_question(question_id: int, data: Dict[str, Any], t: dict) -> Question:
-        question = await Question.get_or_none(id=question_id)
-        if not question:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t["question_not_found"])
-        for field, value in data.items():
-            setattr(question, field, value)
-        await question.save()
-        logger.info(f"Updated Question id={question_id}")
-        return question
+        q = await Question.get_or_none(id=question_id)
+        if not q:
+            raise HTTPException(status_code=404, detail=t["question_not_found"])
+        for k,v in data.items():
+            setattr(q, k, v)
+        await q.save()
+        return q
 
     @staticmethod
     async def delete_question(question_id: int, t: dict) -> None:
-        deleted = await Question.filter(id=question_id).delete()
-        if not deleted:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t["question_not_found"])
-        logger.info(f"Deleted Question id={question_id}")
-
-    # -----------------------------
-    #   Variant CRUD (admin)
-    # -----------------------------
+        if not await Question.filter(id=question_id).delete():
+            raise HTTPException(status_code=404, detail=t["question_not_found"])
 
     @staticmethod
     async def list_variants(t: dict) -> List[Variant]:
@@ -126,177 +91,160 @@ class ReadingService:
 
     @staticmethod
     async def get_variant(variant_id: int, t: dict) -> Variant:
-        variant = await Variant.get_or_none(id=variant_id)
-        if not variant:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t["variant_not_found"])
-        return variant
+        v = await Variant.get_or_none(id=variant_id)
+        if not v:
+            raise HTTPException(status_code=404, detail=t["variant_not_found"])
+        return v
 
     @staticmethod
     async def create_variant(data: Dict[str, Any], t: dict) -> Variant:
-        question = await Question.get_or_none(id=data["question_id"])
-        if not question:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t["question_not_found"])
-        new_variant = await Variant.create(**data)
-        logger.info(f"Created Variant id={new_variant.id}")
-        return new_variant
+        if not await Question.filter(id=data["question_id"]).exists():
+            raise HTTPException(status_code=404, detail=t["question_not_found"])
+        return await Variant.create(**data)
 
     @staticmethod
     async def update_variant(variant_id: int, data: Dict[str, Any], t: dict) -> Variant:
-        variant = await Variant.get_or_none(id=variant_id)
-        if not variant:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t["variant_not_found"])
-        for field, value in data.items():
-            setattr(variant, field, value)
-        await variant.save()
-        logger.info(f"Updated Variant id={variant_id}")
-        return variant
+        v = await Variant.get_or_none(id=variant_id)
+        if not v:
+            raise HTTPException(status_code=404, detail=t["variant_not_found"])
+        for k,vv in data.items():
+            setattr(v, k, vv)
+        await v.save()
+        return v
 
     @staticmethod
     async def delete_variant(variant_id: int, t: dict) -> None:
-        deleted = await Variant.filter(id=variant_id).delete()
-        if not deleted:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=t["variant_not_found"])
-        logger.info(f"Deleted Variant id={variant_id}")
+        if not await Variant.filter(id=variant_id).delete():
+            raise HTTPException(status_code=404, detail=t["variant_not_found"])
 
-    # -----------------------------
-    #   Reading session / user flow
-    # -----------------------------
 
     @staticmethod
     async def start_reading(user_id: int) -> Tuple[Reading, Optional[str]]:
-        passages = await Passage.all()
-        if not passages:
-            return None, "no_passages"
-        new_session = await Reading.create(
-            user_id=user_id,
-            status="pending",
-            start_time=datetime.utcnow(),
-            score=0.0,
-            duration=60,
-        )
-        await new_session.passages.add(*passages)
-        return new_session, None
+        chatgpt = ChatGPTIntegration(None)
+        data = await chatgpt.generate_reading_data()
+        passage_text = data.get("passage_text")
+        questions_data = data.get("questions", [])
+        if not passage_text or len(questions_data) != 3:
+            return None, "invalid_gpt_output"
 
-    @staticmethod
-    async def get_reading(session_id: int) -> Optional[Reading]:
-        return await Reading.get_or_none(id=session_id).prefetch_related("passages", "user")
-
-    @staticmethod
-    async def submit_answers(
-        session_id: int, user_id: int, answers: List[Any]
-    ) -> Tuple[float, Optional[str]]:
-        session = await Reading.get_or_none(id=session_id, user_id=user_id)
-        if not session:
-            return 0.0, "session_not_found"
-        if session.status == "completed":
-            return 0.0, "already_completed"
-
-        total_score = 0.0
         async with in_transaction():
-            for ans in answers:
-                question_id = ans.question_id
-                raw_answer = ans.answer
-                question = await Question.get_or_none(id=question_id)
-                if not question:
-                    return 0.0, f"question_{question_id}"
-
-                correct_text = None
-                correct_variant = await question.variants.filter(is_correct=True).first()
-                if correct_variant:
-                    correct_text = correct_variant.text
-
-                is_correct = False
-                if correct_text is not None and raw_answer == correct_text:
-                    is_correct = True
-                    total_score += question.score
-
-                await ReadingAnswer.create(
-                    user_id=user_id,
-                    question_id=question_id,
-                    reading_id=session_id,
-                    text=raw_answer,
-                    explanation=None,
-                    is_correct=is_correct,
-                    correct_answer=correct_text,
-                    status="answered"
+            passage = await Passage.create(text=passage_text)
+            for qd in questions_data:
+                q = await Question.create(
+                    passage_id=passage.id,
+                    text=qd["text"].strip(),
+                    type=Constants.QuestionType.MULTIPLE_CHOICE,
+                    score=1
                 )
-            session.status = "completed"
-            session.end_time = datetime.utcnow()
-            session.score = total_score
-            await session.save()
-
-        try:
-            await ReadingAnalyseService.analyse_reading(session_id)
-        except Exception as e:
-            logger.error(f"Failed to analyse reading session {session_id}: {e}")
-
-        return total_score, None
-
-    @staticmethod
-    async def cancel_reading(session_id: int, user_id: int) -> bool:
-        session = await Reading.get_or_none(id=session_id, user_id=user_id)
-        if not session:
-            return False
-        session.status = "cancelled"
-        session.end_time = datetime.utcnow()
-        await session.save()
-        return True
-
-    @staticmethod
-    async def restart_reading(session_id: int, user_id: int) -> Tuple[Optional[Reading], Optional[str]]:
-        session = await Reading.get_or_none(id=session_id, user_id=user_id)
-        if not session:
-            return None, "session_not_found"
-        if session.status != "completed":
-            return None, "not_completed"
-        await ReadingAnswer.filter(reading_id=session_id, user_id=user_id).delete()
-        session.status = "pending"
-        session.start_time = datetime.utcnow()
-        session.end_time = None
-        session.score = 0.0
-        await session.save()
+                for opt in qd["options"]:
+                    label, _, content = opt.partition(")")
+                    await Variant.create(
+                        question_id=q.id,
+                        label=label.strip(),
+                        text=content.strip(),
+                        is_correct=(label.strip() == qd["correct_option"].strip().upper())
+                    )
+            session = await Reading.create(
+                user_id=user_id,
+                passage_id=passage.id,
+                status=Constants.ReadingStatus.STARTED,
+                start_time=datetime.now(timezone.utc),
+                score=0.0,
+                duration=60
+            )
         return session, None
 
     @staticmethod
-    async def list_readings_for_user(user_id: int) -> List[Reading]:
-        return await Reading.filter(user_id=user_id).all()
+    async def get_reading(session_id: int) -> Optional[Reading]:
+        return (
+            await Reading.get_or_none(id=session_id)
+            .prefetch_related("passage__questions__variants")
+        )
 
     @staticmethod
-    async def list_passages_in_reading(session_id: int) -> List[Passage]:
-        session = await Reading.get_or_none(id=session_id).prefetch_related("passages")
+    async def submit_answers(
+        session_id: int, user_id: int, answers: List[Dict[str, Any]]
+    ) -> Tuple[float, Optional[str]]:
+        session = await Reading.get_or_none(id=session_id, user_id=user_id)
         if not session:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
-        return await session.passages.all()
+            return 0, "session_not_found"
+        if session.status == Constants.ReadingStatus.COMPLETED:
+            return 0, "already_completed"
+
+        total = 0.0
+        async with in_transaction():
+            for ans in answers:
+                q = await Question.get_or_none(id=ans["question_id"]).prefetch_related("variants")
+                if not q:
+                    return 0, f"question_{ans['question_id']}"
+                correct = next(v for v in await q.variants if v.is_correct)
+                is_correct = (ans["answer"].strip().upper() == correct.label)
+                if is_correct:
+                    total += q.score
+                await Answer.create(
+                    user_id=user_id,
+                    question_id=q.id,
+                    reading_id=session_id,
+                    selected_option=ans["answer"].strip().upper(),
+                    is_correct=is_correct,
+                    correct_answer=correct.label,
+                    status="answered"
+                )
+            session.status = Constants.ReadingStatus.COMPLETED
+            session.end_time = datetime.now(timezone.utc)
+            session.score = total
+            await session.save()
+        # не блокировать пользователя на анализ
+        _ = ReadingAnalyseService.analyse_reading(session_id, user_id)
+        return total, None
+
+    @staticmethod
+    async def cancel_reading(session_id: int, user_id: int) -> bool:
+        s = await Reading.get_or_none(id=session_id, user_id=user_id)
+        if not s:
+            return False
+        s.status = Constants.ReadingStatus.CANCELLED
+        s.end_time = datetime.now(timezone.utc)
+        await s.save(update_fields=["status", "end_time"])
+        return True
+
+    @staticmethod
+    async def restart_reading(session_id: int, user_id: int) -> Tuple[Reading, Optional[str]]:
+        s = await Reading.get_or_none(id=session_id, user_id=user_id)
+        if not s:
+            return None, "session_not_found"
+        if s.status != Constants.ReadingStatus.COMPLETED:
+            return None, "not_completed"
+        await Answer.filter(reading_id=session_id, user_id=user_id).delete()
+        return await ReadingService.start_reading(user_id)
 
     @staticmethod
     async def analyse_reading(session_id: int, user_id: int) -> Dict[str, Any]:
-        session = await Reading.get_or_none(id=session_id, user_id=user_id).prefetch_related("passages")
+        session = (
+            await Reading.get_or_none(id=session_id, user_id=user_id)
+            .prefetch_related("passage__questions__variants", "answers")
+        )
         if not session:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        questions = await session.passage.questions.all().prefetch_related("variants")
         result = []
-        for passage in await session.passages.all():
-            questions_qs = await passage.questions.all()
-            questions_data = []
-            for question in questions_qs:
-                ua = await ReadingAnswer.get_or_none(
-                    question_id=question.id, user_id=user_id, reading_id=session_id
-                )
-                questions_data.append({
-                    "id": question.id,
-                    "text": question.text,
-                    "type": question.type,
-                    "answers": [
-                        {"id": v.id, "text": v.text, "is_correct": v.is_correct}
-                        for v in await question.variants.all()
-                    ],
-                    "user_answer": ua.text if ua and ua.text else (ua.variant_id if ua and ua.variant_id else None),
-                    "is_correct": ua.is_correct if ua else False,
-                    "correct_answer": ua.correct_answer if ua else None,
-                })
+        for q in questions:
+            ua = await Answer.get_or_none(question_id=q.id, user_id=user_id)
+            correct = next(v for v in await q.variants if v.is_correct)
             result.append({
-                "id": passage.id,
-                "title": passage.title,
-                "text": passage.text,
-                "questions": questions_data,
+                "id": q.id,
+                "text": q.text,
+                "options": [{"label": v.label, "text": v.text} for v in await q.variants],
+                "user_answer": ua.selected_option if ua else None,
+                "is_correct": ua.is_correct if ua else False,
+                "correct_answer": correct.label,
             })
-        return {"results": result}
+
+        return {
+            "passage_id": session.passage_id,
+            "passage_text": session.passage.text,
+            "questions": result,
+            "total_score": session.score,
+            "duration": (session.end_time - session.start_time).total_seconds() / 60 if session.end_time else None
+        }

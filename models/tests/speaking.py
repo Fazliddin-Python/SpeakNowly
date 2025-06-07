@@ -42,8 +42,8 @@ class SpeakingAnswers(BaseModel):
     question = fields.OneToOneField("models.SpeakingQuestions", related_name="answer",
         on_delete=fields.CASCADE, description="Related question")
     text_answer = fields.TextField(null=True, blank=True, description="Text answer to the question")
-    audio_answer = fields.CharField(max_length=255, upload_to="audio_responses/", null=True, blank=True,
-        description="Audio answer to the question")
+    audio_answer = fields.CharField(max_length=255, null=True, blank=True,
+        description="Audio answer file path")
 
     class Meta:
         table = "speaking_answers"

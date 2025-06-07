@@ -1,139 +1,182 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query, Depends, Request, HTTPException, status
 from typing import List, Optional
+from datetime import datetime
+import logging
 
-from tortoise.exceptions import DoesNotExist
-
-from models.tests import Reading, Speaking, Writing, UserListeningSession
-from models import ReadingAnalyse, SpeakingAnalyse, WritingAnalyse, ListeningAnalyse
-
-from ...serializers.tests.history import HistoryItem
+from models.tests import Reading, UserListeningSession, Speaking, Writing
+from models.analyses import ListeningAnalyse, ReadingAnalyse, SpeakingAnalyse, WritingAnalyse
+from ...serializers.tests.history import HistoryItem, UserProgressSerializer, MainStatsSerializer
+from services.tests.user_progress_service import UserProgressService
 from utils.auth.auth import get_current_user
+from utils.i18n import get_translation
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
-@router.get("/", response_model=List[HistoryItem])
-async def get_history(
-    type: Optional[str] = Query(None, description="reading|listening|speaking|writing"),
-    show: Optional[str] = Query(None, description="if show='last', returns the last 5"),
-    current_user=Depends(get_current_user),
+
+def audit_action(action: str):
+    """
+    Dependency factory: logs user action and returns the user object.
+    """
+    def wrapper(request: Request, user=Depends(get_current_user)):
+        logger.info(f"User {user.id} action='{action}' path='{request.url.path}'")
+        return user
+    return wrapper
+
+
+def active_user(user=Depends(get_current_user), t=Depends(get_translation)):
+    """
+    Ensures the user is active.
+    """
+    if not user.is_active:
+        logger.warning(f"Inactive user (id={user.id}) attempted access")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=t["inactive_user"])
+    return user
+
+
+# --- Helper to calculate duration in minutes ---
+def _calc_duration(obj) -> Optional[int]:
+    if getattr(obj, "start_time", None) and getattr(obj, "end_time", None):
+        return int((obj.end_time - obj.start_time).total_seconds() // 60)
+    return None
+
+# --- History Endpoint ---
+@router.get(
+    "/history/", response_model=List[HistoryItem],
+    summary="Get user test history",
+)
+async def get_user_test_history(
+    type: Optional[str] = Query(None, regex="^(listening|reading|speaking|writing)$"),
+    show: Optional[str] = Query(None),
+    user=Depends(active_user),
+    t: dict = Depends(get_translation),
+    _: any = Depends(audit_action("get_user_test_history")),
 ):
     """
-    Collects history for all types:
-    - For Reading: uses ReadingAnalyse
-    - For Listening: uses UserListeningSession + ListeningAnalyse
-    - For Speaking: uses Speaking + SpeakingAnalyse
-    - For Writing: uses Writing + WritingAnalyse
-
-    Supports filtering by ?type=<type> and ?show=last
+    Retrieve combined history of all test sessions for the authenticated user.
+    Supports filtering by type and showing only last 5 records (show=last).
     """
-    items = []
+    user_id = user.id
 
-    # --- Reading ---
-    # Get all ReadingAnalyse records for the current user
-    reading_analyses = await ReadingAnalyse.filter(user_id=current_user.id).all()
-    for ana in reading_analyses:
-        # Assume BaseModel provides a created_at field
-        created = getattr(ana, "created_at", None)
-        if created is None:
-            continue
-        # Duration in minutes
-        dur = int(ana.timing.total_seconds() // 60) if ana.timing else None
+    # Load all sessions
+    reading = await Reading.filter(user_id=user_id).all()
+    listening = await UserListeningSession.filter(user_id=user_id).all()
+    speaking = await Speaking.filter(user_id=user_id).all()
+    writing = await Writing.filter(user_id=user_id).all()
 
-        items.append({
-            "type": "reading",
-            "score": float(ana.overall_score),
-            "created_at": created,
-            "duration": dur,
-        })
+    result = []
 
-    # --- Listening ---
-    # Get all UserListeningSession records for the current user
-    listening_sessions = await UserListeningSession.filter(user_id=current_user.id).all()
-    for session in listening_sessions:
-        created = getattr(session, "created_at", None)
-        if created is None:
-            continue
-        # Duration = difference between end_time and start_time in minutes
-        if session.start_time and session.end_time:
-            dur = int((session.end_time - session.start_time).total_seconds() // 60)
-        else:
-            dur = None
-        # Try to get the related analysis
-        try:
-            ana = await ListeningAnalyse.get(session_id=session.id)
-            score = float(ana.overall_score)
-        except DoesNotExist:
-            score = 0.0
+    # Append Reading
+    if type in [None, "reading"]:
+        for r in reading:
+            analyse = await ReadingAnalyse.get_or_none(reading_id=r.id)
+            if analyse:
+                result.append({
+                    "type": "Reading",
+                    "score": float(analyse.overall_score),
+                    "created_at": r.created_at,
+                    "duration": r.duration,
+                })
 
-        items.append({
-            "type": "listening",
-            "score": score,
-            "created_at": created,
-            "duration": dur,
-        })
+    # Append Listening
+    if type in [None, "listening"]:
+        for l in listening:
+            analyse = await ListeningAnalyse.get_or_none(session_id=l.id)
+            if analyse:
+                duration = _calc_duration(l)
+                result.append({
+                    "type": "Listening",
+                    "score": float(analyse.overall_score),
+                    "created_at": l.created_at,
+                    "duration": duration,
+                })
 
-    # --- Speaking ---
-    # Get all Speaking objects where user=current_user
-    speaking_objs = await Speaking.filter(user_id=current_user.id).all()
-    for sp in speaking_objs:
-        created = getattr(sp, "created_at", None)
-        if created is None:
-            continue
-        # Duration = difference between end_time and start_time in minutes
-        if getattr(sp, "start_time", None) and getattr(sp, "end_time", None):
-            dur = int((sp.end_time - sp.start_time).total_seconds() // 60)
-        else:
-            dur = None
-        # Try to get the related OneToOne analysis
-        try:
-            ana = await SpeakingAnalyse.get(speaking_id=sp.id)
-            score = float(ana.overall_band_score) if ana.overall_band_score is not None else 0.0
-        except DoesNotExist:
-            score = 0.0
+    # Append Speaking
+    if type in [None, "speaking"]:
+        for s in speaking:
+            analyse = await SpeakingAnalyse.get_or_none(speaking_id=s.id)
+            if analyse:
+                duration = _calc_duration(s)
+                result.append({
+                    "type": "Speaking",
+                    "score": float(analyse.overall_band_score),
+                    "created_at": s.created_at,
+                    "duration": duration,
+                })
 
-        items.append({
-            "type": "speaking",
-            "score": score,
-            "created_at": created,
-            "duration": dur,
-        })
+    # Append Writing
+    if type in [None, "writing"]:
+        for w in writing:
+            analyse = await WritingAnalyse.get_or_none(writing_id=w.id)
+            if analyse:
+                duration = _calc_duration(w)
+                result.append({
+                    "type": "Writing",
+                    "score": float(analyse.overall_band_score),
+                    "created_at": w.created_at,
+                    "duration": duration,
+                })
 
-    # --- Writing ---
-    # Get all Writing objects where user=current_user
-    writing_objs = await Writing.filter(user_id=current_user.id).all()
-    for wr in writing_objs:
-        created = getattr(wr, "created_at", None)
-        if created is None:
-            continue
-        # Duration = difference between end_time and start_time in minutes
-        if getattr(wr, "start_time", None) and getattr(wr, "end_time", None):
-            dur = int((wr.end_time - wr.start_time).total_seconds() // 60)
-        else:
-            dur = None
-        # Try to get the related OneToOne analysis
-        try:
-            ana = await WritingAnalyse.get(writing_id=wr.id)
-            score = float(ana.overall_band_score)
-        except DoesNotExist:
-            score = 0.0
-
-        items.append({
-            "type": "writing",
-            "score": score,
-            "created_at": created,
-            "duration": dur,
-        })
-
-    # Sort all records by created_at descending
-    items_sorted = sorted(items, key=lambda x: x["created_at"], reverse=True)
-
-    # If ?type= is provided, filter by type (case-insensitive)
-    if type:
-        type_lower = type.lower()
-        items_sorted = [it for it in items_sorted if it["type"].lower() == type_lower]
-
-    # If show=last, take the first 5 elements
+    # Sort and paginate
+    result.sort(key=lambda x: x["created_at"], reverse=True)
     if show == "last":
-        items_sorted = items_sorted[:5]
+        result = result[:5]
 
-    return items_sorted
+    return result
+
+# --- User Progress Endpoint ---
+@router.get(
+    "/progress/", response_model=UserProgressSerializer,
+    summary="Get user progress"
+)
+async def get_user_progress(
+    user=Depends(active_user),
+    t: dict = Depends(get_translation),
+    _: any = Depends(audit_action("get_user_progress")),
+):
+    """
+    Retrieve latest analysis and highest score for the authenticated user.
+    """
+    latest = await UserProgressService.get_latest_analysis(user.id)
+    highest = await UserProgressService.get_highest_score(user.id)
+    return {"latest_analysis": latest, "highest_score": highest}
+
+# --- Main Stats Endpoint ---
+@router.get(
+    "/progress/main-stats/", response_model=MainStatsSerializer,
+    summary="Get main stats for user"
+)
+async def get_main_stats(
+    user=Depends(active_user),
+    t: dict = Depends(get_translation),
+    _: any = Depends(audit_action("get_main_stats")),
+):
+    """
+    Retrieve individual latest scores across all test types for the authenticated user.
+    """
+    user_id = user.id
+
+    # Get last Speaking score
+    last_s = await Speaking.filter(user_id=user_id).order_by("-start_time").first()
+    sp_an = await SpeakingAnalyse.get_or_none(speaking_id=last_s.id) if last_s else None
+    speaking_score = sp_an.overall_band_score if sp_an else 0
+
+    # Get last Reading score
+    last_r = await Reading.filter(user_id=user_id).order_by("-start_time").first()
+    reading_score = last_r.score if last_r else 0
+
+    # Get last Writing score
+    last_w = await Writing.filter(user_id=user_id).order_by("-start_time").first()
+    w_an = await WritingAnalyse.get_or_none(writing_id=last_w.id) if last_w else None
+    writing_score = w_an.overall_band_score if w_an else 0
+
+    # Get last Listening score
+    la = await ListeningAnalyse.filter(user_id=user_id).order_by("-created_at").first()
+    listening_score = la.overall_score if la else 0
+
+    return {
+        "reading": reading_score,
+        "speaking": speaking_score,
+        "writing": writing_score,
+        "listening": listening_score,
+    }
