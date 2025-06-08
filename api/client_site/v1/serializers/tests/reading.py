@@ -1,18 +1,17 @@
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from pydantic import Field, field_validator
 from ..base import BaseSerializer, SafeSerializer
 from models.tests.reading import Passage as PassageModel, Question as QuestionModel, Variant as VariantModel
 from models.tests.constants import Constants
 from datetime import datetime
-
 # -----------------------------
 #   Safe (GET) serializers
 # -----------------------------
 
 class PassageSerializer(BaseSerializer):
     id: int = Field(..., description="ID of the passage")
-    number: int = Field(..., description="Passage number")
-    skills: str = Field(..., description="Skills associated with the passage")
+    number: Optional[int] = Field(None, description="Passage number")
+    skills: Optional[str] = Field(None, description="Skills associated with the passage")
     title: str = Field(..., description="Title of the passage")
     text: str = Field(..., description="Text content of the passage")
     level: Optional[Constants.PassageLevel] = Field(Constants.PassageLevel.EASY, description="Passage level (easy/medium/hard)")
@@ -46,12 +45,15 @@ class QuestionListSerializer(SafeSerializer):
         )
 
 class ReadingSerializer(BaseSerializer):
+    id: int = Field(..., description="ID of the reading session")
     status: Constants.ReadingStatus = Field(..., description="Status of the test")
     user_id: int = Field(..., description="ID of the user")
     start_time: datetime = Field(..., description="Start time of the test")
     end_time: Optional[datetime] = Field(None, description="End time of the test")
     score: float = Field(..., description="Score of the test")
     duration: int = Field(..., description="Duration in minutes")
+    passage: PassageSerializer = Field(..., description="Passage for this session")
+    questions: List[QuestionListSerializer] = Field(..., description="Questions for this session")
 
 class QuestionAnalysisSerializer(BaseSerializer):
     id: int = Field(..., description="ID of the question")
@@ -141,3 +143,8 @@ class FinishReadingSerializer(BaseSerializer):
 
 class StartReadingSerializer(BaseSerializer):
     reading_id: int = Field(..., description="ID of the reading session to start")
+
+class ReadingAnalyseResponseSerializer(BaseSerializer):
+    reading_id: int = Field(..., description="ID of the reading session")
+    analyse: Dict[str, Any] = Field(..., description="Analysis summary")
+    responses: List[Dict[str, Any]] = Field(..., description="Per-question details")

@@ -1,12 +1,10 @@
 import logging
-import os
+import pathlib
 from uuid import uuid4
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.security import HTTPBearer
 from typing import Dict
-from minio import Minio
-from io import BytesIO
 
 from ...serializers.users.profile import (
     ProfileSerializer,
@@ -98,19 +96,24 @@ async def update_profile(
     if age is not None:
         update_fields["age"] = age
 
-    # Обработка фото через media/user_photos/
+    # Сохраняем фото в media/user_photos/{user_id}/
     if photo is not None:
         if photo.content_type not in ("image/jpeg", "image/png", "image/gif"):
             raise HTTPException(status_code=400, detail="Invalid image type")
         file_ext = photo.filename.split('.')[-1]
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        save_dir = os.path.join(project_root, "media", "user_photos", str(current_user.id))
-        os.makedirs(save_dir, exist_ok=True)
+        # Корень проекта — находим через pathlib относительно этого файла
+        project_root = pathlib.Path(__file__).resolve().parents[5]  # подняться на 4 уровня до Project3/
+        save_dir = project_root / "media" / "user_photos" / str(current_user.id)
+        save_dir.mkdir(parents=True, exist_ok=True)
         file_name = f"{uuid4()}.{file_ext}"
-        file_path = os.path.join(save_dir, file_name)
+        file_path = save_dir / file_name
         file_content = await photo.read()
+        if not file_content:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty")
         with open(file_path, "wb") as f:
             f.write(file_content)
+        logger.info(f"Photo saved to: {file_path}")
+        # Сохраняем путь относительно /media
         photo_url = f"/media/user_photos/{current_user.id}/{file_name}"
         update_fields["photo"] = photo_url
 

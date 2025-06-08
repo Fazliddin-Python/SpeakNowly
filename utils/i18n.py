@@ -1,5 +1,3 @@
-# utils/i18n.py
-
 from fastapi import Request
 from typing import Dict
 
@@ -78,6 +76,9 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "session_already_completed":   "Session already completed",
         "answers_submitted":           "Answers submitted successfully",
         "session_cancelled":           "Session cancelled successfully",
+
+        # --- Analysis ---
+        "analysis_started":            "Analysis started, please try again later",
     },
     "ru": {
         # --- User / Authentication ---
@@ -153,6 +154,9 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "session_already_completed":   "Сессия уже завершена",
         "answers_submitted":           "Ответы успешно отправлены",
         "session_cancelled":           "Сессия успешно отменена",
+
+        # --- Analysis ---
+        "analysis_started":            "Анализ запущен, попробуйте позже",
     },
     "uz": {
         # --- User / Authentication ---
@@ -228,6 +232,9 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "session_already_completed":   "Sessiya allaqachon yakунланган",
         "answers_submitted":           "Javoblar muvaffaqiyatli yuborildi",
         "session_cancelled":           "Sessiya muvaffaqiyatli bekor qilindi",
+
+        # --- Analysis ---
+        "analysis_started":            "Tahlil boshlandi, iltimos keyinroq urinib ko‘ring",
     },
 }
 

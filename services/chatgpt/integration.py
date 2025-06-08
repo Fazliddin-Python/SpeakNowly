@@ -172,12 +172,15 @@ Return JSON with keys:
     #    Reading Methods
     # -----------------------
 
-    async def generate_reading_data(self) -> Dict:
+    async def generate_reading_data(self, passage_number: int, random_level: str) -> Dict:
         """
         Generate an IELTS-style reading passage (100-150 words) along with three multiple-choice questions.
         Returns a dict with structure:
         {
           "passage_text": "<the passage>",
+          "passage_number": 1,
+          "passage_skills": "reading",
+          "passage_level": "easy",
           "questions": [
             {
               "text": "<question text>",
@@ -188,7 +191,7 @@ Return JSON with keys:
           ]
         }
         """
-        prompt = """
+        prompt = f"""
 You are an AI that generates IELTS-style reading passages and multiple-choice questions.
 Produce:
 1. A short reading passage of approximately 100-150 words.
@@ -197,18 +200,21 @@ Each question should have four options labeled "A)", "B)", "C)", "D)".
 Indicate which option is correct.
 
 Return exactly one JSON structure, without extra commentary:
-{
+{{
   "passage_text": "<the 100-150 word passage>",
+  "passage_number": {passage_number},
+  "passage_skills": "reading",
+  "passage_level": "{random_level}",
   "questions": [
-    {
+    {{
       "text": "<question 1 text>",
       "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
       "correct_option": "A"
-    },
-    { ... },
-    { ... }
+    }},
+    {{ ... }},
+    {{ ... }}
   ]
-}
+}}
 """
         try:
             response = await self.async_client.chat.completions.create(

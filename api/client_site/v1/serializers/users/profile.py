@@ -14,10 +14,12 @@ class ProfileSerializer(BaseModel):
     is_premium: bool = Field(..., description="Whether the user has a premium tariff")
 
     @validator("photo")
-    def validate_photo_url(cls, value: Optional[str]) -> Optional[str]:
-        if value and not value.startswith("http"):
-            raise ValueError("Photo URL must start with http or https")
-        return value
+    def validate_photo(cls, v):
+        if v is None:
+            return v
+        if v.startswith("http://") or v.startswith("https://") or v.startswith("/media/"):
+            return v
+        raise ValueError("Photo URL must start with http, https, or /media/")
 
     class Config:
         from_attributes = True
@@ -32,8 +34,10 @@ class ProfileUpdateSerializer(BaseModel):
 
     @validator("photo")
     def validate_photo_url(cls, value: Optional[str]) -> Optional[str]:
-        if value and not value.startswith("http"):
-            raise ValueError("Photo URL must start with http or https")
+        if value and not (
+            value.startswith("http://") or value.startswith("https://") or value.startswith("/media/")
+        ):
+            raise ValueError("Photo URL must start with http, https, or /media/")
         return value
 
 

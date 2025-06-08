@@ -10,7 +10,7 @@ class Reading(BaseModel):
     passages = fields.ManyToManyField('models.Passage', related_name='readings', description="Related passages")
     start_time = fields.DatetimeField(description="Start time of the test")
     end_time = fields.DatetimeField(null=True, description="End time of the test")
-    score = fields.DecimalField(max_digits=3, decimal_places=1, description="Score of the test")
+    score = fields.DecimalField(max_digits=3, decimal_places=1, default=0, description="Score of the test")
     duration = fields.IntField(default=60, description="Duration in minutes")
 
     class Meta:

@@ -1,4 +1,5 @@
 import logging
+import random
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timezone
 
@@ -115,18 +116,41 @@ class ReadingService:
         if not await Variant.filter(id=variant_id).delete():
             raise HTTPException(status_code=404, detail=t["variant_not_found"])
 
-
     @staticmethod
     async def start_reading(user_id: int) -> Tuple[Reading, Optional[str]]:
-        chatgpt = ChatGPTIntegration(None)
-        data = await chatgpt.generate_reading_data()
+        # 1. Determine next passage number
+        numbers = await Passage.filter(number__not_isnull=True).order_by('-number') \
+                                .values_list('number', flat=True)
+        max_number = numbers[0] if numbers else 0
+        passage_number = max_number + 1
+
+        # 2. Random level
+        levels = [Constants.PassageLevel.EASY, Constants.PassageLevel.MEDIUM, Constants.PassageLevel.HARD]
+        random_level = random.choice(levels).value
+
+        # 3. Ask GPT for new passage + questions
+        chatgpt = ChatGPTIntegration()
+        data = await chatgpt.generate_reading_data(
+            passage_number=passage_number,
+            random_level=random_level
+        )
+
         passage_text = data.get("passage_text")
         questions_data = data.get("questions", [])
         if not passage_text or len(questions_data) != 3:
             return None, "invalid_gpt_output"
 
         async with in_transaction():
-            passage = await Passage.create(text=passage_text)
+            # 4. Create Passage
+            passage = await Passage.create(
+                text=passage_text,
+                title=data.get("passage_title", "Reading Passage"),
+                number=data.get("passage_number", passage_number),
+                skills=data.get("passage_skills", "reading"),
+                level=data.get("passage_level", random_level),
+            )
+
+            # 5. Create Questions + Variants
             for qd in questions_data:
                 q = await Question.create(
                     passage_id=passage.id,
@@ -138,111 +162,135 @@ class ReadingService:
                     label, _, content = opt.partition(")")
                     await Variant.create(
                         question_id=q.id,
-                        label=label.strip(),
                         text=content.strip(),
-                        is_correct=(label.strip() == qd["correct_option"].strip().upper())
+                        is_correct=(label.strip().upper() == qd["correct_option"].strip().upper())
                     )
+
+            # 6. Create Reading session
             session = await Reading.create(
                 user_id=user_id,
-                passage_id=passage.id,
                 status=Constants.ReadingStatus.STARTED,
                 start_time=datetime.now(timezone.utc),
                 score=0.0,
                 duration=60
             )
-        return session, None
+            await session.passages.add(passage)
+
+        return session, [passage]
 
     @staticmethod
-    async def get_reading(session_id: int) -> Optional[Reading]:
-        return (
-            await Reading.get_or_none(id=session_id)
-            .prefetch_related("passage__questions__variants")
-        )
+    async def get_reading(session_id: int, user_id: int):
+        reading = await Reading.get_or_none(id=session_id, user_id=user_id)
+        if not reading:
+            return None, None
+        passages = await reading.passages.all()
+        return reading, passages
 
     @staticmethod
     async def submit_answers(
-        session_id: int, user_id: int, answers: List[Dict[str, Any]]
+        session_id: int, user_id: int, answers: List[Any]
     ) -> Tuple[float, Optional[str]]:
         session = await Reading.get_or_none(id=session_id, user_id=user_id)
         if not session:
             return 0, "session_not_found"
-        if session.status == Constants.ReadingStatus.COMPLETED:
-            return 0, "already_completed"
 
         total = 0.0
         async with in_transaction():
             for ans in answers:
-                q = await Question.get_or_none(id=ans["question_id"]).prefetch_related("variants")
+                # unpack either a dict or a pydantic model
+                question_id = ans.question_id if hasattr(ans, "question_id") else ans["question_id"]
+                answer_text = ans.answer if hasattr(ans, "answer") else ans["answer"]
+
+                q = await Question.get_or_none(id=question_id).prefetch_related("variants")
                 if not q:
-                    return 0, f"question_{ans['question_id']}"
-                correct = next(v for v in await q.variants if v.is_correct)
-                is_correct = (ans["answer"].strip().upper() == correct.label)
+                    return 0, f"question_{question_id}"
+
+                variants = await q.variants.all()
+                correct = next(v for v in variants if v.is_correct)
+                # find the variant whose text matches the submitted answer
+                selected_variant = next(
+                    (v for v in variants if v.text.strip().upper() == answer_text.strip().upper()),
+                    None
+                )
+
+                is_correct = bool(selected_variant and selected_variant.is_correct)
                 if is_correct:
                     total += q.score
+
                 await Answer.create(
                     user_id=user_id,
-                    question_id=q.id,
                     reading_id=session_id,
-                    selected_option=ans["answer"].strip().upper(),
+                    question_id=q.id,
+                    # <-- here’s the fix:
+                    variant_id=selected_variant.id if selected_variant else None,
+                    text=answer_text,
                     is_correct=is_correct,
-                    correct_answer=correct.label,
-                    status="answered"
+                    correct_answer=correct.text,
+                    status=Answer.ANSWERED
                 )
+
             session.status = Constants.ReadingStatus.COMPLETED
             session.end_time = datetime.now(timezone.utc)
             session.score = total
             await session.save()
-        # не блокировать пользователя на анализ
-        _ = ReadingAnalyseService.analyse_reading(session_id, user_id)
+
+        # fire‐and‐forget analysis
+        _ = ReadingAnalyseService.analyse_reading(session_id)
         return total, None
 
     @staticmethod
     async def cancel_reading(session_id: int, user_id: int) -> bool:
-        s = await Reading.get_or_none(id=session_id, user_id=user_id)
-        if not s:
+        session = await Reading.get_or_none(id=session_id, user_id=user_id)
+        if not session:
             return False
-        s.status = Constants.ReadingStatus.CANCELLED
-        s.end_time = datetime.now(timezone.utc)
-        await s.save(update_fields=["status", "end_time"])
+        session.status = Constants.ReadingStatus.CANCELLED
+        session.end_time = datetime.now(timezone.utc)
+        await session.save(update_fields=["status", "end_time"])
         return True
 
     @staticmethod
     async def restart_reading(session_id: int, user_id: int) -> Tuple[Reading, Optional[str]]:
-        s = await Reading.get_or_none(id=session_id, user_id=user_id)
-        if not s:
+        session = await Reading.get_or_none(id=session_id, user_id=user_id)
+        if not session:
             return None, "session_not_found"
-        if s.status != Constants.ReadingStatus.COMPLETED:
+        if session.status != Constants.ReadingStatus.COMPLETED:
             return None, "not_completed"
-        await Answer.filter(reading_id=session_id, user_id=user_id).delete()
+
+        # clear previous answers
+        await Answer.filter(reading=session_id, user_id=user_id).delete()
         return await ReadingService.start_reading(user_id)
 
     @staticmethod
     async def analyse_reading(session_id: int, user_id: int) -> Dict[str, Any]:
-        session = (
-            await Reading.get_or_none(id=session_id, user_id=user_id)
-            .prefetch_related("passage__questions__variants", "answers")
-        )
+        session = await Reading.get_or_none(id=session_id, user_id=user_id) \
+                               .prefetch_related("passages__questions__variants", "user_answers")
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
 
-        questions = await session.passage.questions.all().prefetch_related("variants")
+        # Always return the latest passage (only one per session)
+        passage = (await session.passages.all())[0]
+        questions = await passage.questions.all().prefetch_related("variants")
+
         result = []
         for q in questions:
             ua = await Answer.get_or_none(question_id=q.id, user_id=user_id)
-            correct = next(v for v in await q.variants if v.is_correct)
+            variants = await q.variants.all()
+            correct = next(v for v in variants if v.is_correct)
+
             result.append({
                 "id": q.id,
                 "text": q.text,
-                "options": [{"label": v.label, "text": v.text} for v in await q.variants],
-                "user_answer": ua.selected_option if ua else None,
+                "options": [{"text": v.text} for v in variants],
+                "user_answer": ua.text if ua and ua.text else None,
                 "is_correct": ua.is_correct if ua else False,
-                "correct_answer": correct.label,
+                "correct_answer": correct.text,
             })
 
         return {
-            "passage_id": session.passage_id,
-            "passage_text": session.passage.text,
+            "passage_id": passage.id,
+            "passage_text": passage.text,
             "questions": result,
             "total_score": session.score,
-            "duration": (session.end_time - session.start_time).total_seconds() / 60 if session.end_time else None
+            "duration": (session.end_time - session.start_time).total_seconds() / 60
+                        if session.end_time else None
         }

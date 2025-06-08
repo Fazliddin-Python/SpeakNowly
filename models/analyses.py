@@ -79,7 +79,7 @@ class ReadingAnalyse(BaseModel):
     passage = fields.ForeignKeyField("models.Passage", related_name="analyses", description="Related reading passage")
     correct_answers = fields.IntField(default=0, description="Number of correct answers")
     overall_score = fields.DecimalField(max_digits=5, decimal_places=2, description="Overall score")
-    timing = fields.TimeField(description="Time taken for the test")
+    timing = fields.TimeDeltaField(null=True, description="Time taken for the test")
     feedback = fields.TextField(description="Feedback for the user")
 
     class Meta:
