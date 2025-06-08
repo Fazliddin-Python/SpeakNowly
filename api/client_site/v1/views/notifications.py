@@ -16,6 +16,15 @@ from utils.auth.auth import get_current_user
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+
+async def admin_required(user=Depends(get_current_user)):
+    if not (getattr(user, "is_staff", False) or getattr(user, "is_superuser", False)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required"
+        )
+    return user
+
 def _translate(obj, field: str, lang: str) -> str:
     """
     1) Try <field>_<lang>
@@ -23,6 +32,7 @@ def _translate(obj, field: str, lang: str) -> str:
     3) Fallback to empty string
     """
     return getattr(obj, f"{field}_{lang}", None) or getattr(obj, f"{field}_en", None) or ""
+
 
 @router.get("/", response_model=List[MessageListSerializer])
 async def list_notifications(
@@ -50,6 +60,7 @@ async def list_notifications(
         ))
     return result
 
+
 @router.get("/{id}/", response_model=MessageDetailSerializer)
 async def notification_detail(
     id: int,
@@ -74,15 +85,16 @@ async def notification_detail(
         created_at=msg.created_at
     )
 
+
 @router.post("/", response_model=MessageDetailSerializer, status_code=status.HTTP_201_CREATED)
 async def create_notification(
     data: MessageSerializer,
     request: Request,
-    user=Depends(get_current_user),
+    user=Depends(admin_required),
     t: dict = Depends(get_translation),
 ):
     """
-    Create a new notification for the current user.
+    Create a new notification for the current user (admin only).
     """
     msg = await Message.create(
         user_id=user.id,
@@ -100,6 +112,7 @@ async def create_notification(
         content=_translate(msg, "content", lang),
         created_at=msg.created_at
     )
+
 
 @router.put("/{id}/", response_model=MessageDetailSerializer)
 async def update_notification(
@@ -130,6 +143,7 @@ async def update_notification(
         created_at=msg.created_at
     )
 
+
 @router.post("/{id}/mark-as-read/", response_model=ReadStatusSerializer)
 async def mark_notification_as_read(
     id: int,
@@ -148,6 +162,7 @@ async def mark_notification_as_read(
         defaults={"read_at": None},
     )
     return read_status
+
 
 @router.delete("/{id}/", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_notification(

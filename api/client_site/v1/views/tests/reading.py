@@ -2,8 +2,7 @@ import asyncio
 import logging
 from typing import Any, List, Dict
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.params import Query
+from fastapi import APIRouter, Depends, HTTPException, Request, status, BackgroundTasks, Query
 
 from ...serializers.tests.reading import (
     PassageSerializer,
@@ -21,9 +20,9 @@ from ...serializers.tests.reading import (
 from utils.auth.auth import get_current_user
 from utils.i18n import get_translation
 from utils.check_tokens import check_user_tokens
-from models.tests.test_type import TestTypeEnum
-from models.tests.constants import Constants
+from models import Answer, ReadingAnalyse, TestTypeEnum
 from services.tests.reading_service import ReadingService
+from services.analyses import ReadingAnalyseService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/reading", tags=["Reading"])
@@ -303,10 +302,9 @@ async def start_reading_session(
     t=Depends(get_translation),
     _: Any = Depends(audit_action("start_reading")),
 ):
-    # 1) проверка и списание токенов
+    # Token check and deduction
     await check_user_tokens(user, TestTypeEnum.READING_ENG, request, t)
 
-    # 2) создание сессии
     reading, error = await ReadingService.start_reading(user.id)
     if error == "invalid_gpt_output":
         raise HTTPException(status_code=500, detail=t["internal_error"])
@@ -344,11 +342,11 @@ async def submit_reading_answers(
 ):
     total_score, error = await ReadingService.submit_answers(session_id, user.id, payload.answers)
     if error == "session_not_found":
-        raise HTTPException(404, t["session_not_found"])
+        raise HTTPException(status_code=404, detail=t["session_not_found"])
     if error == "already_completed":
-        raise HTTPException(400, t["session_already_completed"])
+        raise HTTPException(status_code=400, detail=t["session_already_completed"])
     if error.startswith("question_"):
-        raise HTTPException(404, t["question_not_found"])
+        raise HTTPException(status_code=404, detail=t["question_not_found"])
     return {"message": t["answers_submitted"], "total_score": total_score}
 
 
@@ -365,7 +363,7 @@ async def cancel_reading_session(
 ):
     ok = await ReadingService.cancel_reading(session_id, user.id)
     if not ok:
-        raise HTTPException(404, t["session_not_found"])
+        raise HTTPException(status_code=404, detail=t["session_not_found"])
     return {"message": t["session_cancelled"]}
 
 
@@ -382,21 +380,56 @@ async def restart_reading_session(
 ):
     reading, error = await ReadingService.restart_reading(session_id, user.id)
     if error == "session_not_found":
-        raise HTTPException(404, t["session_not_found"])
+        raise HTTPException(status_code=404, detail=t["session_not_found"])
     if error == "not_completed":
-        raise HTTPException(400, t["session_not_completed"])
+        raise HTTPException(status_code=400, detail=t["session_not_completed"])
     return ReadingSerializer.from_orm(reading)
 
 
 @router.get(
     "/{session_id}/analysis/",
-    summary="Get detailed analysis for a reading session"
+    summary="Get detailed analysis for a reading session with pagination",
 )
 async def analyze_reading(
     session_id: int,
+    background_tasks: BackgroundTasks,
+    page: int = Query(1, ge=1, description="Page number, one passage per page"),
     user=Depends(active_user),
     t=Depends(get_translation),
     _: Any = Depends(audit_action("analyse_reading")),
 ):
-    data = await ReadingService.analyse_reading(session_id, user.id)
+    # Ensure tokens
+    await check_user_tokens(user, TestTypeEnum.READING_ENG, Request, t)
+
+    # Trigger background analysis if not exists
+    if not await ReadingAnalyse.get_or_none(reading_id=session_id):
+        background_tasks.add_task(ReadingAnalyseService.analyse_reading, session_id)
+        raise HTTPException(status_code=status.HTTP_202_ACCEPTED, detail=t["analysis_started"])
+
+    # Fetch passage(s) of this session
+    reading = await ReadingService.get_reading(session_id)
+    passages = [reading.passage]
+    # Pagination one per page
+    if page > len(passages):
+        raise HTTPException(status_code=404, detail=t["page_not_found"])
+    passage = passages[page-1]
+
+    # Serialize passage
+    passage_data = await PassageSerializer.from_orm(passage)
+    # Attach analysed questions
+    qa_list = []
+    questions = await passage.questions.all().prefetch_related("variants")
+    for q in questions:
+        q_ser = await QuestionAnalysisSerializer.from_orm(q)
+        ua = await Answer.get_or_none(question_id=q.id, user_id=user.id)
+        q_dict = q_ser.model_dump()
+        q_dict["user_answer"] = ua.selected_option if ua else None
+        q_dict["is_correct"] = ua.is_correct if ua else False
+        q_dict["correct_answer"] = ua.correct_answer if ua else None
+        qa_list.append(q_dict)
+
+    data = passage_data.model_dump()
+    data["questions"] = qa_list
+    data["total_score"] = reading.score
+    data["duration"] = (reading.end_time - reading.start_time).total_seconds() / 60 if reading.end_time else None
     return data

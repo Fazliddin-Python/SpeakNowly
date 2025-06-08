@@ -45,7 +45,7 @@ class QuestionListSerializer(SafeSerializer):
             updated_at=obj.updated_at
         )
 
-class ReadingSerializer(SafeSerializer):
+class ReadingSerializer(BaseSerializer):
     status: Constants.ReadingStatus = Field(..., description="Status of the test")
     user_id: int = Field(..., description="ID of the user")
     start_time: datetime = Field(..., description="Start time of the test")
@@ -98,7 +98,6 @@ class QuestionCreateSerializer(BaseSerializer):
     text: str = Field(..., description="Text of the question")
     type: Constants.QuestionType = Field(..., description="Type of the question")
     score: int = Field(..., description="Score for this question")
-    # correct_answer: Optional[str] = Field(None, description="Correct answer text (if applicable)")  # УБРАТЬ
 
     @field_validator("text")
     @classmethod

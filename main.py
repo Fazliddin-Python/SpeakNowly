@@ -1,6 +1,7 @@
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from tortoise.contrib.fastapi import register_tortoise
 from config import DATABASE_CONFIG, ALLOWED_HOSTS
 from api.client_site.v1 import router as client_site_v1_router
@@ -29,6 +30,8 @@ app.add_middleware(
 )
 
 app.include_router(client_site_v1_router, prefix="/api/v1")
+
+app.mount("/media", StaticFiles(directory="media"), name="media")
 
 register_tortoise(
     app,

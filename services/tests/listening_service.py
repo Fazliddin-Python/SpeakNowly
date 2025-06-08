@@ -1,5 +1,6 @@
 import random
 import logging
+import os
 from typing import List, Dict, Any
 from datetime import datetime, timezone
 
@@ -23,14 +24,6 @@ from utils.check_tokens import check_user_tokens
 
 logger = logging.getLogger(__name__)
 
-MINIO_BUCKET = "listening-audio"
-minio_client = Minio(
-    # "136.243.2.242:9000",
-    "localhost:9000",
-    access_key="minioadmin",
-    secret_key="minioadmin123",
-    secure=False
-)
 
 class ListeningService:
     """
@@ -116,35 +109,33 @@ class ListeningService:
         t: dict,
     ):
         """
-        Create a ListeningPart and upload its audio file to MinIO.
+        Create a ListeningPart and upload its audio file to media/audios folder.
         """
-        # 1. Upload audio file to MinIO
+        # 1. Проверяем тип файла
         if audio_file.content_type not in ("audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav"):
             logger.error("Invalid audio type: %s", audio_file.content_type)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=t.get("invalid_audio_type", "Invalid audio type")
             )
-        file_ext = audio_file.filename.split('.')[-1]
-        file_name = f"part_audio/{uuid4()}.{file_ext}"
-        file_content = await audio_file.read()
-        try:
-            minio_client.put_object(
-                bucket_name=MINIO_BUCKET,
-                object_name=file_name,
-                data=BytesIO(file_content),
-                length=len(file_content),
-                content_type=audio_file.content_type,
-            )
-        except Exception as e:
-            logger.error("MinIO upload error: %s", e)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=t.get("audio_upload_failed", "Failed to upload audio")
-            )
-        audio_url = f"https://api.speaknowly.com/minio-console/browser/{MINIO_BUCKET}/{file_name}"
 
-        # 2. Create ListeningPart
+        # 2. Готовим путь для сохранения
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        save_dir = os.path.join(project_root, "media", "audios")
+        os.makedirs(save_dir, exist_ok=True)
+        file_ext = audio_file.filename.split('.')[-1]
+        file_name = f"part_audio_{uuid4()}.{file_ext}"
+        file_path = os.path.join(save_dir, file_name)
+
+        # 3. Сохраняем файл на диск
+        file_content = await audio_file.read()
+        with open(file_path, "wb") as f:
+            f.write(file_content)
+
+        # 4. Формируем ссылку для БД
+        audio_url = f"/media/audios/{file_name}"
+
+        # 5. Создаём запись ListeningPart
         part = await ListeningPart.create(
             listening_id=listening_id,
             part_number=part_number,

@@ -3,6 +3,7 @@ import asyncio
 import logging
 from typing import List, Any, Dict
 
+from models.tests.listening import ListeningPart
 from services.tests.listening_service import ListeningService
 from ...serializers.tests.listening import (
     ListeningSerializer,
@@ -322,7 +323,7 @@ async def delete_listening_question(
 
 @router.post(
     "/session",
-    response_model=UserListeningSessionSerializer,
+    response_model=ListeningDataSlimSerializer,
     status_code=status.HTTP_201_CREATED,
     summary="Start a new listening session",
 )
@@ -332,8 +333,12 @@ async def start_session(
     t=Depends(get_translation),
     _: Any = Depends(audit_action("start_listening_session")),
 ):
+    """
+    Start a new listening session and return full test data for the session.
+    """
     session = await ListeningService.start_session(user, request, t)
-    return await UserListeningSessionSerializer.from_orm(session)
+    data = await ListeningService.get_session_data(session.id, user.id, t)
+    return ListeningDataSlimSerializer(**data)
 
 
 @router.post(
@@ -347,6 +352,9 @@ async def cancel_session(
     t=Depends(get_translation),
     _: Any = Depends(audit_action("cancel_listening_session")),
 ):
+    """
+    Cancel an ongoing listening session.
+    """
     await ListeningService.cancel_session(session_id, user.id, t)
     return {"detail": t["session_cancelled"]}
 
@@ -363,6 +371,9 @@ async def submit_answers(
     t=Depends(get_translation),
     _: Any = Depends(audit_action("submit_listening_answers")),
 ):
+    """
+    Submit user answers and return the total correct count.
+    """
     total = await ListeningService.submit_answers(session_id, user.id, payload.dict(), t)
     return {"detail": t["answers_submitted"], "total_correct": total}
 
@@ -378,10 +389,11 @@ async def get_session_data(
     t=Depends(get_translation),
     _: Any = Depends(audit_action("get_listening_data")),
 ):
-    # fetch minimal data (exam + parts)
-    return await ListeningDataSlimSerializer.from_orm(
-        await ListeningService.get_session_data(session_id, user.id, t),
-    )
+    """
+    Fetch minimal session data for the listening session.
+    """
+    data = await ListeningService.get_session_data(session_id, user.id, t)
+    return ListeningDataSlimSerializer(**data)
 
 
 @router.get(
@@ -395,5 +407,20 @@ async def get_analysis(
     t=Depends(get_translation),
     _: Any = Depends(audit_action("get_listening_analysis")),
 ):
+    """
+    Retrieve detailed analysis for the listening session, including parts with audio URLs.
+    """
+    # Get base analysis and responses
     result = await ListeningService.get_analysis(session_id, user.id, t)
+
+    # Also fetch session to retrieve exam_id
+    session = await ListeningService.get_session(session_id, user.id, t)
+
+    # Add listening_parts to match DRF response
+    parts = await ListeningPart.filter(listening_id=session.exam_id).all()
+    listening_parts = [
+        {"part_number": p.part_number, "audio_file": p.audio_file}
+        for p in sorted(parts, key=lambda p: p.part_number)
+    ]
+    result["listening_parts"] = listening_parts
     return result

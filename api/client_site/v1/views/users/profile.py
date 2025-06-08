@@ -1,10 +1,11 @@
 import logging
+import os
+from uuid import uuid4
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.security import HTTPBearer
 from typing import Dict
 from minio import Minio
-from uuid import uuid4
 from io import BytesIO
 
 from ...serializers.users.profile import (
@@ -21,14 +22,6 @@ router = APIRouter()
 bearer_scheme = HTTPBearer()
 logger = logging.getLogger(__name__)
 
-MINIO_BUCKET = "user-photo"
-minio_client = Minio(
-    # "136.243.2.242:9000",
-    "localhost:9000",
-    access_key="minioadmin",
-    secret_key="minioadmin123",
-    secure=False
-)
 
 @router.get(
     "/me/",
@@ -105,25 +98,20 @@ async def update_profile(
     if age is not None:
         update_fields["age"] = age
 
-    # Обработка фото через MinIO
+    # Обработка фото через media/user_photos/
     if photo is not None:
         if photo.content_type not in ("image/jpeg", "image/png", "image/gif"):
             raise HTTPException(status_code=400, detail="Invalid image type")
         file_ext = photo.filename.split('.')[-1]
-        file_name = f"profile_photos/{current_user.id}/{uuid4()}.{file_ext}"
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        save_dir = os.path.join(project_root, "media", "user_photos", str(current_user.id))
+        os.makedirs(save_dir, exist_ok=True)
+        file_name = f"{uuid4()}.{file_ext}"
+        file_path = os.path.join(save_dir, file_name)
         file_content = await photo.read()
-        try:
-            minio_client.put_object(
-                bucket_name=MINIO_BUCKET,
-                object_name=file_name,
-                data=BytesIO(file_content),
-                length=len(file_content),
-                content_type=photo.content_type,
-            )
-        except Exception as e:
-            logger.error("MinIO upload error: %s", e)
-            raise HTTPException(status_code=500, detail="Failed to upload image")
-        photo_url = f"https://api.speaknowly.com/minio-console/browser/user-photo/{file_name}"
+        with open(file_path, "wb") as f:
+            f.write(file_content)
+        photo_url = f"/media/user_photos/{current_user.id}/{file_name}"
         update_fields["photo"] = photo_url
 
     updated_user = await UserService.update_user(current_user.id, t, **update_fields)

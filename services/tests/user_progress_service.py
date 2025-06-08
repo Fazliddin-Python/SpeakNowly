@@ -1,7 +1,6 @@
-from tortoise.expressions import Max
+from tortoise.functions import Max
 from models.analyses import ListeningAnalyse, SpeakingAnalyse, WritingAnalyse
 from models.tests import Reading
-
 
 class UserProgressService:
 
@@ -21,16 +20,27 @@ class UserProgressService:
 
     @staticmethod
     async def get_highest_score(user_id: int):
-        max_listening = await ListeningAnalyse.filter(user_id=user_id).aggregate(score=Max("overall_score"))
-        max_speaking = await SpeakingAnalyse.filter(speaking__user_id=user_id).aggregate(score=Max("overall_band_score"))
-        max_writing = await WritingAnalyse.filter(writing__user_id=user_id).aggregate(score=Max("overall_band_score"))
-        max_reading = await Reading.filter(user_id=user_id).aggregate(score=Max("score"))
+        # Listening
+        listening_scores = await ListeningAnalyse.filter(user_id=user_id).values_list("overall_score", flat=True)
+        max_listening = max(listening_scores) if listening_scores else 0
+
+        # Speaking
+        speaking_scores = await SpeakingAnalyse.filter(speaking__user_id=user_id).values_list("overall_band_score", flat=True)
+        max_speaking = max(speaking_scores) if speaking_scores else 0
+
+        # Writing
+        writing_scores = await WritingAnalyse.filter(writing__user_id=user_id).values_list("overall_band_score", flat=True)
+        max_writing = max(writing_scores) if writing_scores else 0
+
+        # Reading
+        reading_scores = await Reading.filter(user_id=user_id).values_list("score", flat=True)
+        max_reading = max(reading_scores) if reading_scores else 0
 
         max_scores = [
-            max_listening["score"] or 0,
-            max_speaking["score"] or 0,
-            max_writing["score"] or 0,
-            max_reading["score"] or 0,
+            max_listening or 0,
+            max_speaking or 0,
+            max_writing or 0,
+            max_reading or 0,
         ]
 
         total = sum(max_scores) / 4

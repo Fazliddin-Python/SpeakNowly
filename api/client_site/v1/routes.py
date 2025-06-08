@@ -22,20 +22,20 @@ router.include_router(auth_router, prefix="/auth", tags=["Auth"])
 # Tariffs
 router.include_router(tariffs_router, prefix="/tariffs", tags=["Tariffs"])
 
-# Notifications
-router.include_router(notifications_router, prefix="/notifications", tags=["Notifications"])
-
 # Tests
 router.include_router(tests_router, prefix="/tests")
-
-# Transactions
-router.include_router(transactions_router, prefix="/transactions", tags=["Transactions"])
 
 # Analyses
 router.include_router(analyses_router, prefix="/analyses", tags=["Analyses"])
 
+# Notifications
+router.include_router(notifications_router, prefix="/notifications", tags=["Notifications"])
+
 # Comments
 router.include_router(comments_router, prefix="/comments", tags=["Comments"])
+
+# Transactions
+router.include_router(transactions_router, prefix="/transactions", tags=["Transactions"])
 
 # Payments
 router.include_router(payments_router, prefix="/payments", tags=["Payments"])

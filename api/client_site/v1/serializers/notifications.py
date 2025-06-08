@@ -1,13 +1,15 @@
 from pydantic import Field
 from typing import Optional
 from datetime import datetime, timezone
+from enum import Enum
+from models.notifications import MessageType
 from .base import SafeSerializer, BaseSerializer
 
 
 class MessageSerializer(SafeSerializer):
     """Serializer for detailed notification."""
     user_id: Optional[int]
-    type: str
+    type: MessageType
     title: str
     description: Optional[str]
     content: str
