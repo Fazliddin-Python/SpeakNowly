@@ -63,8 +63,11 @@ class ListeningSectionSerializer(BaseModel):
     end_index: int = Field(..., description="End index in the audio")
     question_type: QuestionType = Field(..., description="Type of questions")
     question_text: Optional[str] = Field(None, description="Text for the section")
-    options: Optional[List[str]] = Field(None, description="Shared options for the section")
+    options: Optional[Union[List[str], Dict[str, str]]] = None
     questions: Optional[List[ListeningQuestionSerializer]] = Field(None, description="List of questions")
+
+    class Config:
+        orm_mode = True
 
     @classmethod
     async def from_orm(cls, obj: ListeningSection) -> "ListeningSectionSerializer":

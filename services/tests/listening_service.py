@@ -349,7 +349,8 @@ class ListeningService:
         Start a new listening session for a user by selecting a random test.
         Deduct tokens, raise 402 if insufficient.
         """
-        tests = await Listening.all()
+        tests = await Listening.all().prefetch_related("parts")
+        tests = [t for t in tests if t.parts and len(t.parts) > 0]
         if not tests:
             raise HTTPException(404, detail=t["no_listening_tests"])
         selected = random.choice(tests)
@@ -477,6 +478,13 @@ class ListeningService:
             raise HTTPException(404, detail=t["session_not_found"])
         if session.status == ListeningSessionStatus.COMPLETED.value:
             raise HTTPException(400, detail=t["session_already_completed"])
+
+        exam = await Listening.get_or_none(id=session.exam_id).prefetch_related("parts")
+        if not exam or not exam.parts or len(exam.parts) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail=t.get("no_listening_parts", "No parts found for this listening test")
+            )
 
         # clear old
         await UserResponse.filter(session_id=session_id, user_id=user_id).delete()
