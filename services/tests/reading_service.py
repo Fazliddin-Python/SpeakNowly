@@ -235,7 +235,7 @@ class ReadingService:
             await session.save()
 
         # fire‐and‐forget analysis
-        _ = ReadingAnalyseService.analyse_reading(session_id)
+        _ = ReadingAnalyseService.analyse_reading(session_id, user_id)
         return total, None
 
     @staticmethod
