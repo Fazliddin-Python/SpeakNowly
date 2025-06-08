@@ -69,13 +69,17 @@ async def get_user_test_history(
     # Append Reading
     if type in [None, "reading"]:
         for r in reading:
-            analyse = await ReadingAnalyse.get_or_none(reading_id=r.id)
+            passages = await r.passages.all()
+            if not passages:
+                continue
+            passage_id = passages[0].id
+            analyse = await ReadingAnalyse.get_or_none(passage_id=passage_id, user_id=user_id)
             if analyse:
                 result.append({
                     "type": "Reading",
                     "score": float(analyse.overall_score),
                     "created_at": r.created_at,
-                    "duration": r.duration,
+                    "duration": _calc_duration(r),
                 })
 
     # Append Listening
