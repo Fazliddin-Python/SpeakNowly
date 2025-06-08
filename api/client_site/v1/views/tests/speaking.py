@@ -17,7 +17,7 @@ from models.tests.test_type import TestTypeEnum
 from models.analyses import SpeakingAnalyse
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/speaking", tags=["Speaking"])
+router = APIRouter()
 
 
 def audit_action(action: str):

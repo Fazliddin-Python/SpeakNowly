@@ -25,7 +25,7 @@ from services.tests.reading_service import ReadingService
 from services.analyses import ReadingAnalyseService
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/reading", tags=["Reading"])
+router = APIRouter()
 
 
 def audit_action(action: str):
