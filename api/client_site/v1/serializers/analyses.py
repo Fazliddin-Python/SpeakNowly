@@ -9,7 +9,7 @@ class ListeningAnalyseSerializer(BaseModel):
     user_id: Optional[int] = None
     correct_answers: int
     overall_score: float
-    timing: Optional[Any] = None
+    timing: Optional[str] = None
     status: str
     feedback: Optional[Any] = None
 

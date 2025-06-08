@@ -51,8 +51,10 @@ class ListeningAnalyseService:
         # Compute duration (safely handle missing timestamps)
         if session.start_time and session.end_time:
             duration = session.end_time - session.start_time
+            if not isinstance(duration, timedelta):
+                duration = timedelta(seconds=float(duration))
         else:
-            duration = timedelta()
+            duration = timedelta(0)
 
         # 3. Prepare ChatGPT prompt
         system_msg = (
@@ -137,7 +139,7 @@ class ListeningAnalyseService:
             "analyse": {
                 "correct_answers": analyse.correct_answers,
                 "overall_score": float(analyse.overall_score),
-                "timing": str(analyse.timing),
+                "timing": str(analyse.timing) if analyse.timing else None,
                 "feedback": analyse.feedback,
             },
             "responses": []

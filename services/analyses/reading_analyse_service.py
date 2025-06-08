@@ -34,9 +34,10 @@ class ReadingAnalyseService:
 
         if reading.start_time and reading.end_time:
             timing = reading.end_time - reading.start_time
-            timing = timedelta(seconds=timing.total_seconds())
+            if not isinstance(timing, timedelta):
+                timing = timedelta(seconds=float(timing))
         else:
-            timing = timedelta(seconds=0)
+            timing = timedelta(0)
 
         feedback = f"You answered {correct}/{total} correctly. Estimated band: {band}."
 
@@ -65,15 +66,27 @@ class ReadingAnalyseService:
     async def get_analysis(reading_id: int, user_id: int) -> dict:
         reading = await Reading.get_or_none(id=reading_id)
         if not reading:
-            return {"reading_id": reading_id, "analyse": {}, "responses": []}
+            return {
+                "reading_id": reading_id,
+                "analyse": {},
+                "responses": []
+            }
         passages = await reading.passages.all()
         if not passages:
-            return {"reading_id": reading_id, "analyse": {}, "responses": []}
+            return {
+                "reading_id": reading_id,
+                "analyse": {},
+                "responses": []
+            }
         passage = passages[0]
 
         analyse = await ReadingAnalyse.get_or_none(passage_id=passage.id, user_id=user_id)
         if not analyse:
-            return {"reading_id": reading_id, "analyse": {}, "responses": []}
+            return {
+                "reading_id": reading_id,
+                "analyse": {},
+                "responses": []
+            }
 
         answers = await Answer.filter(reading_id=reading_id).all()
         resp = []
@@ -91,7 +104,7 @@ class ReadingAnalyseService:
             "analyse": {
                 "correct_answers": analyse.correct_answers,
                 "overall_score": float(analyse.overall_score),
-                "timing": str(analyse.timing),
+                "timing": str(analyse.timing) if analyse.timing else None,
                 "feedback": analyse.feedback,
             },
             "responses": resp
