@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, status, Request, UploadFile, File, Form
 from tortoise.exceptions import DoesNotExist
 
+from models.transactions import TransactionType
+
 from ...serializers.tests import SpeakingResponseType, Questions, QuestionPart, Analyse
 from utils.auth.auth import get_current_user
 from utils.i18n import get_translation
@@ -41,7 +43,7 @@ async def create_speaking_test(
     _: Any = Depends(audit_action("create_speaking_test")),
 ):
     # 1) Проверка и списание токенов
-    await check_user_tokens(user, TestTypeEnum.SPEAKING_ENG, request, t)
+    await check_user_tokens(user, TransactionType.TEST_SPEAKING, request, t)
 
     # 2) Создаём запись
     speaking = await Speaking.create(

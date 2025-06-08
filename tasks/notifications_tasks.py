@@ -1,27 +1,27 @@
-from celery_app import celery_app
 import logging
 import asyncio
-
-from tortoise import Tortoise
-from config import DATABASE_CONFIG
+from celery_app import celery_app
 from models.notifications import Message
 
 logger = logging.getLogger(__name__)
 
-async def _send_mass_notification(user_ids: list[int], title: str, content: str):
-    await Tortoise.init(config=DATABASE_CONFIG)
-    try:
-        for user_id in user_ids:
-            await Message.create(user_id=user_id, title=title, content=content)
-        logger.info("[CELERY] Mass notification sent to %d users", len(user_ids))
-    except Exception as exc:
-        logger.error(f"[CELERY] Error sending mass notification: {exc}")
-    finally:
-        await Tortoise.close_connections()
-
-@celery_app.task
-def send_mass_notification(user_ids: list[int], title: str, content: str):
+@celery_app.task(bind=True, name="send_mass_notification")
+def send_mass_notification(self, user_ids: list[int], title: str, content: str):
     """
     Celery task to send mass notifications to users.
+    Uses asyncio event loop, Redis and Tortoise initialized in celery_app.worker_process_init.
     """
-    asyncio.run(_send_mass_notification(user_ids, title, content))
+    try:
+        async def _run():
+            for uid in user_ids:
+                await Message.create(user_id=uid, title=title, content=content)
+            logger.info(f"[CELERY] Mass notification sent to {len(user_ids)} users")
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        loop.run_until_complete(_run())
+    except Exception as exc:
+        logger.exception(f"[CELERY] send_mass_notification failed: {exc}")
+        raise

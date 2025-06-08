@@ -1,36 +1,37 @@
-from celery_app import celery_app
 import logging
 import asyncio
-
-from tortoise import Tortoise
-from config import DATABASE_CONFIG
+from celery_app import celery_app
+from services.users.email_service import send_email_task
 from models.comments import Comment
 from models.users.users import User
-from services.users.email_service import send_email_task
 
 logger = logging.getLogger(__name__)
-
 ADMIN_EMAILS = ["support@speaknowly.com"]
 
-async def _notify_admin_about_comment(comment_id: int):
-    await Tortoise.init(config=DATABASE_CONFIG)
+@celery_app.task(bind=True, name="notify_admin_about_comment")
+def notify_admin_about_comment(self, comment_id: int):
     try:
-        comment = await Comment.get(id=comment_id)
-        user = await User.get(id=comment.user_id)
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        async def _run():
+            comment = await Comment.get(id=comment_id)
+            user = await User.get(id=comment.user_id)
+            logger.info(f"[CELERY] New comment from user {user.email}: {comment.text}")
+            return user.email, comment.text
+
+        user_email, comment_text = loop.run_until_complete(_run())
+
+        subject = "New comment on the platform"
+        body = f"New comment from {user_email}: {comment_text}"
+        html_body = f"<b>New comment from {user_email}:</b><br>{comment_text}"
+
+        send_email_task.delay(subject, ADMIN_EMAILS, body, html_body)
+        logger.info(f"[CELERY] Email task sent to admin about comment {comment_id}")
+
     except Exception as exc:
-        logger.error(f"[CELERY] Error getting comment {comment_id}: {exc}")
-        await Tortoise.close_connections()
-        return
-
-    logger.info(f"[CELERY] New comment from user {user.email}: {comment.text}")
-
-    subject = "New comment on the platform"
-    body = f"New comment from {user.email}: {comment.text}"
-    html_body = f"<b>New comment from {user.email}:</b><br>{comment.text}"
-    send_email_task.delay(subject, ADMIN_EMAILS, body, html_body)
-    logger.info(f"[CELERY] Email task sent to admin about comment {comment_id}")
-    await Tortoise.close_connections()
-
-@celery_app.task
-def notify_admin_about_comment(comment_id: int):
-    asyncio.run(_notify_admin_about_comment(comment_id))
+        logger.exception(f"[CELERY] notify_admin_about_comment failed for {comment_id}: {exc}")
+        raise

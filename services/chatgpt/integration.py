@@ -193,6 +193,7 @@ Return JSON with keys:
         """
         prompt = f"""
 You are an AI that generates IELTS-style reading passages and multiple-choice questions.
+Always create a **completely new and unique** passage and questions for each request, never repeating previous topics or wording.
 Produce:
 1. A short reading passage of approximately 100-150 words.
 2. Exactly three multiple-choice questions based on that passage.
@@ -451,15 +452,14 @@ Return exactly:
         except json.JSONDecodeError:
             raise HTTPException(status_code=500, detail="Invalid JSON returned from GPT for writing part2")
 
-    def analyse_writing(self, part1_answer: dict, part2_answer: str, lang_code: str = "en") -> Dict:
+    async def analyse_writing(self, part1_answer: dict, part2_answer: str, lang_code: str = "en") -> dict:
         """
-        Analyze IELTS Writing Task 1 and Task 2 responses.
-        part1_answer: dict with keys "diagram_data" and "user_answer"
-        part2_answer: essay text string.
-        lang_code: "en", "ru", or "uz" to specify output language.
-        Returns a JSON dict with scores & feedback for each criterion and overall.
+        Analyse IELTS Writing Task 1 and Task 2 responses.
+        :param part1_answer: dict with keys "diagram_data" and "user_answer" for Task 1.
+        :param part2_answer: str with the user's essay for Task 2.
+        :param lang_code: Language code for feedback (default is "en" for English).
+        :return: dict with analysis results in the expected JSON format.
         """
-        # Build combined prompt with analysis criteria
         analys_prompt = """
 You are an expert IELTS examiner. Your task is to evaluate IELTS Writing Task 1 and Task 2 responses provided by a candidate.
 
@@ -498,11 +498,9 @@ Return valid JSON with:
   "overall_band_score": <0-9>
 }
 """
-        # Map language code to language name
         lang_map = {"en": "English", "ru": "Russian", "uz": "Uzbek"}
         language_name = lang_map.get(lang_code, "English")
 
-        # Prepare data to send to GPT
         diagram_data = part1_answer.get("diagram_data", {})
         user1 = part1_answer.get("user_answer", "")
         user2 = part2_answer
@@ -522,7 +520,7 @@ Here is the data:
 """
 
         try:
-            response = openai.ChatCompletion.create(
+            response = await self.async_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant that outputs valid JSON."},

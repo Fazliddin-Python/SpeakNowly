@@ -133,7 +133,12 @@ class UserService:
             logger.info(f"Login failed, inactive user: {email}")
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=t["inactive_user"])
 
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
         password_valid = await loop.run_in_executor(None, user.check_password, password)
         if not password_valid:
             logger.info(f"Login failed, incorrect password: {email}")

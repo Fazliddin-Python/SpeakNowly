@@ -1,18 +1,25 @@
-from celery_app import celery_app
 import logging
 import asyncio
+from celery_app import celery_app
+from services.analyses.speaking_analyse_service import SpeakingAnalyseService
 
 logger = logging.getLogger(__name__)
 
-@celery_app.task
-def analyse_speaking_task(test_id: int, api_key: str):
+@celery_app.task(bind=True, name="tasks.analyses.speaking_tasks.analyse_speaking_task")
+def analyse_speaking_task(self, test_id: int, api_key: str):
     """
-    Celery task to analyze a speaking test.
+    Celery task to analyze a speaking test using SpeakingAnalyseService.
+    Uses asyncio event loop to run the async service method.
+    Redis and Tortoise are initialized in celery_app.worker_process_init.
     """
-    from services.analyses.speaking_analyse_service import SpeakingAnalyseService
-
     try:
-        asyncio.run(SpeakingAnalyseService.analyse(test_id, api_key))
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        loop.run_until_complete(SpeakingAnalyseService.analyse(test_id, api_key))
         logger.info(f"Speaking analysis completed for test {test_id}")
     except Exception as exc:
-        logger.error(f"Speaking analysis failed for test {test_id}: {exc}")
+        logger.exception(f"Speaking analysis failed for test {test_id}: {exc}")
+        raise
