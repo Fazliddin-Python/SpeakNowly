@@ -174,46 +174,25 @@ Return JSON with keys:
 
     async def generate_reading_data(self, passage_number: int, random_level: str) -> Dict:
         """
-        Generate an IELTS-style reading passage (100-150 words) along with three multiple-choice questions.
-        Returns a dict with structure:
-        {
-          "passage_text": "<the passage>",
-          "passage_number": 1,
-          "passage_skills": "reading",
-          "passage_level": "easy",
-          "questions": [
-            {
-              "text": "<question text>",
-              "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
-              "correct_option": "B"
-            },
-            { ... }, { ... }
-          ]
-        }
+        Generate an IELTS-style reading passage (100-150 words) and 3 multiple-choice questions.
         """
         prompt = f"""
 You are an AI that generates IELTS-style reading passages and multiple-choice questions.
-Always create a **completely new and unique** passage and questions for each request, never repeating previous topics or wording.
-Produce:
-1. A short reading passage of approximately 100-150 words.
-2. Exactly three multiple-choice questions based on that passage.
-Each question should have four options labeled "A)", "B)", "C)", "D)".
-Indicate which option is correct.
+Always create a unique passage and questions, never repeat content.
+Return exactly this JSON structure without extra explanation:
 
-Return exactly one JSON structure, without extra commentary:
 {{
-  "passage_text": "<the 100-150 word passage>",
+  "passage_text": "<passage of 100–150 words>",
   "passage_number": {passage_number},
   "passage_skills": "reading",
   "passage_level": "{random_level}",
   "questions": [
     {{
-      "text": "<question 1 text>",
+      "text": "<question 1>",
       "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
       "correct_option": "A"
     }},
-    {{ ... }},
-    {{ ... }}
+    {{...}}, {{...}}
   ]
 }}
 """
@@ -221,85 +200,75 @@ Return exactly one JSON structure, without extra commentary:
             response = await self.async_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant that outputs valid JSON."},
+                    {"role": "system", "content": "You are a helpful assistant that returns valid JSON."},
                     {"role": "user", "content": prompt.strip()},
                 ],
-                temperature=0.0,
+                temperature=0.3
             )
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"OpenAI API error (generate reading data): {e}")
+            raise HTTPException(status_code=502, detail=f"OpenAI error (reading gen): {str(e)}")
 
         content = response.choices[0].message.content
         try:
             return json.loads(content)
         except json.JSONDecodeError:
-            raise HTTPException(status_code=500, detail="Invalid JSON returned from GPT for reading data")
+            raise HTTPException(status_code=500, detail="Invalid JSON from GPT (reading)")
 
-    async def analyse_reading_answers(self, passage_text: str, user_answers: List[str], correct_options: List[str]) -> Dict:
+    async def check_text_question_answer(self, payload: str) -> str:
         """
-        Analyze user's answers to the generated multiple-choice questions.
-        :param passage_text: The original passage text.
-        :param user_answers: List of answer letters e.g. ["A", "C", "B"].
-        :param correct_options: List of correct answer letters e.g. ["A", "B", "D"].
-        Returns a dict:
-        {
-          "score": <integer 0-3>,
-          "detailed_feedback": [
-            {"question_index": 0, "correct": true, "explanation": "<...>"},
-            { ... },
-            { ... }
-          ]
-        }
+        Check the submitted answers with explanation (used in finish_reading).
+        Accepts raw JSON string payload of passage + questions + answers.
         """
-        # Build a JSON payload that includes user answers and correct answers
-        user_block = "\n".join(
-            [f"Question {i+1}: user answered '{ua}', correct is '{ca}'"
-             for i, (ua, ca) in enumerate(zip(user_answers, correct_options))]
-        )
         prompt = f"""
-You are an IELTS reading instructor. The passage was:
+You are an IELTS reading expert. A student completed a reading test.
+Your task is to analyze their answers and provide:
+- Which answers are correct
+- Why they are correct or incorrect
+- The correct answer for each question
 
-{passage_text}
+INPUT JSON:
+{payload}
 
-The student answered three multiple-choice questions as follows:
-{user_block}
-
-Provide JSON with:
-- "score": total correct count (0-3)
-- "detailed_feedback": array of three objects, each:
-    {{
-      "question_index": <0-based index>,
-      "correct": true/false,
-      "explanation": "<brief explanation>"
+Return JSON like:
+[
+  {{
+    "stats": {{
+      "total_correct": 2,
+      "total_questions": 3,
+      "overall_score": 66.6
     }}
-Example:
-{{
-  "score": 2,
-  "detailed_feedback": [
-    {{"question_index": 0, "correct": true, "explanation": "Reason..."}},
-    {{"question_index": 1, "correct": false, "explanation": "Reason..."}},
-    {{"question_index": 2, "correct": true, "explanation": "Reason..."}}
-  ]
-}}
+  }},
+  {{
+    "passages": [
+      {{
+        "analysis": [
+          {{
+            "question_id": 101,
+            "user_answer": "B",
+            "correct_answer": "C",
+            "is_correct": false,
+            "explanation": "Option C is correct because..."
+          }},
+          ...
+        ]
+      }}
+    ]
+  }}
+]
 """
         try:
             response = await self.async_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant that outputs valid JSON."},
-                    {"role": "user", "content": prompt.strip()},
+                    {"role": "system", "content": "You are a helpful assistant that returns JSON only."},
+                    {"role": "user", "content": prompt.strip()}
                 ],
-                temperature=0.0,
+                temperature=0.2
             )
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"OpenAI API error (analyse reading answers): {e}")
+            raise HTTPException(status_code=502, detail=f"OpenAI error (answer check): {str(e)}")
 
-        content = response.choices[0].message.content
-        try:
-            return json.loads(content)
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=500, detail="Invalid JSON returned from GPT for reading analysis")
-
+        return response.choices[0].message.content
 
     # -----------------------
     #    Writing Methods

@@ -40,7 +40,7 @@ class ListeningQuestionSerializer(BaseModel):
     section_id: int = Field(..., description="ID of the parent section")
     index: int = Field(..., description="Position index of the question")
     question_text: Optional[str] = Field(None, description="Text of the question")
-    options: Optional[List[str]] = Field(None, description="Answer options for the question")
+    options: Optional[Union[List[str], Dict[str, str]]] = Field(None, description="Answer options for the question")  # <-- исправлено
     correct_answer: Any = Field(..., description="Correct answer")
 
     @classmethod
@@ -67,7 +67,7 @@ class ListeningSectionSerializer(BaseModel):
     questions: Optional[List[ListeningQuestionSerializer]] = Field(None, description="List of questions")
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
     @classmethod
     async def from_orm(cls, obj: ListeningSection) -> "ListeningSectionSerializer":
@@ -380,14 +380,23 @@ class ListeningDataSlimSerializer(BaseModel):
     status: str = Field(..., description="Current status of the session")
     exam: ExamShortSerializer = Field(..., description="Basic exam info")
     parts: List[PartSlimSerializer] = Field(..., description="List of parts in the listening test")
+    questions: List[ListeningQuestionSerializer] = Field(..., description="All questions in the session")  # Новое поле
 
     @classmethod
     async def from_orm(cls, session_obj: UserListeningSession) -> "ListeningDataSlimSerializer":
         exam_obj = await session_obj.exam
         exam_serialized = await ExamShortSerializer.from_orm(exam_obj)
-
         parts_qs = exam_obj.parts.order_by("part_number").all() if hasattr(exam_obj, "parts") else []
         parts_list = [await PartSlimSerializer.from_orm(p) for p in parts_qs]
+
+        # Собираем все вопросы
+        questions = []
+        for part in parts_qs:
+            sections = await part.sections.all()
+            for section in sections:
+                qs = await section.questions.all()
+                for q in qs:
+                    questions.append(await ListeningQuestionSerializer.from_orm(q))
 
         return cls(
             session_id=session_obj.id,
@@ -395,6 +404,7 @@ class ListeningDataSlimSerializer(BaseModel):
             status=session_obj.status,
             exam=exam_serialized,
             parts=parts_list,
+            questions=questions,
         )
 
 

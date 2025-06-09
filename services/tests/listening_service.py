@@ -405,21 +405,27 @@ class ListeningService:
 
         exam = session.exam
 
+        all_questions = []
         parts_data = []
         for part in sorted(exam.parts, key=lambda p: p.part_number):
             sections_data = []
+            part_questions = []
             for section in sorted(part.sections, key=lambda s: s.section_number):
                 questions_data = []
                 for q in sorted(section.questions, key=lambda q: q.index):
-                    questions_data.append({
+                    q_dict = {
                         "id": q.id,
                         "section_id": q.section_id,
                         "index": q.index,
+                        "question_text": q.question_text,
                         "options": q.options,
                         "correct_answer": q.correct_answer,
                         "created_at": q.created_at,
                         "updated_at": q.updated_at,
-                    })
+                    }
+                    questions_data.append(q_dict)
+                    part_questions.append(q_dict)
+                    all_questions.append(q_dict)
                 sections_data.append({
                     "id": section.id,
                     "part_id": section.part_id,
@@ -439,6 +445,7 @@ class ListeningService:
                 "part_number": part.part_number,
                 "audio_file": part.audio_file,
                 "sections": sections_data,
+                "questions": part_questions,
                 "created_at": part.created_at,
                 "updated_at": part.updated_at,
             })
@@ -459,6 +466,7 @@ class ListeningService:
                 "updated_at": exam.updated_at,
             },
             "parts": parts_data,
+            "questions": all_questions,
         }
 
     @staticmethod

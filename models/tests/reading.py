@@ -3,6 +3,7 @@ from ..base import BaseModel
 from .constants import Constants  # Importing Constants to resolve the error
 
 class Reading(BaseModel):
+    """Reading session: links a user to a set of texts (passages), stores time, result, and test status."""
     status = fields.CharEnumField(
         enum_type=Constants.ReadingStatus, default=Constants.ReadingStatus.PENDING, description="Status of the test"
     )
@@ -23,14 +24,15 @@ class Reading(BaseModel):
         return f"{self.user.get_full_name()} - {self.status} - {passages_titles}"
 
 class Answer(BaseModel):
+    """User's answer to a question: stores the selected option or answer text, correctness, and link to the reading session."""
     ANSWERED = "answered"
     NOT_ANSWERED = "not_answered"
 
     status = fields.CharField(max_length=12, default=NOT_ANSWERED, description="Status of the answer")
     user = fields.ForeignKeyField('models.User', related_name='user_answers', on_delete=fields.CASCADE, description="Related user")
     reading = fields.ForeignKeyField('models.Reading', related_name='user_answers', null=True, on_delete=fields.CASCADE, description="Related reading")
-    question = fields.ForeignKeyField('models.Question', related_name='answers', on_delete=fields.CASCADE, description="Related question")
-    variant = fields.ForeignKeyField('models.Variant', related_name='user_answers', null=True, on_delete=fields.SET_NULL, description="Selected variant")
+    question = fields.ForeignKeyField('models.Question', related_name='user_answers', on_delete=fields.CASCADE, description="Related question")
+    variant = fields.ForeignKeyField('models.Variant', related_name='user_answers', null=True, on_delete=fields.CASCADE, description="Selected variant")
     text = fields.TextField(null=True, description="Answer text")
     explanation = fields.TextField(null=True, description="Explanation for the answer")
     is_correct = fields.BooleanField(null=True, description="Whether the answer is correct")
@@ -45,6 +47,7 @@ class Answer(BaseModel):
         return f"Answer to {self.question.text}"
     
 class Passage(BaseModel):
+    """Text (passage) for reading: contains text, difficulty level, number, and related questions."""
     level = fields.CharEnumField(
         enum_type=Constants.PassageLevel, default=Constants.PassageLevel.EASY, description="Difficulty level of the passage"
     )
@@ -62,6 +65,7 @@ class Passage(BaseModel):
         return self.title
     
 class Question(BaseModel):
+    """Question for a passage: contains question text, type (text/multiple choice), and score for a correct answer."""
     passage = fields.ForeignKeyField('models.Passage', related_name='questions', null=True, on_delete=fields.CASCADE, description="Related passage")
     text = fields.TextField(description="Text of the question")
     type = fields.CharEnumField(enum_type=Constants.QuestionType, description="Type of the question")
@@ -76,6 +80,7 @@ class Question(BaseModel):
         return self.text
     
 class Variant(BaseModel):
+    """Answer option for Multiple Choice: text and correctness flag."""
     question = fields.ForeignKeyField('models.Question', related_name='variants', on_delete=fields.CASCADE, description="Related question")
     text = fields.TextField(description="Text of the variant")
     is_correct = fields.BooleanField(default=False, description="Whether the variant is correct")

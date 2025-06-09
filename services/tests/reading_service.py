@@ -1,7 +1,8 @@
+import json
 import logging
 import random
 from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from tortoise.transactions import in_transaction
@@ -117,28 +118,25 @@ class ReadingService:
             raise HTTPException(status_code=404, detail=t["variant_not_found"])
 
     @staticmethod
-    async def start_reading(user_id: int) -> Tuple[Reading, Optional[str]]:
-        # 1. Determine next passage number
-        numbers = await Passage.filter(number__not_isnull=True).order_by('-number') \
-                                .values_list('number', flat=True)
+    async def start_reading(user_id: int) -> Tuple[Reading, Optional[List[Passage]]]:
+        # 1. Determine next passage number (max + 1)
+        numbers = await Passage.filter(number__not_isnull=True).order_by('-number').values_list('number', flat=True)
         max_number = numbers[0] if numbers else 0
         passage_number = max_number + 1
 
-        # 2. Random level
+        # 2. Pick random difficulty level
         levels = [Constants.PassageLevel.EASY, Constants.PassageLevel.MEDIUM, Constants.PassageLevel.HARD]
         random_level = random.choice(levels).value
 
-        # 3. Ask GPT for new passage + questions
+        # 3. Request new passage and questions from GPT
         chatgpt = ChatGPTIntegration()
-        data = await chatgpt.generate_reading_data(
-            passage_number=passage_number,
-            random_level=random_level
-        )
+        data = await chatgpt.generate_reading_data(passage_number=passage_number, random_level=random_level)
 
         passage_text = data.get("passage_text")
         questions_data = data.get("questions", [])
+
         if not passage_text or len(questions_data) != 3:
-            return None, "invalid_gpt_output"
+            return None, None  # or handle error accordingly
 
         async with in_transaction():
             # 4. Create Passage
@@ -150,9 +148,9 @@ class ReadingService:
                 level=data.get("passage_level", random_level),
             )
 
-            # 5. Create Questions + Variants
+            # 5. Create Questions and Variants
             for qd in questions_data:
-                q = await Question.create(
+                question = await Question.create(
                     passage_id=passage.id,
                     text=qd["text"].strip(),
                     type=Constants.QuestionType.MULTIPLE_CHOICE,
@@ -161,12 +159,12 @@ class ReadingService:
                 for opt in qd["options"]:
                     label, _, content = opt.partition(")")
                     await Variant.create(
-                        question_id=q.id,
+                        question_id=question.id,
                         text=content.strip(),
                         is_correct=(label.strip().upper() == qd["correct_option"].strip().upper())
                     )
 
-            # 6. Create Reading session
+            # 6. Create Reading session and link passage
             session = await Reading.create(
                 user_id=user_id,
                 status=Constants.ReadingStatus.STARTED,
@@ -179,7 +177,7 @@ class ReadingService:
         return session, [passage]
 
     @staticmethod
-    async def get_reading(session_id: int, user_id: int):
+    async def get_reading(session_id: int, user_id: int) -> Tuple[Optional[Reading], Optional[List[Passage]]]:
         reading = await Reading.get_or_none(id=session_id, user_id=user_id)
         if not reading:
             return None, None
@@ -187,56 +185,169 @@ class ReadingService:
         return reading, passages
 
     @staticmethod
-    async def submit_answers(
-        session_id: int, user_id: int, answers: List[Any]
-    ) -> Tuple[float, Optional[str]]:
+    async def submit_answers(session_id: int, user_id: int, answers: List[Any]) -> Tuple[float, Optional[str]]:
         session = await Reading.get_or_none(id=session_id, user_id=user_id)
         if not session:
             return 0, "session_not_found"
+        if session.status in [Constants.ReadingStatus.COMPLETED, Constants.ReadingStatus.CANCELLED]:
+            return 0, "session_already_closed"
 
-        total = 0.0
+        # Validate answers for duplicates and legitimacy
+        question_ids = [ans.question_id if hasattr(ans, "question_id") else ans["question_id"] for ans in answers]
+        if len(question_ids) != len(set(question_ids)):
+            return 0, "duplicate_answers"
+
+        session_passages = await session.passages.all()
+        session_questions = []
+        for passage in session_passages:
+            session_questions.extend(await passage.questions.all())
+        session_question_ids = {q.id for q in session_questions}
+        if not set(question_ids).issubset(session_question_ids):
+            return 0, "invalid_question"
+
+        total_score = 0.0
+
         async with in_transaction():
             for ans in answers:
-                # unpack either a dict or a pydantic model
                 question_id = ans.question_id if hasattr(ans, "question_id") else ans["question_id"]
                 answer_text = ans.answer if hasattr(ans, "answer") else ans["answer"]
 
-                q = await Question.get_or_none(id=question_id).prefetch_related("variants")
-                if not q:
+                question = await Question.get_or_none(id=question_id).prefetch_related("variants")
+                if not question:
                     return 0, f"question_{question_id}"
 
-                variants = await q.variants.all()
-                correct = next(v for v in variants if v.is_correct)
-                # find the variant whose text matches the submitted answer
-                selected_variant = next(
-                    (v for v in variants if v.text.strip().upper() == answer_text.strip().upper()),
-                    None
-                )
+                variants = await question.variants.all()
+                correct_variant = next((v for v in variants if v.is_correct), None)
+                selected_variant = next((v for v in variants if v.text.strip().upper() == answer_text.strip().upper()), None)
 
-                is_correct = bool(selected_variant and selected_variant.is_correct)
+                is_correct = selected_variant.is_correct if selected_variant else False
                 if is_correct:
-                    total += q.score
+                    total_score += question.score
 
                 await Answer.create(
                     user_id=user_id,
                     reading_id=session_id,
-                    question_id=q.id,
-                    # <-- here’s the fix:
+                    question_id=question_id,
                     variant_id=selected_variant.id if selected_variant else None,
                     text=answer_text,
                     is_correct=is_correct,
-                    correct_answer=correct.text,
+                    correct_answer=correct_variant.text if correct_variant else "",
                     status=Answer.ANSWERED
                 )
 
             session.status = Constants.ReadingStatus.COMPLETED
             session.end_time = datetime.now(timezone.utc)
-            session.score = total
+            session.score = total_score
             await session.save()
 
-        # fire‐and‐forget analysis
+        # Trigger async analysis (fire and forget)
         _ = ReadingAnalyseService.analyse_reading(session_id, user_id)
-        return total, None
+
+        return total_score, None
+
+    @staticmethod
+    async def finish_reading(reading_id: int, user_id: int) -> Tuple[Dict[str, Any], int]:
+        reading = await Reading.get_or_none(id=reading_id, user_id=user_id).prefetch_related("passages__questions__variants")
+        if not reading:
+            return {"error": "Reading session not found"}, 400
+
+        def minutes(dt_end: datetime, dt_start: datetime) -> float:
+            return (dt_end - dt_start).total_seconds() / 60
+        
+        async def _save_or_update_overall_analysis(reading_id: int, user_id: int, correct: int, overall_score: float, timing: timedelta) -> Dict[str, Any]:
+            obj, created = await ReadingAnalyseService.get_or_create(
+                reading_id=reading_id,
+                user_id=user_id,
+                defaults={
+                    "correct_answers": correct,
+                    "overall_score": overall_score,
+                    "timing": timing,
+                    "feedback": f"You answered {correct} questions correctly. Your overall score is {overall_score}."
+                }
+            )
+            if not created:
+                obj.correct_answers = correct
+                obj.overall_score = overall_score
+                obj.timing = timing
+                obj.feedback = f"You answered {correct} questions correctly. Your overall score is {overall_score}."
+                await obj.save()
+            return obj
+
+        analysis_exists = await ReadingAnalyseService.exists(reading_id, user_id)
+        if reading.status == Constants.ReadingStatus.COMPLETED and analysis_exists:
+            analysis = await ReadingAnalyseService.get_or_create(reading_id, user_id)
+            elapsed = minutes(reading.end_time, reading.start_time)
+            correct_count = await Answer.filter(reading_id=reading_id, user_id=user_id, is_correct=True).count()
+            total_questions = await Question.filter(passage__in=await reading.passages.all()).count()
+            return {
+                "score": round(analysis.overall_score, 2),
+                "correct": f"{correct_count}/{total_questions}",
+                "time": round(elapsed, 2),
+            }, 200
+
+        # Prepare data payload for GPT analysis
+        prompt_data = []
+        for passage in await reading.passages.all():
+            passage_data = {"passage_id": passage.id, "passage": passage.text, "questions": []}
+            for question in await passage.questions.all().prefetch_related("variants"):
+                user_answer_obj = await Answer.get_or_none(reading_id=reading_id, user_id=user_id, question_id=question.id)
+                user_answer_value = user_answer_obj.variant_id if user_answer_obj and user_answer_obj.variant_id else (user_answer_obj.text if user_answer_obj else "")
+                passage_data["questions"].append({
+                    "id": question.id,
+                    "text": question.text,
+                    "type": question.type,
+                    "answers": [{"id": v.id, "text": v.text} for v in await question.variants.all()],
+                    "user_answer": str(user_answer_value),
+                })
+            prompt_data.append(passage_data)
+
+        if reading.status != Constants.ReadingStatus.COMPLETED:
+            reading.status = Constants.ReadingStatus.COMPLETED
+            reading.end_time = datetime.now(timezone.utc)
+            await reading.save()
+
+        chatgpt = ChatGPTIntegration()
+        raw_response = await chatgpt.check_text_question_answer(json.dumps(prompt_data))
+        cleaned_response = raw_response.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+
+        try:
+            result = json.loads(cleaned_response)
+        except json.JSONDecodeError:
+            return {"error": "Invalid JSON response from GPT"}, 500
+
+        stats = next((item.get("stats") for item in result if "stats" in item), {})
+        passages_analysis = next((item.get("passages") for item in result if "passages" in item), [])
+
+        # Update answers with GPT analysis
+        for passage in passages_analysis:
+            for qa in passage.get("analysis", []):
+                await Answer.update_or_create(
+                    reading_id=reading_id,
+                    user_id=user_id,
+                    question_id=qa["question_id"],
+                    defaults={
+                        "is_correct": qa["is_correct"],
+                        "explanation": qa.get("explanation", ""),
+                        "correct_answer": qa.get("correct_answer", ""),
+                        "status": Answer.ANSWERED if qa.get("user_answer") else Answer.NOT_ANSWERED,
+                    }
+                )
+
+        # Save overall analysis summary
+        overall_analysis = await _save_or_update_overall_analysis(
+            reading_id=reading_id,
+            user_id=user_id,
+            correct=stats.get("total_correct", 0),
+            overall_score=stats.get("overall_score", 0),
+            timing=timedelta(minutes=minutes(reading.end_time, reading.start_time))
+        )
+
+        return {
+            "score": round(stats.get("overall_score", 0), 2),
+            "correct": f"{stats.get('total_correct', 0)}/{stats.get('total_questions', 0)}",
+            "time": round(minutes(reading.end_time, reading.start_time), 2),
+            "details": overall_analysis,
+        }, 200
 
     @staticmethod
     async def cancel_reading(session_id: int, user_id: int) -> bool:
@@ -263,33 +374,39 @@ class ReadingService:
     @staticmethod
     async def analyse_reading(session_id: int, user_id: int) -> Dict[str, Any]:
         session = await Reading.get_or_none(id=session_id, user_id=user_id) \
-                               .prefetch_related("passages__questions__variants", "user_answers")
+                            .prefetch_related("passages__questions__variants")
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
 
-        # Always return the latest passage (only one per session)
-        passage = (await session.passages.all())[0]
-        questions = await passage.questions.all().prefetch_related("variants")
+        passages = await session.passages.all()
+        passages_result = []
 
-        result = []
-        for q in questions:
-            ua = await Answer.get_or_none(question_id=q.id, user_id=user_id)
-            variants = await q.variants.all()
-            correct = next(v for v in variants if v.is_correct)
+        for passage in passages:
+            questions = await passage.questions.all().prefetch_related("variants")
+            questions_result = []
 
-            result.append({
-                "id": q.id,
-                "text": q.text,
-                "options": [{"text": v.text} for v in variants],
-                "user_answer": ua.text if ua and ua.text else None,
-                "is_correct": ua.is_correct if ua else False,
-                "correct_answer": correct.text,
+            for q in questions:
+                ua = await Answer.get_or_none(question_id=q.id, user_id=user_id)
+                variants = await q.variants.all()
+                correct = next(v for v in variants if v.is_correct)
+
+                questions_result.append({
+                    "id": q.id,
+                    "text": q.text,
+                    "options": [{"text": v.text} for v in variants],
+                    "user_answer": ua.text if ua and ua.text else None,
+                    "is_correct": ua.is_correct if ua else False,
+                    "correct_answer": correct.text,
+                })
+
+            passages_result.append({
+                "passage_id": passage.id,
+                "passage_text": passage.text,
+                "questions": questions_result,
             })
 
         return {
-            "passage_id": passage.id,
-            "passage_text": passage.text,
-            "questions": result,
+            "passages": passages_result,
             "total_score": session.score,
             "duration": (session.end_time - session.start_time).total_seconds() / 60
                         if session.end_time else None
