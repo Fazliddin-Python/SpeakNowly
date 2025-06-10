@@ -95,8 +95,8 @@ class SpeakingService:
         return answers
 
     @staticmethod
-    async def analyse_speaking(test_id: int, api_key: str):
+    async def analyse_speaking(test_id: int):
         """
         Run analysis for a speaking test (can be called from Celery or directly).
         """
-        return await SpeakingAnalyseService.analyse(test_id, api_key)
+        return await SpeakingAnalyseService.analyse(test_id)

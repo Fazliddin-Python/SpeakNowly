@@ -4,11 +4,13 @@ import os
 from datetime import datetime
 from typing import Optional, List, Dict
 
+import aiofiles, logging
 from fastapi import HTTPException
 import openai
 
 from config import OPENAI_API_KEY
 
+logger = logging.getLogger(__name__)
 # -------------------------------------------------
 # ChatGPTIntegration: Speaking + Reading + Writing
 # -------------------------------------------------
@@ -49,12 +51,11 @@ class ChatGPTIntegration:
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"ChatGPT API error: {str(e)}")
 
-
     # -----------------------
     #    Speaking Methods
     # -----------------------
 
-    async def generate_speaking_questions(self) -> Dict[str, str]:
+    async def generate_speaking_questions(self) -> dict:
         """
         Generate a set of IELTS Speaking test questions divided into three parts.
         Returns a dict with keys:
@@ -64,12 +65,23 @@ class ChatGPTIntegration:
         """
         prompt = """
 You are a system that generates IELTS Speaking test questions in JSON format.
-Divide the questions into three parts (PART_1, PART_2, PART_3). 
-For PART_1, ask for full name, address, work/education, then 2-4 personal questions.
-For PART_2, create a descriptive question with 3 bullet sub-questions.
-For PART_3, create 3-5 argumentative questions related to PART_2.
+Divide into three parts: PART_1, PART_2, PART_3.
 
-Return exactly the following JSON structure without extra commentary:
+PART_1:
+- Ask for full name, address, work or education.
+- Then 2-4 personal questions on topics like likes/dislikes, free time, favorite things, etc.
+- Total questions in PART_1: 3-6.
+
+PART_2:
+- Create one descriptive prompt with 3 bullet sub-questions.
+- Title should briefly indicate the topic.
+- Question field should include the main prompt plus sub-questions, formatted clearly (e.g., with bullets or numbered points).
+
+PART_3:
+- Create 3-5 argumentative/discussion questions directly related to the PART_2 topic.
+- They should require opinion, reasoning, comparison.
+
+Return exactly this JSON structure without any extra commentary or fields:
 {
   "part1_title": "<string>",
   "part1_question": "<string>",
@@ -78,6 +90,7 @@ Return exactly the following JSON structure without extra commentary:
   "part3_title": "<string>",
   "part3_question": "<string>"
 }
+Ensure the questions are realistic for IELTS Speaking and focus on general, interrelated topics that test fluency and coherence.
 """
         try:
             response = await self.async_client.chat.completions.create(
@@ -97,21 +110,25 @@ Return exactly the following JSON structure without extra commentary:
         except json.JSONDecodeError:
             raise HTTPException(status_code=500, detail="Invalid JSON returned from GPT for speaking questions")
 
-    async def analyse_speaking(self, part1_answer: str, part2_answer: str, part3_answer: str) -> Dict:
+    async def analyse_speaking(self, part1_answer: str, part2_answer: str, part3_answer: str) -> dict:
         """
         Analyze three parts of a candidate's speaking responses.
         Returns a dict with the following structure:
         {
-          "feedback": "<overall feedback>",
+          "feedback": "<overall feedback string>",
           "overall_band_score": <number 0-9, may be .5>,
-          "fluency_and_coherence": {"score": <0-9>, "feedback": "<string>"},
-          "lexical_resource": {"score": <0-9>, "feedback": "<string>"},
-          "grammatical_range_and_accuracy": {"score": <0-9>, "feedback": "<string>"},
-          "pronunciation": {"score": <0-9>, "feedback": "<string>"}
+          "fluency_and_coherence_score": <number 0-9, may be .5>,
+          "fluency_and_coherence_feedback": "<string>",
+          "lexical_resource_score": <number 0-9, may be .5>,
+          "lexical_resource_feedback": "<string>",
+          "grammatical_range_and_accuracy_score": <number 0-9, may be .5>,
+          "grammatical_range_and_accuracy_feedback": "<string>",
+          "pronunciation_score": <number 0-9, may be .5>,
+          "pronunciation_feedback": "<string>"
         }
         """
         prompt = f"""
-You are an IELTS examiner. Evaluate the following speaking answers and output valid JSON:
+You are an experienced IELTS examiner. Evaluate the candidate's speaking responses based on IELTS Speaking criteria and output valid JSON.
 
 Part 1 Answer:
 \"\"\"{part1_answer}\"\"\"
@@ -122,13 +139,27 @@ Part 2 Answer:
 Part 3 Answer:
 \"\"\"{part3_answer}\"\"\"
 
-Return JSON with keys:
-- "feedback": overall feedback string
-- "overall_band_score": number (0-9, can include .5)
-- "fluency_and_coherence": {{"score": <0-9>, "feedback": "<string>"}}
-- "lexical_resource": {{"score": <0-9>, "feedback": "<string>"}}
-- "grammatical_range_and_accuracy": {{"score": <0-9>, "feedback": "<string>"}}
-- "pronunciation": {{"score": <0-9>, "feedback": "<string>"}}
+Return JSON with exactly these keys (no extra fields):
+{{
+  "feedback": "<overall feedback string>",
+  "overall_band_score": <number 0-9, can include .5>,
+  "fluency_and_coherence_score": <number 0-9, can include .5>,
+  "fluency_and_coherence_feedback": "<string>",
+  "lexical_resource_score": <number 0-9, can include .5>,
+  "lexical_resource_feedback": "<string>",
+  "grammatical_range_and_accuracy_score": <number 0-9, can include .5>,
+  "grammatical_range_and_accuracy_feedback": "<string>",
+  "pronunciation_score": <number 0-9, can include .5>,
+  "pronunciation_feedback": "<string>"
+}}
+
+Criteria to assess:
+- Fluency and Coherence: assess flow, logical structuring, absence of unnatural pauses.
+- Lexical Resource: evaluate variety and appropriateness of vocabulary.
+- Grammatical Range and Accuracy: consider range of structures used and correctness.
+- Pronunciation: assess clarity, stress, intonation.
+
+Calculate individual scores, then overall_band_score as the average (rounded to nearest 0.5). Provide detailed feedback for each criterion.
 """
         try:
             response = await self.async_client.chat.completions.create(
@@ -144,33 +175,30 @@ Return JSON with keys:
 
         content = response.choices[0].message.content
         try:
-            return json.loads(content)
+            result = json.loads(content)
         except json.JSONDecodeError:
             raise HTTPException(status_code=500, detail="Invalid JSON returned from GPT for speaking analysis")
 
+        return result
+
     async def transcribe_audio(self, audio_path: str) -> str:
         """
-        Transcribe a local audio file using OpenAI's Whisper model.
-        Returns the transcribed text.
+        Асинхронно транскрибирует аудиофайл через OpenAI Whisper.
+        Открытие файла — синхронное (требование OpenAI SDK).
         """
-        import aiofiles # type: ignore
-
         try:
-            async with aiofiles.open(audio_path, "rb") as audio_file:
+            with open(audio_path, "rb") as audio_file:
                 transcript_response = await self.async_client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
                     response_format="text",
                 )
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"OpenAI Whisper transcription error: {e}")
+            logger.warning("Whisper skipped unsupported format %s: %s", audio_path, e)
+            return ""
 
-        if isinstance(transcript_response, str):
-            return transcript_response
-        else:
-            raise HTTPException(status_code=500, detail="Unexpected response format from Whisper transcription")
-
-
+        return transcript_response if isinstance(transcript_response, str) else str(transcript_response)
+        
     # -----------------------
     #    Reading Methods
     # -----------------------

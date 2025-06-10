@@ -287,7 +287,6 @@ async def restart_reading(
 @router.get("/{session_id}/analysis/", response_model=ReadingAnalyseResponseSerializer, summary="Get reading analysis")
 async def analyse_reading(
     session_id: int,
-    page: int = Query(1, ge=1),
     user=Depends(active_user),
     t=Depends(get_translation)
 ):

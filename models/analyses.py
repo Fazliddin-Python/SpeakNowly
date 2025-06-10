@@ -50,9 +50,8 @@ class WritingAnalyse(BaseModel):
 
 
 class SpeakingAnalyse(BaseModel):
-    speaking = fields.OneToOneField(
-        "models.Speaking", related_name="analyse", on_delete=fields.CASCADE, description="Analysis of the speaking test"
-    )
+    """Stores analysis results for a speaking test."""
+    speaking = fields.OneToOneField("models.Speaking", related_name="analyse", on_delete=fields.CASCADE, description="Analysis of the speaking test")
     feedback = fields.TextField(null=True, description="Feedback for the user")
     overall_band_score = fields.DecimalField(max_digits=3, decimal_places=1, null=True, description="Overall band score")
     fluency_and_coherence_score = fields.DecimalField(max_digits=3, decimal_places=1, null=True, description="Fluency and coherence score")

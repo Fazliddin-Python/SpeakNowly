@@ -24,8 +24,8 @@ class Questions(BaseModel):
 
 class Analyse(BaseModel):
     """
-    Represents the IELTS speaking analysis object, with all fields as strings
-    to match the front-end TypeScript interface.
+    Represents the IELTS speaking analysis object, with string fields
+    to match the frontend interface.
     """
     id: int
     speaking: int
@@ -54,3 +54,40 @@ class SpeakingResponseType(BaseModel):
     status: str
     questions: Questions
     analyse: Optional[Analyse] = None
+
+
+class SpeakingCreate(BaseModel):
+    """
+    Request model for creating Speaking.
+    Fields are optional, status is usually set by default on the server.
+    """
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+
+
+class SpeakingAnalyseCreate(BaseModel):
+    """
+    Request model for creating/updating analysis (if a separate endpoint is needed).
+    Fields are strings to match the frontend; the server can convert to Decimal when saving.
+    """
+    speaking: int
+    feedback: Optional[str] = None
+    overall_band_score: Optional[str] = None
+    fluency_and_coherence_score: Optional[str] = None
+    fluency_and_coherence_feedback: Optional[str] = None
+    lexical_resource_score: Optional[str] = None
+    lexical_resource_feedback: Optional[str] = None
+    grammatical_range_and_accuracy_score: Optional[str] = None
+    grammatical_range_and_accuracy_feedback: Optional[str] = None
+    pronunciation_score: Optional[str] = None
+    pronunciation_feedback: Optional[str] = None
+    duration: Optional[str] = None  # for example, ISO 8601 duration if the frontend sends it
+
+
+class SpeakingAudioAnswerResult(BaseModel):
+    """
+    Result after uploading audio: either a message or an analysis.
+    """
+    detail: Optional[str] = None
+    analyse: Optional[Analyse] = None
+

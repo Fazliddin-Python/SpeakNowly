@@ -104,7 +104,7 @@ async def analyse_speaking(
     background_tasks: BackgroundTasks
 ):
     from tasks.analyses.speaking_tasks import analyse_speaking_task
-    analyse_speaking_task.apply_async(args=[test_id, OPENAI_API_KEY], queue='analyses')
+    analyse_speaking_task.apply_async(args=[test_id], queue='analyses')
     return {"message": "Speaking analysis started. Check back later for results."}
 
 @router.get("/speaking/{id}/analyse/", response_model=SpeakingAnalyseSerializer)
