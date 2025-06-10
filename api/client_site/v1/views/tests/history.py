@@ -73,7 +73,7 @@ async def get_user_test_history(
             if not passages:
                 continue
             passage_id = passages[0].id
-            analyse = await ReadingAnalyse.get_or_none(passage_id=passage_id, user_id=user_id)
+            analyse = await ReadingAnalyse.filter(passage_id=passage_id, user_id=user_id).first()
             if analyse:
                 result.append({
                     "type": "Reading",

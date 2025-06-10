@@ -42,6 +42,7 @@ class Answer(BaseModel):
         table = "reading_answers"
         verbose_name = "Answer"
         verbose_name_plural = "Answers"
+        unique_together = ("reading_id", "user_id", "question_id")
 
     def __str__(self) -> str:
         return f"Answer to {self.question.text}"

@@ -6,9 +6,7 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException, Request, status, UploadFile
 from tortoise.transactions import in_transaction
-from minio import Minio
 from uuid import uuid4
-from io import BytesIO
 
 from models.tests.listening import (
     Listening,
@@ -349,11 +347,22 @@ class ListeningService:
         Start a new listening session for a user by selecting a random test.
         Deduct tokens, raise 402 if insufficient.
         """
-        tests = await Listening.all().prefetch_related("parts")
-        tests = [t for t in tests if t.parts and len(t.parts) > 0]
-        if not tests:
+        tests = await Listening.all().prefetch_related("parts__sections__questions")
+        filtered_tests = []
+        for test in tests:
+            has_questions = False
+            for part in test.parts:
+                for section in part.sections:
+                    if section.questions and len(section.questions) > 0:
+                        has_questions = True
+                        break
+                if has_questions:
+                    break
+            if has_questions:
+                filtered_tests.append(test)
+        if not filtered_tests:
             raise HTTPException(404, detail=t["no_listening_tests"])
-        selected = random.choice(tests)
+        selected = random.choice(filtered_tests)
 
         # token check
         await check_user_tokens(user, TransactionType.TEST_LISTENING, request, t)
@@ -538,7 +547,7 @@ class ListeningService:
 
         # kick off async analysis task (feedback only)
         from tasks.analyses.listening_tasks import analyse_listening_task
-        analyse_listening_task.delay(session_id)
+        analyse_listening_task.apply_async(args=[session_id], queue='analyses')
 
         return total_correct
 

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 from datetime import datetime
@@ -33,6 +34,7 @@ class ChatGPTIntegration:
         self.async_client = openai.AsyncOpenAI(api_key=key)
         openai.api_key = key  # for synchronous endpoints (writing generation)
 
+    
     async def analyse_listening(self, system_prompt: str, user_prompt: str) -> str:
         try:
             response = await self.async_client.chat.completions.create(
@@ -151,8 +153,10 @@ Return JSON with keys:
         Transcribe a local audio file using OpenAI's Whisper model.
         Returns the transcribed text.
         """
+        import aiofiles # type: ignore
+
         try:
-            with open(audio_path, "rb") as audio_file:
+            async with aiofiles.open(audio_path, "rb") as audio_file:
                 transcript_response = await self.async_client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
@@ -161,7 +165,6 @@ Return JSON with keys:
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"OpenAI Whisper transcription error: {e}")
 
-        # When response_format="text", transcript_response is already a string
         if isinstance(transcript_response, str):
             return transcript_response
         else:
@@ -172,109 +175,168 @@ Return JSON with keys:
     #    Reading Methods
     # -----------------------
 
-    async def generate_reading_data(self, passage_number: int, random_level: str) -> Dict:
+    async def generate_reading_data(self, passage_number: int) -> List[Dict]:
         """
-        Generate an IELTS-style reading passage (100-150 words) and 3 multiple-choice questions.
+        Generate a full IELTS Reading test (3 passages, 40 questions) with detailed structure.
         """
-        prompt = f"""
-You are an AI that generates IELTS-style reading passages and multiple-choice questions.
-Always create a unique passage and questions, never repeat content.
-Return exactly this JSON structure without extra explanation:
+        PROMPT_TEMPLATE = f"""
+Create a full IELTS Reading test with the following criteria:
 
-{{
-  "passage_text": "<passage of 100–150 words>",
-  "passage_number": {passage_number},
-  "passage_skills": "reading",
-  "passage_level": "{random_level}",
-  "questions": [
-    {{
-      "text": "<question 1>",
-      "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
-      "correct_option": "A"
-    }},
-    {{...}}, {{...}}
-  ]
-}}
-"""
-        try:
-            response = await self.async_client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant that returns valid JSON."},
-                    {"role": "user", "content": prompt.strip()},
-                ],
-                temperature=0.3
-            )
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=f"OpenAI error (reading gen): {str(e)}")
+Generate **three passages** in a single test. Each passage must have:
+- a unique topic
+- a distinct reading skill
+- and a different level: one easy, one medium, and one hard
 
-        content = response.choices[0].message.content
-        try:
-            return json.loads(content)
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=500, detail="Invalid JSON from GPT (reading)")
+All three passages must be returned in a **single JSON array** (not wrapped in any dictionary or object).
 
-    async def check_text_question_answer(self, payload: str) -> str:
-        """
-        Check the submitted answers with explanation (used in finish_reading).
-        Accepts raw JSON string payload of passage + questions + answers.
-        """
-        prompt = f"""
-You are an IELTS reading expert. A student completed a reading test.
-Your task is to analyze their answers and provide:
-- Which answers are correct
-- Why they are correct or incorrect
-- The correct answer for each question
+Test ID / Starting Passage Number: {passage_number}
 
-INPUT JSON:
-{payload}
+Level:
+Each passage must have a different level of difficulty and must include a "level" field:
+Passage 1: level = "easy"
+Passage 2: level = "medium"
+Passage 3: level = "hard"
 
-Return JSON like:
+Structure:
+The test must consist of three unique passages, each representing a different and distinctive theme or subject.
+The total number of questions must be 40:
+Passage 1: 13 questions.
+Passage 2: 14 questions.
+Passage 3: 13 questions.
+Ensure a balanced mix of question types (MULTIPLE_CHOICE and TEXT) for each passage:
+Each passage should include 50-70% multiple-choice questions and 30-50% free-text questions.
+
+Skills:
+Each passage should assess a specific reading skill, such as:
+Skimming, Scanning, Understanding Details, or Inference.
+Include a "skill" field for each passage indicating the primary skill being tested.
+
+Scoring:
+Each question should have a "score" field specifying the points awarded for a correct answer.
+MULTIPLE_CHOICE questions should be worth 1-2 points.
+TEXT questions should be worth 2-4 points depending on complexity.
+
+Timing:
+The entire test must be solvable within 60 minutes.
+
+Word Count for Passages:
+Each passage must contain between 500 and 800 words.
+The word count and complexity of the passages should align with the level (easy, medium, or hard).
+
+Themes:
+Each passage must have a unique, culturally diverse or academic theme.
+
+Return only a JSON array with exactly this format:
+
+```json
 [
   {{
-    "stats": {{
-      "total_correct": 2,
-      "total_questions": 3,
-      "overall_score": 66.6
-    }}
-  }},
-  {{
-    "passages": [
+    "number": 1,
+    "level": "easy",
+    "skill": "Skimming",
+    "title": "The Rise of Eco-Tourism",
+    "passage": "Full passage text here between 500–800 words.",
+    "questions": [
       {{
-        "analysis": [
-          {{
-            "question_id": 101,
-            "user_answer": "B",
-            "correct_answer": "C",
-            "is_correct": false,
-            "explanation": "Option C is correct because..."
-          }},
-          ...
+        "text": "What is the main goal of eco-tourism?",
+        "type": "MULTIPLE_CHOICE",
+        "score": 1,
+        "answers": [
+          {{"text": "To promote sustainable travel", "is_correct": true}},
+          {{"text": "To lower travel costs", "is_correct": false}},
+          {{"text": "To avoid cultural experiences", "is_correct": false}}
         ]
+      }},
+      {{
+        "text": "List two benefits of eco-tourism mentioned in the text.",
+        "type": "TEXT",
+        "score": 3,
+        "answers": []
       }}
     ]
-  }}
+  }},
+  ...
 ]
 """
         try:
             response = await self.async_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant that returns JSON only."},
-                    {"role": "user", "content": prompt.strip()}
+                    {"role": "system", "content": "You are a helpful assistant that returns only valid JSON."},
+                    {"role": "user", "content": PROMPT_TEMPLATE.strip()},
                 ],
-                temperature=0.2
+                temperature=0.7,
             )
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"OpenAI error (answer check): {str(e)}")
+            raise HTTPException(status_code=502, detail=f"OpenAI error (reading generation): {str(e)}")
+
+        content = response.choices[0].message.content
+        try:
+            print(f"Generated reading data: {content}")
+            return json.loads(content)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=500, detail="Invalid JSON from GPT (reading generation)")
+
+    async def check_text_question_answer(self, payload: str) -> str:
+        """
+        Analyze submitted answers and return correctness, correct answers, explanations, and overall band score (0-9).
+        """
+        PROMPT_TEMPLATE = """
+You are evaluating a reading comprehension test. For each question in the provided payload, determine:
+- is_correct (true/false)
+- correct_answer (option ID or full text)
+- explanation (short, only if incorrect)
+Also compute:
+- total_correct
+- total_questions
+- accuracy (percentage)
+- overall_score (0-9 IELTS band)
+
+Return ONLY valid JSON in the format:
+
+{
+    "passages": {
+      "passage_id": <id>,
+      "analysis": [
+        {
+          "question_id": <id>,
+          "correct_answer": "<id or text>",
+          "explanation": "<reason>",
+          "is_correct": <true/false>
+        }
+      ]
+    }
+  },
+  {
+    "stats": {
+      "total_correct": <int>,
+      "total_questions": <int>,
+      "accuracy": <float>,
+      "overall_score": <int>
+    }
+}
+"""
+
+        try:
+            response = await self.async_client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant. Return only valid JSON."},
+                    {"role": "user", "content": PROMPT_TEMPLATE.strip() + "\n" + payload.strip()},
+                ],
+                temperature=0.3,
+            )
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"OpenAI error (answer check): {e}")
 
         return response.choices[0].message.content
+
 
     # -----------------------
     #    Writing Methods
     # -----------------------
 
-    def generate_writing_part1_question(self) -> Dict:
+    async def generate_writing_part1_question(self) -> Dict:
         """
         Generate an IELTS Writing Task 1 question with chart data in JSON format.
         Uses sync OpenAI client (openai).
@@ -293,7 +355,7 @@ Return the JSON using keys:
 - "data_year2": [<numbers>]
 """
         try:
-            response = openai.ChatCompletion.create(
+            response = await self.async_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant that outputs valid JSON."},
@@ -310,38 +372,50 @@ Return the JSON using keys:
         except json.JSONDecodeError:
             raise HTTPException(status_code=500, detail="Invalid JSON returned from GPT for writing part1")
 
-    def create_bar_chart(self, categories: List[str], year1: int, year2: int,
-                         data_year1: List[float], data_year2: List[float]) -> str:
+    async def create_writing_part1_diagram(
+        self,
+        question: str,
+        categories: List[str],
+        data_year1: List[float],
+        data_year2: List[float],
+        year1: int,
+        year2: int
+    ) -> str:
         """
         Create a bar chart (.png) comparing data_year1 vs data_year2 across categories.
         Saves under media/writing/diagrams and returns file path.
         """
-        import matplotlib.pyplot as plt # type: ignore
+        import matplotlib.pyplot as plt  # type: ignore
+        import os
 
         output_dir = "media/writing/diagrams"
         os.makedirs(output_dir, exist_ok=True)
 
-        fig, ax = plt.subplots(figsize=(8, 6))
-        bar_width = 0.35
-        x = range(len(categories))
+        def plot_and_save():
+            fig, ax = plt.subplots(figsize=(8, 6))
+            bar_width = 0.35
+            x = range(len(categories))
 
-        ax.bar(x, data_year1, width=bar_width, label=str(year1), alpha=0.7)
-        ax.bar([i + bar_width for i in x], data_year2, width=bar_width, label=str(year2), alpha=0.7)
+            ax.bar(x, data_year1, width=bar_width, label=str(year1), alpha=0.7)
+            ax.bar([i + bar_width for i in x], data_year2, width=bar_width, label=str(year2), alpha=0.7)
 
-        ax.set_xlabel("Categories", fontsize=12)
-        ax.set_ylabel("Value", fontsize=12)
-        ax.set_title(f"Comparison by Category ({year1} vs {year2})", fontsize=14)
-        ax.set_xticks([i + bar_width / 2 for i in x])
-        ax.set_xticklabels(categories, fontsize=10)
-        ax.legend()
+            ax.set_xlabel("Categories", fontsize=12)
+            ax.set_ylabel("Value", fontsize=12)
+            ax.set_title(f"Comparison by Category ({year1} vs {year2})", fontsize=14)
+            ax.set_xticks([i + bar_width / 2 for i in x])
+            ax.set_xticklabels(categories, fontsize=10)
+            ax.legend()
 
-        filename = os.path.join(output_dir, f"{datetime.now().strftime('%Y%m%d%H%M%S')}.png")
-        plt.savefig(filename)
-        plt.close()
+            filename = os.path.join(output_dir, f"{datetime.now().strftime('%Y%m%d%H%M%S')}.png")
+            plt.savefig(filename)
+            plt.close()
+            return filename
 
+        loop = asyncio.get_running_loop()
+        filename = await loop.run_in_executor(None, plot_and_save)
         return filename
 
-    def create_line_chart(self, categories: List[str], year1: int, year2: int,
+    async def create_line_chart(self, categories: List[str], year1: int, year2: int,
                           data_year1: List[float], data_year2: List[float]) -> str:
         """
         Create a line chart (.png) showing trends of data_year1 vs data_year2.
@@ -366,7 +440,7 @@ Return the JSON using keys:
 
         return filename
 
-    def create_pie_chart(self, categories: List[str], year1: int, year2: int,
+    async def create_pie_chart(self, categories: List[str], year1: int, year2: int,
                          data_year1: List[float], data_year2: List[float]) -> str:
         """
         Create side-by-side pie charts for data_year1 and data_year2.
@@ -390,7 +464,7 @@ Return the JSON using keys:
 
         return filename
 
-    def generate_writing_part2_question(self) -> Dict:
+    async def generate_writing_part2_question(self) -> Dict:
         """
         Generate an IELTS Writing Task 2 question on common essay topics.
         Returns JSON with key: "task2_question": <string>.
@@ -404,7 +478,7 @@ Return exactly:
 { "task2_question": "<the question>" }
 """
         try:
-            response = openai.ChatCompletion.create(
+            response = await self.async_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant that outputs valid JSON."},

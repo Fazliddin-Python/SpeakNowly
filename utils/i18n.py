@@ -15,6 +15,7 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "password_too_weak":           "Password is too weak",
         "invalid_email_format":        "Invalid email format",
         "permission_denied":           "Permission denied",
+        "internal_server_error":       "Internal server error",
 
         # --- Tokens / Payments ---
         "not_enough_tokens":           "You don't have enough tokens.",
@@ -93,6 +94,7 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "password_too_weak":           "Пароль слишком простой",
         "invalid_email_format":        "Некорректный формат email",
         "permission_denied":           "Доступ запрещён",
+        "internal_server_error":       "Внутренняя ошибка сервера",
 
         # --- Tokens / Payments ---
         "not_enough_tokens":           "У вас недостаточно токенов.",
@@ -171,6 +173,7 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "password_too_weak":           "Parol juda oddiy",
         "invalid_email_format":        "Email formati noto'g'ri",
         "permission_denied":           "Ruxsat yo'q",
+        "internal_server_error":      "Ichki server xatosi",
 
         # --- Tokens / Payments ---
         "not_enough_tokens":           "Sizda yetarli tokenlar yo'q.",

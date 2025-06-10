@@ -1,4 +1,5 @@
 import logging, os
+import uuid
 from typing import Optional, Any
 from datetime import datetime, timezone
 
@@ -35,7 +36,7 @@ def active_user(user=Depends(get_current_user), t=Depends(get_translation)):
     return user
 
 
-@router.post("/", response_model=SpeakingResponseType, status_code=status.HTTP_201_CREATED)
+@router.post("/start/", response_model=SpeakingResponseType, status_code=status.HTTP_201_CREATED)
 async def create_speaking_test(
     request: Request,
     user=Depends(active_user),
@@ -90,9 +91,9 @@ async def create_speaking_test(
     )
 
 
-@router.post("/{speaking_id}/answers", response_model=SpeakingResponseType, status_code=status.HTTP_201_CREATED)
+@router.post("/{session_id}/answers/", response_model=SpeakingResponseType, status_code=status.HTTP_201_CREATED)
 async def submit_speaking_answers(
-    speaking_id: int,
+    session_id: int,
     request: Request,
     part1_audio: Optional[UploadFile] = File(None),
     part2_audio: Optional[UploadFile] = File(None),
@@ -105,13 +106,13 @@ async def submit_speaking_answers(
 ):
     # Проверяем существование и авторство...
     try:
-        test = await Speaking.get(id=speaking_id)
+        test = await Speaking.get(id=session_id)
     except DoesNotExist:
         raise HTTPException(status_code=404, detail=t["not_found"])
     if test.user_id != user.id:
         raise HTTPException(status_code=403, detail=t["permission_denied"])
 
-    qs = await SpeakingQuestions.filter(speaking_id=speaking_id)
+    qs = await SpeakingQuestions.filter(speaking_id=session_id)
     if is_cancelled:
         # просто отмена
         test.status = SpeakingStatus.CANCELLED.value
@@ -127,7 +128,8 @@ async def submit_speaking_answers(
         )
 
     # Сохраняем и транскрибируем аудио
-    upload_dir = "uploads/speaking"
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    upload_dir = os.path.join(project_root, "media", "audios")
     os.makedirs(upload_dir, exist_ok=True)
     chatgpt = ChatGPTIntegration(None)
     for part_audio, part_enum in [
@@ -136,13 +138,16 @@ async def submit_speaking_answers(
         (part3_audio, SpeakingPart.PART_3),
     ]:
         if part_audio:
-            path = f"{upload_dir}/{speaking_id}_{part_enum.name}_{part_audio.filename}"
-            async with open(path, "wb") as f:
-                f.write(await part_audio.read())
-            text = await chatgpt.transcribe_audio(path)
+            file_ext = part_audio.filename.split('.')[-1]
+            file_name = f"speaking_{session_id}_{part_enum.name}_{uuid.uuid4()}.{file_ext}"
+            file_path = os.path.join(upload_dir, file_name)
+            async with open(file_path, "wb") as f:
+                await f.write(await part_audio.read())
+            audio_url = f"/media/audios/{file_name}"
+            text = await chatgpt.transcribe_audio(file_path)
             await SpeakingAnswers.create(
-                question_id=(await SpeakingQuestions.get(part=part_enum, speaking_id=speaking_id)).id,
-                audio_answer=path,
+                question_id=(await SpeakingQuestions.get(part=part_enum, speaking_id=session_id)).id,
+                audio_answer=audio_url,
                 text_answer=text
             )
 
@@ -152,7 +157,7 @@ async def submit_speaking_answers(
     await test.save(update_fields=["status", "end_time"])
 
     # Запускаем анализ
-    analyse_rec = await SpeakingAnalyseService.analyse(speaking_id, None)
+    analyse_rec = await SpeakingAnalyseService.analyse(session_id, None)
 
     # Собираем итоговый response
     q_map = {
@@ -186,28 +191,28 @@ async def submit_speaking_answers(
     )
 
 
-@router.get("/{speaking_id}", response_model=SpeakingResponseType)
+@router.get("/{session_id}/", response_model=SpeakingResponseType)
 async def retrieve_speaking_detail(
-    speaking_id: int,
+    session_id: int,
     user=Depends(active_user),
     t: dict = Depends(get_translation),
     _: Any = Depends(audit_action("retrieve_speaking_detail")),
 ):
     try:
-        test = await Speaking.get(id=speaking_id)
+        test = await Speaking.get(id=session_id)
     except DoesNotExist:
         raise HTTPException(status_code=404, detail=t["not_found"])
     if test.user_id != user.id:
         raise HTTPException(status_code=403, detail=t["permission_denied"])
 
-    qs = await SpeakingQuestions.filter(speaking_id=speaking_id)
+    qs = await SpeakingQuestions.filter(speaking_id=session_id)
     q_map = {
         f"part{q.part.name[-1].lower()}": QuestionPart(id=q.id, title=q.title, content=q.content)
         for q in qs
     }
 
     analyse_obj = None
-    rec = await SpeakingAnalyse.get_or_none(speaking_id=speaking_id)
+    rec = await SpeakingAnalyse.get_or_none(speaking_id=session_id)
     if rec:
         analyse_obj = Analyse(
             id=rec.id,

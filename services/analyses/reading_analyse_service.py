@@ -25,7 +25,10 @@ class ReadingAnalyseService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail="No passages found for this reading session")
 
-        answers = await Answer.filter(reading_id=reading_id, user_id=user_id).all()
+        answers = await Answer.filter(
+            reading_id=reading_id,
+            user_id=user_id
+        ).prefetch_related("question")
         answers_by_passage = {}
         for ans in answers:
             answers_by_passage.setdefault(ans.passage_id, []).append(ans)
@@ -103,20 +106,37 @@ class ReadingAnalyseService:
                 "feedback": analyse.feedback,
             })
 
-        answers = await Answer.filter(reading_id=reading_id, user_id=user_id).all()
+        answers = await Answer.filter(
+            reading_id=reading_id,
+            user_id=user_id
+        ).prefetch_related("question")
+
         responses = []
         for a in answers:
             responses.append({
                 "id": a.id,
                 "question_id": a.question_id,
-                "passage_id": a.passage_id,
-                "user_answer": a.variant_id or a.text,
+                "passage_id": a.question.passage_id,
+                "user_answer": a.variant_id if a.variant_id else a.text,
                 "is_correct": a.is_correct,
                 "correct_answer": a.correct_answer,
             })
 
         return {
             "reading_id": reading_id,
-            "analyse": analysis_data,
+            "analyse": {str(a["passage_id"]): a for a in analysis_data},
             "responses": responses
         }
+
+    @staticmethod
+    async def exists(reading_id: int, user_id: int) -> bool:
+        reading = await Reading.get_or_none(id=reading_id)
+        if not reading:
+            return False
+        passages = await reading.passages.all()
+        if not passages:
+            return False
+        return await ReadingAnalyse.filter(
+            passage_id__in=[p.id for p in passages],
+            user_id=user_id
+        ).exists()

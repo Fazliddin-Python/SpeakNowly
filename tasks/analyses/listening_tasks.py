@@ -18,6 +18,7 @@ def analyse_listening_task(self, session_id: int):
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
+        print(f"Starting listening analysis for session {session_id} on loop {loop}")
         loop.run_until_complete(ListeningAnalyseService.analyse(session_id))
         logger.info(f"Listening analysis completed for session {session_id}")
     except Exception as exc:

@@ -186,7 +186,7 @@ class SubmitQuestionAnswerSerializer(BaseSerializer):
 
 class SubmitPassageAnswerSerializer(BaseSerializer):
     """Serializer for submitting answers to all questions in a passage."""
-    reading_id: int = Field(..., description="ID of the reading session")
+    # reading_id: int = Field(..., description="ID of the reading session")
     passage_id: int = Field(..., description="ID of the passage being answered")
     answers: List[SubmitQuestionAnswerSerializer] = Field(
         ..., description="List of question-answer pairs"

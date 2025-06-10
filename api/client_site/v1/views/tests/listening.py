@@ -56,7 +56,7 @@ def admin_required(user=Depends(get_current_user), t=Depends(get_translation)):
     return user
 
 
-@router.get("/tests", response_model=List[ListeningSerializer], summary="List all listening tests")
+@router.get("/tests/", response_model=List[ListeningSerializer], summary="List all listening tests")
 async def list_listening_tests(
     user=Depends(active_user),
     t: dict = Depends(get_translation),
@@ -72,7 +72,7 @@ async def list_listening_tests(
     return await asyncio.gather(*[ListeningSerializer.from_orm(test) for test in tests])
 
 
-@router.get("/tests/{test_id}", response_model=ListeningSerializer, summary="Get a listening test by ID")
+@router.get("/tests/{test_id}/", response_model=ListeningSerializer, summary="Get a listening test by ID")
 async def retrieve_listening_test(
     test_id: int,
     user=Depends(active_user),
@@ -88,7 +88,7 @@ async def retrieve_listening_test(
 
 
 @router.post(
-    "/tests",
+    "/tests/",
     response_model=ListeningSerializer,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new listening test",
@@ -108,7 +108,7 @@ async def create_listening_test(
 
 
 @router.delete(
-    "/tests/{test_id}",
+    "/tests/{test_id}/",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a listening test",
 )
@@ -126,7 +126,7 @@ async def delete_listening_test(
 
 
 @router.get(
-    "/parts/{part_id}",
+    "/parts/{part_id}/",
     response_model=ListeningPartSerializer,
     summary="Get listening part",
 )
@@ -145,7 +145,7 @@ async def get_listening_part(
 
 
 @router.post(
-    "/parts",
+    "/parts/",
     response_model=ListeningPartSerializer,
     status_code=status.HTTP_201_CREATED,
     summary="Create listening part",
@@ -172,7 +172,7 @@ async def create_listening_part(
 
 
 @router.get(
-    "/sections",
+    "/sections/",
     response_model=List[ListeningSectionSerializer],
     summary="List all sections",
 )
@@ -190,7 +190,7 @@ async def list_listening_sections(
 
 
 @router.get(
-    "/sections/{section_id}",
+    "/sections/{section_id}/",
     response_model=ListeningSectionSerializer,
     summary="Get listening section",
 )
@@ -209,7 +209,7 @@ async def get_listening_section(
 
 
 @router.post(
-    "/sections",
+    "/sections/",
     response_model=ListeningSectionSerializer,
     status_code=status.HTTP_201_CREATED,
     summary="Create listening section",
@@ -229,7 +229,7 @@ async def create_listening_section(
 
 
 @router.delete(
-    "/sections/{section_id}",
+    "/sections/{section_id}/",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete listening section",
 )
@@ -247,7 +247,7 @@ async def delete_listening_section(
 
 
 @router.get(
-    "/questions",
+    "/questions/",
     response_model=List[ListeningQuestionSerializer],
     summary="List all questions",
 )
@@ -265,7 +265,7 @@ async def list_listening_questions(
 
 
 @router.get(
-    "/questions/{question_id}",
+    "/questions/{question_id}/",
     response_model=ListeningQuestionSerializer,
     summary="Get listening question",
 )
@@ -284,7 +284,7 @@ async def get_listening_question(
 
 
 @router.post(
-    "/questions",
+    "/questions/",
     response_model=ListeningQuestionSerializer,
     status_code=status.HTTP_201_CREATED,
     summary="Create listening question",
@@ -304,7 +304,7 @@ async def create_listening_question(
 
 
 @router.delete(
-    "/questions/{question_id}",
+    "/questions/{question_id}/",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete listening question",
 )
@@ -322,7 +322,7 @@ async def delete_listening_question(
 
 
 @router.post(
-    "/session",
+    "/start/",
     response_model=ListeningDataSlimSerializer,
     status_code=status.HTTP_201_CREATED,
     summary="Start a new listening session",
@@ -342,7 +342,7 @@ async def start_session(
 
 
 @router.post(
-    "/session/{session_id}/cancel",
+    "/session/{session_id}/cancel/",
     status_code=status.HTTP_200_OK,
     summary="Cancel a listening session",
 )
@@ -360,7 +360,7 @@ async def cancel_session(
 
 
 @router.post(
-    "/session/{session_id}/submit",
+    "/session/{session_id}/submit/",
     status_code=status.HTTP_200_OK,
     summary="Submit listening answers",
 )
@@ -379,7 +379,7 @@ async def submit_answers(
 
 
 @router.get(
-    "/session/{session_id}/data",
+    "/session/{session_id}/data/",
     response_model=ListeningDataSlimSerializer,
     summary="Get session data",
 )
@@ -397,7 +397,7 @@ async def get_session_data(
 
 
 @router.get(
-    "/session/{session_id}/analyse",
+    "/session/{session_id}/analyse/",
     response_model=ListeningAnalyseResponseSerializer,
     summary="Get listening analysis",
 )

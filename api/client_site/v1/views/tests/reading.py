@@ -1,15 +1,14 @@
 import logging
-from typing import Any, List, Dict, Optional
+from typing import Any, List, Dict
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 
 from utils.auth.auth import get_current_user
 from utils.i18n import get_translation
 from utils.check_tokens import check_user_tokens
 from tasks.analyses.reading_tasks import analyse_reading_task
 
-from models import ReadingAnalyse
+from models import ReadingAnalyse, Reading
 from models.transactions import TransactionType
 
 from services.tests.reading_service import ReadingService
@@ -19,8 +18,8 @@ from ...serializers.tests.reading import (
     StartReadingSerializer,
     PassageSerializer,
     PassageCreateSerializer,
-    QuestionListSerializer,
     QuestionCreateSerializer,
+    QuestionListSerializer,
     SubmitPassageAnswerSerializer,
     ReadingSerializer,
     ReadingAnalyseResponseSerializer
@@ -32,10 +31,9 @@ router = APIRouter()
 # ========================
 # Common Dependencies
 # ========================
-
 def audit_action(action: str):
-    def wrapper(request: Request, user=Depends(get_current_user)):
-        logger.info(f"User {user.id} action='{action}' path='{request.url.path}'")
+    def wrapper(user=Depends(get_current_user)):
+        logger.info(f"User {user.id} action='{action}'")
         return user
     return wrapper
 
@@ -53,10 +51,9 @@ def admin_required(user=Depends(get_current_user), t=Depends(get_translation)):
 # ========================
 # Passage (Admin)
 # ========================
-
 @router.get("/passages/", response_model=List[PassageSerializer], summary="List all passages")
 async def list_passages(
-    t: Dict[str, str] = Depends(get_translation),
+    t=Depends(get_translation),
     _: Any = Depends(admin_required),
     __: Any = Depends(audit_action("list_passages")),
 ):
@@ -152,7 +149,7 @@ async def delete_question(
 # Reading Session (User)
 # ========================
 
-@router.post("/start/", response_model=ReadingSerializer, summary="Start reading session")
+@router.post("/start/", response_model=Dict[str, Any], summary="Start reading session")
 async def start_reading(
     user=Depends(active_user),
     t=Depends(get_translation)
@@ -161,31 +158,88 @@ async def start_reading(
     reading, passages = await ReadingService.start_reading(user.id)
     if not reading or not passages:
         raise HTTPException(status_code=500, detail=t["internal_error"])
-    passage = passages[0]
-    questions = await passage.questions.all().prefetch_related("variants")
-    return ReadingSerializer(
-        id=reading.id,
-        status=reading.status,
-        user_id=reading.user_id,
-        start_time=reading.start_time,
-        end_time=reading.end_time,
-        score=reading.score,
-        duration=reading.duration,
-        passage=await PassageSerializer.from_orm(passage),
-        questions=[await QuestionListSerializer.from_orm(q) for q in questions]
-    )
 
-@router.post("/{session_id}/submit/", response_model=Dict[str, Any], summary="Submit answers")
-async def submit_answers(
+    # Build list of passages with questions
+    result_passages = []
+    for passage in passages:
+        questions = await passage.questions.all().prefetch_related("variants")
+        serialized_questions = [await QuestionListSerializer.from_orm(q) for q in questions]
+        serialized_passage = await PassageSerializer.from_orm(passage)
+        # attach questions
+        serialized_passage_dict = serialized_passage.dict()
+        serialized_passage_dict["questions"] = [q.dict() for q in serialized_questions]
+        result_passages.append(serialized_passage_dict)
+
+    return {
+        "session_id": reading.id,
+        "status": reading.status,
+        "user_id": reading.user_id,
+        "start_time": reading.start_time,
+        "end_time": reading.end_time,
+        "score": reading.score,
+        "duration": reading.duration,
+        "passages": result_passages,
+    }
+
+@router.post(
+    "/{session_id}/submit/",
+    response_model=Dict[str, Any],
+    summary="(Legacy) Submit answers for a passage in session"
+)
+async def submit_legacy(
     session_id: int,
     payload: SubmitPassageAnswerSerializer,
+    user=Depends(get_current_user),
+    t=Depends(get_translation),
+):
+    # УБРАТЬ эту проверку:
+    # if payload.reading_id != session_id:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_400_BAD_REQUEST,
+    #         detail=t.get("invalid_request", "Invalid request")
+    #     )
+
+    try:
+        total_score, error = await ReadingService.submit_answers(
+            session_id=session_id,
+            user_id=user.id,
+            passage_id=payload.passage_id,
+            answers=payload.answers
+        )
+    except Exception:
+        logger.exception("Unexpected error in legacy submit")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=t.get("internal_server_error", "Internal server error")
+        )
+
+    if error:
+        detail = t.get(error, error)
+        logger.warning(
+            "Legacy submit error: session=%s, passage=%s, user=%s, code=%s",
+            session_id, payload.passage_id, user.id, error
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=detail
+        )
+
+    return {
+        "message": t.get("answers_submitted", "Answers submitted successfully"),
+        "total_score": total_score
+    }
+
+@router.post("/{session_id}/finish/", response_model=Dict[str, Any], summary="Finish reading session")
+async def finish_reading(
+    session_id: int,
     user=Depends(active_user),
     t=Depends(get_translation)
 ):
-    total_score, error = await ReadingService.submit_answers(session_id, user.id, payload.answers)
-    if error:
-        raise HTTPException(status_code=400, detail=t.get(error, t['internal_error']))
-    return {"message": t["answers_submitted"], "total_score": total_score}
+    result, code = await ReadingService.finish_reading(session_id, user.id)
+    if code != 200:
+        detail = result.get("error") or t['internal_error']
+        raise HTTPException(status_code=code, detail=detail)
+    return result
 
 @router.post("/{session_id}/cancel/", summary="Cancel session")
 async def cancel_reading(
@@ -198,7 +252,7 @@ async def cancel_reading(
         raise HTTPException(status_code=404, detail=t['session_not_found'])
     return {"message": t['session_cancelled']}
 
-@router.post("/{session_id}/restart/", response_model=ReadingSerializer, summary="Restart session")
+@router.post("/{session_id}/restart/", response_model=Dict[str, Any], summary="Restart session")
 async def restart_reading(
     session_id: int,
     user=Depends(active_user),
@@ -207,19 +261,28 @@ async def restart_reading(
     reading, error = await ReadingService.restart_reading(session_id, user.id)
     if error:
         raise HTTPException(status_code=400, detail=t.get(error, t['internal_error']))
-    passage = (await reading.passages.all())[0]
-    questions = await passage.questions.all().prefetch_related("variants")
-    return ReadingSerializer(
-        id=reading.id,
-        status=reading.status,
-        user_id=reading.user_id,
-        start_time=reading.start_time,
-        end_time=reading.end_time,
-        score=reading.score,
-        duration=reading.duration,
-        passage=await PassageSerializer.from_orm(passage),
-        questions=[await QuestionListSerializer.from_orm(q) for q in questions]
-    )
+
+    # Return all passages after restart
+    passages = await reading.passages.all()
+    result_passages = []
+    for passage in passages:
+        questions = await passage.questions.all().prefetch_related("variants")
+        serialized_questions = [await QuestionListSerializer.from_orm(q) for q in questions]
+        serialized_passage = await PassageSerializer.from_orm(passage)
+        serialized_passage_dict = serialized_passage.dict()
+        serialized_passage_dict["questions"] = [q.dict() for q in serialized_questions]
+        result_passages.append(serialized_passage_dict)
+
+    return {
+        "session_id": reading.id,
+        "status": reading.status,
+        "user_id": reading.user_id,
+        "start_time": reading.start_time,
+        "end_time": reading.end_time,
+        "score": reading.score,
+        "duration": reading.duration,
+        "passages": result_passages,
+    }
 
 @router.get("/{session_id}/analysis/", response_model=ReadingAnalyseResponseSerializer, summary="Get reading analysis")
 async def analyse_reading(
@@ -228,8 +291,17 @@ async def analyse_reading(
     user=Depends(active_user),
     t=Depends(get_translation)
 ):
-    exists = await ReadingAnalyse.get_or_none(reading_id=session_id, user_id=user.id)
+    reading = await Reading.get_or_none(id=session_id)
+    if not reading:
+        raise HTTPException(status_code=404, detail=t['session_not_found'])
+
+    exists = await ReadingAnalyse.filter(
+        passage_id__in=await reading.passages.all().values_list("id", flat=True),
+        user_id=user.id
+    ).exists()
+
     if not exists:
-        analyse_reading_task.delay(session_id, user.id)
+        analyse_reading_task.apply_async(args=[session_id, user.id], queue='analyses')
         raise HTTPException(status_code=202, detail=t['analysis_started'])
+
     return await ReadingAnalyseService.get_analysis(session_id, user.id)
