@@ -5,7 +5,7 @@ from services.chatgpt.integration import ChatGPTIntegration
 
 class WritingAnalyseService:
     @staticmethod
-    async def analyse(test_id: int, api_key: str) -> WritingAnalyse:
+    async def analyse(test_id: int) -> WritingAnalyse:
         """
         Analyse a Writing test using ChatGPT and save the result.
         """
@@ -17,7 +17,7 @@ class WritingAnalyseService:
         if not test.part1 or not test.part2:
             raise ValueError("Test parts are missing")
 
-        chatgpt = ChatGPTIntegration(api_key)
+        chatgpt = ChatGPTIntegration()
         # Используем асинхронный метод анализа!
         analysis = await chatgpt.analyse_writing(
             {

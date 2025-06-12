@@ -3,21 +3,48 @@ from fastapi import HTTPException
 from datetime import datetime, timezone
 from typing import List, Optional
 from services.analyses.writing_analyse_service import WritingAnalyseService
+from api.client_site.v1.serializers.tests.writing import (
+    WritingSerializer,
+    WritingPart1Serializer,
+    WritingPart2Serializer,
+)
 
 class WritingService:
     @staticmethod
     async def get_writing_tests(user_id: int):
         tests = await Writing.filter(user_id=user_id).all()
-        if not tests:
-            raise HTTPException(status_code=404, detail="No writing tests found for the user")
-        return tests
+        result = []
+        for test in tests:
+            part1 = await WritingPart1.get_or_none(writing_id=test.id)
+            part2 = await WritingPart2.get_or_none(writing_id=test.id)
+            result.append(WritingSerializer(
+                id=test.id,
+                user_id=test.user_id,
+                start_time=test.start_time,
+                end_time=test.end_time,
+                status=test.status,
+                part1=WritingPart1Serializer.from_orm(part1) if part1 else None,
+                part2=WritingPart2Serializer.from_orm(part2) if part2 else None,
+            ))
+        return result
 
     @staticmethod
     async def get_writing_test(test_id: int):
         test = await Writing.get_or_none(id=test_id).prefetch_related("part1", "part2")
         if not test:
             raise HTTPException(status_code=404, detail="Writing test not found")
-        return test
+        part1 = await WritingPart1.get_or_none(writing_id=test.id)
+        part2 = await WritingPart2.get_or_none(writing_id=test.id)
+        
+        return WritingSerializer(
+            id=test.id,
+            user_id=test.user_id,
+            start_time=test.start_time,
+            end_time=test.end_time,
+            status=test.status,
+            part1=WritingPart1Serializer.from_orm(part1) if part1 else None,
+            part2=WritingPart2Serializer.from_orm(part2) if part2 else None,
+        )
 
     @staticmethod
     async def create_writing_test(user_id: int, start_time: Optional[datetime] = None):
@@ -78,4 +105,4 @@ class WritingService:
         """
         Run analysis for a writing test (can be called from Celery or directly).
         """
-        return await WritingAnalyseService.analyse(test_id, api_key)
+        return await WritingAnalyseService.analyse(test_id)
