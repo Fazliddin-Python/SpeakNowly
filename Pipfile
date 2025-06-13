@@ -27,6 +27,7 @@ pytest = "*"
 pytest-asyncio = "*"
 minio = "*"
 aiofiles = "*"
+matplotlib = "*"
 
 [dev-packages]
 Faker = "*"

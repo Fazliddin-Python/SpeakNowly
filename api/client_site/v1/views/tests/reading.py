@@ -295,12 +295,52 @@ async def analyse_reading(
         raise HTTPException(status_code=404, detail=t['session_not_found'])
 
     exists = await ReadingAnalyse.filter(
-        passage_id__in=await reading.passages.all().values_list("id", flat=True),
+        passage_id__in=[p.id for p in await reading.passages.all()],
         user_id=user.id
     ).exists()
 
     if not exists:
-        analyse_reading_task.apply_async(args=[session_id, user.id], queue='analyses')
-        raise HTTPException(status_code=202, detail=t['analysis_started'])
+        # Calculate analysis synchronously (like old DRF)
+        await ReadingAnalyseService.analyse_reading(session_id, user.id)
 
     return await ReadingAnalyseService.get_analysis(session_id, user.id)
+
+@router.get("/{session_id}/", response_model=Dict[str, Any], summary="Get reading session detail")
+async def get_reading_session(
+    session_id: int,
+    user=Depends(active_user),
+    t=Depends(get_translation)
+):
+    reading = await Reading.get_or_none(id=session_id)
+    if not reading or reading.user_id != user.id:
+        raise HTTPException(status_code=404, detail=t['session_not_found'])
+
+    passages = await reading.passages.all()
+    result_passages = []
+    for passage in passages:
+        questions = await passage.questions.all().prefetch_related("variants")
+        serialized_questions = []
+        for q in questions:
+            variants = await q.variants.all()
+            serialized_questions.append({
+                "id": q.id,
+                "text": q.text,
+                "answers": [{"id": v.id, "text": v.text} for v in variants]
+            })
+        result_passages.append({
+            "id": passage.id,
+            "title": passage.title,
+            "text": passage.text,
+            "questions": serialized_questions
+        })
+
+    return {
+        "session_id": reading.id,
+        "status": reading.status,
+        "user_id": reading.user_id,
+        "start_time": reading.start_time,
+        "end_time": reading.end_time,
+        "score": reading.score,
+        "duration": reading.duration,
+        "passages": result_passages,
+    }

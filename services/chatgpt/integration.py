@@ -3,7 +3,9 @@ import json
 import os
 from datetime import datetime
 from typing import Optional, List, Dict
-
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # type: ignore
 import aiofiles, logging
 from fastapi import HTTPException
 import openai
@@ -367,13 +369,12 @@ Return ONLY valid JSON in the format:
     async def generate_writing_part1_question(self) -> Dict:
         """
         Generate an IELTS Writing Task 1 question with chart data in JSON format.
-        Uses sync OpenAI client (openai).
+        Uses async OpenAI client.
         Expects JSON response matching WritingTask1Data schema.
         """
         prompt1 = """
 Create a line or bar or pie chart based on an IELTS Writing Task 1 question comparing five categories in two different years on a given topic.
-The data for the chart is in JSON format with the keys question, categories, years, and:
-question, categories, year1, year2, data_year1, data_year2.
+The data for the chart is in JSON format with the keys question, categories, year1, year2, data_year1, data_year2, chart_type.
 Return the JSON using keys:
 - "question": <string>
 - "categories": [<string>, ...]
@@ -381,6 +382,7 @@ Return the JSON using keys:
 - "year2": <integer>
 - "data_year1": [<numbers>]
 - "data_year2": [<numbers>]
+- "chart_type": <string: "bar", "line" or "pie">
 """
         try:
             response = await self.async_client.chat.completions.create(
@@ -402,7 +404,6 @@ Return the JSON using keys:
 
     async def create_writing_part1_diagram(
         self,
-        question: str,
         categories: List[str],
         data_year1: List[float],
         data_year2: List[float],
@@ -413,9 +414,6 @@ Return the JSON using keys:
         Create a bar chart (.png) comparing data_year1 vs data_year2 across categories.
         Saves under media/writing/diagrams and returns file path.
         """
-        import matplotlib.pyplot as plt  # type: ignore
-        import os
-
         output_dir = "media/writing/diagrams"
         os.makedirs(output_dir, exist_ok=True)
 
@@ -440,15 +438,66 @@ Return the JSON using keys:
             return filename
 
         loop = asyncio.get_running_loop()
-        filename = await loop.run_in_executor(None, plot_and_save)
-        return filename
+        return await loop.run_in_executor(None, plot_and_save)
 
-    async def create_line_chart(self, categories: List[str], year1: int, year2: int,
-                          data_year1: List[float], data_year2: List[float]) -> str:
+    async def create_bar_chart(
+        self,
+        categories: list[str],
+        year1: int,
+        year2: int,
+        data_year1: list[float],
+        data_year2: list[float],
+    ) -> str:
+        """
+        Asynchronously create a bar chart comparing data_year1 vs data_year2.
+        Returns the saved PNG file path (relative, starts with media/).
+        """
+        output_dir = "media/writing/diagrams"
+        os.makedirs(output_dir, exist_ok=True)
+
+        def _plot_and_save():
+            import matplotlib.pyplot as plt
+            from datetime import datetime
+            import os
+
+            fig, ax = plt.subplots(figsize=(8, 6))
+            bar_width = 0.35
+            x = range(len(categories))
+
+            ax.bar(x, data_year1, width=bar_width, label=str(year1), alpha=0.7)
+            ax.bar([i + bar_width for i in x], data_year2, width=bar_width, label=str(year2), alpha=0.7)
+
+            ax.set_xlabel("Categories", fontsize=12)
+            ax.set_ylabel("Percentage of Expenditure", fontsize=12)
+            ax.set_title(
+                f"Comparison of Household Expenditure by Category ({year1} vs {year2})",
+                fontsize=14
+            )
+            ax.set_xticks([i + bar_width / 2 for i in x])
+            ax.set_xticklabels(categories, fontsize=10)
+            ax.legend()
+
+            filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}.png"
+            abs_path = os.path.join(output_dir, filename)
+            plt.savefig(abs_path)
+            plt.close()
+            return f"media/writing/diagrams/{filename}"
+
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, _plot_and_save)
+
+    async def create_line_chart(
+        self,
+        categories: List[str],
+        data_year1: List[float],
+        data_year2: List[float],
+        year1: int,
+        year2: int
+    ) -> str:
         """
         Create a line chart (.png) showing trends of data_year1 vs data_year2.
         """
-        import matplotlib.pyplot as plt # type: ignore
+        import matplotlib.pyplot as plt  # type: ignore
 
         output_dir = "media/writing/diagrams"
         os.makedirs(output_dir, exist_ok=True)
@@ -468,18 +517,23 @@ Return the JSON using keys:
 
         return filename
 
-    async def create_pie_chart(self, categories: List[str], year1: int, year2: int,
-                         data_year1: List[float], data_year2: List[float]) -> str:
+    async def create_pie_chart(
+        self,
+        categories: List[str],
+        data_year1: List[float],
+        data_year2: List[float],
+        year1: int,
+        year2: int
+    ) -> str:
         """
         Create side-by-side pie charts for data_year1 and data_year2.
         """
-        import matplotlib.pyplot as plt # type: ignore
+        import matplotlib.pyplot as plt  # type: ignore
 
         output_dir = "media/writing/diagrams"
         os.makedirs(output_dir, exist_ok=True)
 
         fig, axs = plt.subplots(1, 2, figsize=(12, 6))
-
         axs[0].pie(data_year1, labels=categories, autopct="%1.1f%%", startangle=140)
         axs[0].set_title(f"Distribution ({year1})")
 
@@ -523,13 +577,10 @@ Return exactly:
         except json.JSONDecodeError:
             raise HTTPException(status_code=500, detail="Invalid JSON returned from GPT for writing part2")
 
-    async def analyse_writing(self, part1_answer: dict, part2_answer: str, lang_code: str = "en") -> dict:
+    async def analyse_writing(self, part1_answer: Dict, part2_answer: str, lang_code: str = "en") -> Dict:
         """
         Analyse IELTS Writing Task 1 and Task 2 responses.
-        :param part1_answer: dict with keys "diagram_data" and "user_answer" for Task 1.
-        :param part2_answer: str with the user's essay for Task 2.
-        :param lang_code: Language code for feedback (default is "en" for English).
-        :return: dict with analysis results in the expected JSON format.
+        Returns dict with analysis results.
         """
         analys_prompt = """
 You are an expert IELTS examiner. Your task is to evaluate IELTS Writing Task 1 and Task 2 responses provided by a candidate.
@@ -537,15 +588,15 @@ You are an expert IELTS examiner. Your task is to evaluate IELTS Writing Task 1 
 Task 1 Evaluation Criteria:
 - Task Achievement: Does the response address key points from the provided diagram accurately?
 - Coherence and Cohesion: Are ideas logically organized and connected?
-- Lexical Resource: Is a wide range of vocabulary used accurately?
-- Grammatical Range and Accuracy: Are sentence structures varied and grammatical errors minimal?
+- Lexical Resource: Is vocabulary varied and used accurately?
+- Grammatical Range and Accuracy: Are sentence structures varied and mostly error-free?
 - Word Count: Is the response within 150 words? Deduct or comment if not.
 
 Task 2 Evaluation Criteria:
 - Task Response: Does the essay fully address the task, presenting a clear position?
 - Coherence and Cohesion: Are ideas logically sequenced and effectively linked?
 - Lexical Resource: Is vocabulary diverse and appropriate?
-- Grammatical Range and Accuracy: Are grammar and punctuation correct?
+- Grammatical Range and Accuracy: Are sentences grammatically accurate and varied?
 - Word Count: Is the essay within 250 words? Comment if under/over length.
 - Timing Feedback: Was the response likely completed in time? Suggest improvements.
 
@@ -571,25 +622,12 @@ Return valid JSON with:
 """
         lang_map = {"en": "English", "ru": "Russian", "uz": "Uzbek"}
         language_name = lang_map.get(lang_code, "English")
-
-        diagram_data = part1_answer.get("diagram_data", {})
-        user1 = part1_answer.get("user_answer", "")
-        user2 = part2_answer
-
         data_obj = {
-            "diagram_data": diagram_data,
-            "task1_answer": user1,
-            "task2_answer": user2
+            "diagram_data": part1_answer.get("diagram_data"),
+            "task1_answer": part1_answer.get("user_answer"),
+            "task2_answer": part2_answer
         }
-
-        prompt_with_lang = f"""
-{analys_prompt.strip()}
-
-Language for feedback: {language_name}.
-Here is the data:
-{json.dumps(data_obj)}
-"""
-
+        prompt_with_lang = f"{analys_prompt.strip()}\nLanguage for feedback: {language_name}\nData: {json.dumps(data_obj)}"
         try:
             response = await self.async_client.chat.completions.create(
                 model="gpt-4",
@@ -601,7 +639,6 @@ Here is the data:
             )
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"OpenAI API error (analyse writing): {e}")
-
         content = response.choices[0].message.content
         try:
             return json.loads(content)
