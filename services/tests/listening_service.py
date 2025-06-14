@@ -483,11 +483,11 @@ class ListeningService:
         session_id: int, user_id: int, payload: Dict[str,Any], t: Dict[str,str]
     ) -> int:   
         """
-        payload = {"test_id": int, "answers": { section_id: [ { "question_id": int, "answer": str|list } ] } }
+        payload = {"test_id": int, "answers": [ { "question_id": int, "answer": str|list } ] }
         """
         test_id = payload.get("test_id")
-        answers_dict = payload.get("answers")
-        if test_id is None or answers_dict is None:
+        answers_list = payload.get("answers")
+        if test_id is None or answers_list is None or not isinstance(answers_list, list):
             raise HTTPException(422, detail=t["invalid_payload"])
 
         session = await UserListeningSession.get_or_none(id=session_id, user_id=user_id)
@@ -508,37 +508,29 @@ class ListeningService:
 
         total_correct = 0
         # iterate answers
-        for sec_key, ans_list in answers_dict.items():
-            try:
-                section_id = int(sec_key)
-            except:
-                raise HTTPException(422, detail=t["invalid_section_key"])
+        for ans in answers_list:
+            q = await ListeningQuestion.get_or_none(id=ans["question_id"])
+            if not q:
+                raise HTTPException(404, detail=t["question_not_found"])
 
-            for ans in ans_list:
-                q = await ListeningQuestion.get_or_none(
-                    id=ans["question_id"], section_id=section_id
-                )
-                if not q:
-                    raise HTTPException(404, detail=t["question_not_found"])
+            user_ans = ans["answer"]
+            # normalize to list of strings
+            if not isinstance(user_ans, list):
+                user_ans = [user_ans]
+            correct_set = set(map(str, q.correct_answer))
+            user_set = set(map(str, user_ans))
+            is_correct = (correct_set == user_set)
+            if is_correct:
+                total_correct += 1
 
-                user_ans = ans["answer"]
-                # normalize to list of strings
-                if not isinstance(user_ans, list):
-                    user_ans = [user_ans]
-                correct_set = set(map(str, q.correct_answer))
-                user_set = set(map(str, user_ans))
-                is_correct = (correct_set == user_set)
-                if is_correct:
-                    total_correct += 1
-
-                await UserResponse.create(
-                    session_id=session_id,
-                    user_id=user_id,
-                    question_id=q.id,
-                    user_answer=user_ans,
-                    is_correct=is_correct,
-                    score=1 if is_correct else 0,
-                )
+            await UserResponse.create(
+                session_id=session_id,
+                user_id=user_id,
+                question_id=q.id,
+                user_answer=user_ans,
+                is_correct=is_correct,
+                score=1 if is_correct else 0,
+            )
 
         # finish session
         session.status = ListeningSessionStatus.COMPLETED.value

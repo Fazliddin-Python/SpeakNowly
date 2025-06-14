@@ -268,87 +268,19 @@ class ListeningQuestionCreateSerializer(BaseSerializer):
         raise ValueError("correct_answer must be str, int, list, or dict")
 
 
-class AnswerSerializer(BaseSerializer):
+class AnswerSerializer(BaseModel):
     """Serializer for a single answer submission."""
     question_id: int = Field(..., description="ID of the question being answered")
-    answer: Union[str, int, list] = Field(..., description="User's answer to the question")
-
-    @field_validator("question_id")
-    def validate_question_id(cls, v: int) -> int:
-        """question_id must be a positive integer."""
-        if v <= 0:
-            raise ValueError("question_id must be a positive integer")
-        return v
-
-    @field_validator("answer")
-    def validate_answer(cls, v: Any) -> Any:
-        """
-        answer must be:
-          - a non-empty string
-          - a non-empty list of strings or ints
-          - an int
-        """
-        if v is None:
-            raise ValueError("answer must not be None")
-        if isinstance(v, str):
-            if not v.strip():
-                raise ValueError("answer string must not be empty or whitespace")
-            return v.strip()
-        if isinstance(v, list):
-            if not v:
-                raise ValueError("answer list must not be empty")
-            for elem in v:
-                if not isinstance(elem, (str, int)):
-                    raise ValueError("elements of answer list must be str or int")
-                if isinstance(elem, str) and not elem.strip():
-                    raise ValueError("elements of answer list must not be empty strings")
-            return v
-        if isinstance(v, int):
-            return v
-        raise ValueError("answer must be str, int, or list")
+    answer: Union[str, int, List[Union[str, int]]] = Field(..., description="User's answer to the question")
 
 
-class ListeningAnswerSerializer(BaseSerializer):
+class ListeningAnswerSerializer(BaseModel):
     """
     Submit answers for a listening test.
-    Expects a dict mapping section_id to a list of AnswerSerializer.
+    Expects a list of AnswerSerializer.
     """
     test_id: int = Field(..., description="ID of the listening test")
-    answers: Dict[int, List[AnswerSerializer]] = Field(..., description="Mapping from section_id to list of answers")
-
-    @field_validator("test_id")
-    def validate_test_id(cls, v: int) -> int:
-        """test_id must be a positive integer."""
-        if v <= 0:
-            raise ValueError("test_id must be a positive integer")
-        return v
-
-    @field_validator("answers")
-    def validate_answers(cls, v: Dict[Any, Any]) -> Dict[int, List[AnswerSerializer]]:
-        """
-        answers must be a non-empty dict where:
-          - keys are positive integers (section IDs)
-          - values are non-empty lists of AnswerSerializer
-        """
-        if not isinstance(v, dict) or not v:
-            raise ValueError("answers must be a non-empty dictionary")
-        validated: Dict[int, List[AnswerSerializer]] = {}
-        for key, answers_list in v.items():
-            try:
-                section_key = int(key)
-            except (ValueError, TypeError):
-                raise ValueError(f"Section key '{key}' must be an integer or string convertible to int")
-            if section_key <= 0:
-                raise ValueError(f"Section key '{section_key}' must be a positive integer")
-            if not isinstance(answers_list, list) or not answers_list:
-                raise ValueError(f"answers for section '{section_key}' must be a non-empty list")
-            validated_list: List[AnswerSerializer] = []
-            for ans in answers_list:
-                if not isinstance(ans, AnswerSerializer):
-                    raise ValueError("Each answer must be an instance of AnswerSerializer")
-                validated_list.append(ans)
-            validated[section_key] = validated_list
-        return validated
+    answers: List[AnswerSerializer] = Field(..., description="List of answers")
 
 
 class ExamShortSerializer(BaseModel):
