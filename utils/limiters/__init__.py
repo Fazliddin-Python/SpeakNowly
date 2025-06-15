@@ -1,1 +1,26 @@
-# This file initializes the app package.
+from datetime import timedelta
+from .base_limiter import AsyncLimiter, EmailUpdateLimiter
+
+def get_login_limiter(redis_client):
+    """
+    Create an async login limiter: 5 attempts per 15 minutes.
+    """
+    return AsyncLimiter(redis_client, prefix="login", max_attempts=5, period=timedelta(minutes=15))
+
+def get_register_limiter(redis_client):
+    """
+    Create an async registration limiter: 5 attempts per 10 minutes.
+    """
+    return AsyncLimiter(redis_client, prefix="register", max_attempts=5, period=timedelta(minutes=10))
+
+def get_resend_limiter(redis_client):
+    """
+    Create an async resend OTP limiter: 3 attempts per 5 minutes.
+    """
+    return AsyncLimiter(redis_client, prefix="resend", max_attempts=3, period=timedelta(minutes=5))
+
+def get_forget_password_limiter(redis_client):
+    """
+    Create an async forget password limiter: 5 attempts per 15 minutes.
+    """
+    return AsyncLimiter(redis_client, prefix="forget_password", max_attempts=5, period=timedelta(minutes=15))

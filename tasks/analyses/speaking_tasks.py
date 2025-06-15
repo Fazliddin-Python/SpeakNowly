@@ -13,11 +13,11 @@ def analyse_speaking_task(self, test_id: int):
     Redis and Tortoise are initialized in celery_app.worker_process_init.
     """
     try:
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    try:
         loop.run_until_complete(SpeakingAnalyseService.analyse(test_id))
         logger.info(f"Speaking analysis completed for test {test_id}")
     except Exception as exc:

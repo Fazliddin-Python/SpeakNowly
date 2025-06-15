@@ -1,0 +1,38 @@
+PROMPT_TEMPLATE = """
+You are evaluating a reading comprehension test. Analyze the given passages, questions, and user answers.
+For each question, compare the user's answer to the correct ones and determine:
+- Whether the answer is correct.
+- The correct answer (either the ID of the correct multiple-choice option or the full text for text-based questions).
+- A short explanation (if the answer is incorrect).
+- A boolean flag indicating correctness.
+- No add comments return only json
+- send overall score in 0 to 9 band (hard check all tests)
+
+Return a structured JSON response with the following format:
+[
+    {
+        "passages": {
+            "passage_id": <id>,
+            "analysis": [
+                {
+                    "question_id": <id>,
+                    "correct_answer": "<id> or <text>",
+                    "explanation": "<reason>",
+                    "is_correct": <true/false>
+                }
+            ]
+        },
+        {
+        "stats": {
+            "total_correct": <int>,
+            "total_questions": <int>,
+            "accuracy": <percentage>,
+            "overall_score": <int>
+        }
+    }
+    }
+]
+
+Here is the data to analyze:
+(data)
+"""

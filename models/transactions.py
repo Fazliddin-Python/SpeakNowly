@@ -3,6 +3,7 @@ from .base import BaseModel
 from enum import Enum
 
 class TransactionType(str, Enum):
+    """Enumeration for different types of token transactions."""
     TEST_READING = "READING"
     TEST_WRITING = "WRITING"
     TEST_LISTENING = "LISTENING"
@@ -14,6 +15,7 @@ class TransactionType(str, Enum):
     REFUND = "REFUND"
 
 class TokenTransaction(BaseModel):
+    """Tortoise ORM model for storing token transactions."""
     user = fields.ForeignKeyField("models.User", related_name="token_transactions", description="User", index=True)
     transaction_type = fields.CharEnumField(TransactionType, description="Transaction Type", index=True)
     amount = fields.IntField(description="Amount")
@@ -25,3 +27,7 @@ class TokenTransaction(BaseModel):
         verbose_name = "Token Transaction"
         verbose_name_plural = "Token Transactions"
         indexes = [("user_id",), ("transaction_type",)]
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user_id} - {self.transaction_type} ({self.amount})"

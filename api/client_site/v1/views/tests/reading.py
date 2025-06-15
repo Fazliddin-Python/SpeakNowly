@@ -1,5 +1,6 @@
 import logging
 from typing import Any, List, Dict
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 
@@ -294,16 +295,19 @@ async def analyse_reading(
     if not reading:
         raise HTTPException(status_code=404, detail=t['session_not_found'])
 
-    exists = await ReadingAnalyse.filter(
-        passage_id__in=[p.id for p in await reading.passages.all()],
-        user_id=user.id
-    ).exists()
+    analyses = await ReadingAnalyseService.analyse(session_id, user.id)
 
-    if not exists:
-        # Calculate analysis synchronously (like old DRF)
-        await ReadingAnalyseService.analyse_reading(session_id, user.id)
+    total_correct = sum(a.correct_answers for a in analyses)
+    total_questions = sum(a.correct_answers + int((a.overall_score * 0) or 0) for a in analyses)  # или другой способ подсчёта
+    overall_score = round(sum(a.overall_score for a in analyses) / len(analyses), 2) if analyses else 0.0
+    timing = sum((a.duration for a in analyses), timedelta())
 
-    return await ReadingAnalyseService.get_analysis(session_id, user.id)
+    return {
+        "score": overall_score,
+        "correct": total_correct,
+        "time": timing.total_seconds() // 60,
+        "analyses": analyses
+    }
 
 @router.get("/{session_id}/", response_model=Dict[str, Any], summary="Get reading session detail")
 async def get_reading_session(

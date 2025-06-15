@@ -1,0 +1,196 @@
+import json
+import os
+from datetime import datetime
+import matplotlib.pyplot as plt
+
+from fastapi import HTTPException
+from .base_integration import BaseChatGPTIntegration
+
+ANALYSE_PROMPT = """
+You are an expert IELTS examiner. Your task is to evaluate IELTS Writing Task 1 and Task 2 responses provided by a candidate.
+
+**Task 1 Evaluation Criteria:**
+- **Task Achievement:** Does the response address the key points from the provided diagram accurately and completely?
+- **Coherence and Cohesion:** Are ideas logically organized and connected effectively with appropriate linking words?
+- **Lexical Resource:** Is a wide range of vocabulary used accurately and appropriately?
+- **Grammatical Range and Accuracy:** Are sentence structures varied and grammatical errors minimal?
+
+**Task 2 Evaluation Criteria:**
+- **Task Response:** Does the essay fully address the task, presenting a clear position with well-supported ideas?
+- **Coherence and Cohesion:** Are the ideas logically sequenced and effectively linked?
+- **Lexical Resource:** Is the vocabulary diverse and appropriate for an academic essay?
+- **Grammatical Range and Accuracy:** Is the grammar accurate and varied?
+
+**Evaluation Criteria for Both Tasks:**
+1. **Task Achievement/Response:** 
+    - Does the response fully address the task requirements, providing relevant, well-supported ideas?
+    - Are key points covered accurately and completely?
+    - Assign a score (0-9) and provide specific feedback on strengths and areas for improvement.
+  
+2. **Coherence and Cohesion:** 
+    - Are ideas logically organized and effectively linked using appropriate cohesive devices?
+    - Is there a clear progression of ideas throughout the response?
+    - Assign a score (0-9) with feedback on logical sequencing and cohesion.
+
+3. **Lexical Resource:** 
+    - Is a wide range of vocabulary used accurately and appropriately?
+    - Does the response demonstrate lexical variety and precision?
+    - Provide feedback on vocabulary diversity and appropriacy, with a score (0-9).
+
+4. **Grammatical Range and Accuracy:** 
+    - Are sentence structures varied and grammatical errors minimal?
+    - Is punctuation used correctly and effectively?
+    - Assign a score (0-9) with feedback on grammar accuracy and sentence complexity.
+5. **Word Count:** 
+    - Does the response meet the required word count for the task (150 words for Task 1, 250 words for Task 2)?
+    - Provide feedback on whether the response is underlength or overlength and suggest improvements for better word count management.
+    - Assign a score (0-9) based on adherence to the word count requirements.
+
+6. **Timing Feedback:** 
+    - Provide insights on whether the response was completed within the given time constraints.
+    - Suggest improvements for better time management.
+
+**Instructions for Evaluation:**
+1. Assess the provided responses based on the above criteria.
+2. Provide structured, constructive feedback tailored to IELTS band descriptors.
+3. Assign individual band scores (0-9) for each criterion and an overall band score.
+4. Ensure feedback is specific, actionable, and designed to help the candidate improve.
+"""
+
+PART1_PROMPT = """
+Create a line or bar or pie chart based on an IELTS Writing Task 1 question comparing five categories in two different years on a given topic.
+The data for the chart is in JSON format with the keys question, categories, years, and:
+question, categories, year1, year2, data_year1, data_year2.
+"""
+
+PART2_PROMPT = """
+Create an IELTS Writing Task 2 question. The question should be based on common essay topics such as education,
+technology, the environment, healthcare and many other social issues. Make a clear, thought-provoking statement that
+requires the test taker to discuss both sides of an argument and express their opinion.
+"""
+
+class ChatGPTWritingIntegration(BaseChatGPTIntegration):
+    """
+    Async integration with OpenAI for IELTS Writing generation and analysis.
+    """
+
+    async def generate_writing_part1_question(self) -> dict:
+        """
+        Generate IELTS Writing Task 1 question and chart data using OpenAI.
+        """
+        response = await self.async_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "system", "content": PART1_PROMPT}],
+            temperature=0.0,
+        )
+        try:
+            return json.loads(response.choices[0].message.content)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to parse Task 1 question: {e}")
+
+    async def generate_writing_part2_question(self) -> dict:
+        """
+        Generate IELTS Writing Task 2 question using OpenAI.
+        """
+        response = await self.async_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "system", "content": PART2_PROMPT}],
+            temperature=0.0,
+        )
+        try:
+            return json.loads(response.choices[0].message.content)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to parse Task 2 question: {e}")
+
+    def create_bar_chart(self, categories, year1, year2, data_year1, data_year2) -> str:
+        output_dir = "media/writing/diagrams"
+        os.makedirs(output_dir, exist_ok=True)
+        fig, ax = plt.subplots(figsize=(8, 6))
+        bar_width = 0.35
+        x = range(len(categories))
+        ax.bar(x, data_year1, width=bar_width, label=str(year1), alpha=0.7)
+        ax.bar([i + bar_width for i in x], data_year2, width=bar_width, label=str(year2), alpha=0.7)
+        ax.set_xlabel("Categories", fontsize=12)
+        ax.set_ylabel("Percentage of Expenditure", fontsize=12)
+        ax.set_title(f"Comparison of Household Expenditure by Category ({year1} vs {year2})", fontsize=14)
+        ax.set_xticks([i + bar_width / 2 for i in x])
+        ax.set_xticklabels(categories, fontsize=10)
+        ax.legend()
+        filename = os.path.join(output_dir, f"{datetime.now().isoformat()}.png")
+        plt.savefig(filename)
+        plt.close()
+        return filename
+
+    def create_line_chart(self, categories, year1, year2, data_year1, data_year2) -> str:
+        output_dir = "media/writing/diagrams"
+        os.makedirs(output_dir, exist_ok=True)
+        plt.figure(figsize=(8, 6))
+        plt.plot(categories, data_year1, marker="o", label=str(year1))
+        plt.plot(categories, data_year2, marker="o", label=str(year2))
+        plt.xlabel("Categories")
+        plt.ylabel("Percentage of Expenditure")
+        plt.title(f"Trend of Household Expenditure ({year1} vs {year2})")
+        plt.legend()
+        filename = os.path.join(output_dir, f"{datetime.now().isoformat()}.png")
+        plt.savefig(filename)
+        plt.close()
+        return filename
+
+    def create_pie_chart(self, categories, year1, year2, data_year1, data_year2) -> str:
+        output_dir = "media/writing/diagrams"
+        os.makedirs(output_dir, exist_ok=True)
+        fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+        axs[0].pie(data_year1, labels=categories, autopct="%1.1f%%", startangle=140)
+        axs[0].set_title(f"Distribution of Household Expenditure ({year1})")
+        axs[1].pie(data_year2, labels=categories, autopct="%1.1f%%", startangle=140)
+        axs[1].set_title(f"Distribution of Household Expenditure ({year2})")
+        filename = os.path.join(output_dir, f"{datetime.now().isoformat()}.png")
+        plt.savefig(filename)
+        plt.close()
+        return filename
+
+    async def analyse_writing(self, part1, part2, lang_code: str = "en") -> dict:
+        lang_map = {
+            "uz": "Uzbek",
+            "ru": "Russian",
+            "en": "English",
+        }
+        language_name = lang_map.get(lang_code, "English")
+        data = [
+            {
+                "part1": {
+                    "question": part1.content,
+                    "diagram_data": part1.diagram_data,
+                    "user_answer": part1.answer,
+                },
+                "part2": {
+                    "question": part2.content,
+                    "user_answer": part2.answer,
+                },
+            }
+        ]
+        prompt_with_lang = f"""
+{ANALYSE_PROMPT.strip()}
+
+🗣 IMPORTANT: Please return ALL feedback, scores, and explanations in this language: {language_name.upper()}.
+Only use {language_name} language. Do NOT include English explanations.
+"""
+        response = await self._generate_response(
+            prompt=prompt_with_lang,
+            user_content=json.dumps(data, ensure_ascii=False)
+        )
+        try:
+            return json.loads(response)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to parse ChatGPT response: {e}")
+
+    async def _generate_response(self, prompt: str, user_content: str) -> str:
+        response = await self.async_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": user_content},
+            ],
+            temperature=0.0,
+        )
+        return response.choices[0].message.content

@@ -13,12 +13,12 @@ def analyse_reading_task(self, reading_id: int, user_id: int):
     Redis and Tortoise are initialized in celery_app.worker_process_init.
     """
     try:
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        loop.run_until_complete(ReadingAnalyseService.analyse_reading(reading_id, user_id))
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(ReadingAnalyseService.analyse(reading_id, user_id))
         logger.info(f"Reading analysis completed for reading {reading_id}")
     except Exception as exc:
         logger.exception(f"Reading analysis failed for reading {reading_id}: {exc}")

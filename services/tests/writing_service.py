@@ -1,108 +1,223 @@
-from models.tests.writing import Writing, WritingPart1, WritingPart2
-from fastapi import HTTPException
 from datetime import datetime, timezone
-from typing import List, Optional
-from services.analyses.writing_analyse_service import WritingAnalyseService
-from api.client_site.v1.serializers.tests.writing import (
-    WritingSerializer,
-    WritingPart1Serializer,
-    WritingPart2Serializer,
+from typing import Dict, Any
+
+from fastapi import HTTPException, status
+from tortoise.transactions import in_transaction
+
+from models.tests import (
+    Writing,
+    WritingPart1,
+    WritingPart2,
+    WritingStatus,
+    TestTypeEnum,
 )
+from services.analyses.writing_analyse_service import WritingAnalyseService
+from services.chatgpt.writing_integration import ChatGPTWritingIntegration
+from utils.get_actual_price import get_user_actual_test_price
+from models import TokenTransaction, TransactionType, User
 
 class WritingService:
-    @staticmethod
-    async def get_writing_tests(user_id: int):
-        tests = await Writing.filter(user_id=user_id).all()
-        result = []
-        for test in tests:
-            part1 = await WritingPart1.get_or_none(writing_id=test.id)
-            part2 = await WritingPart2.get_or_none(writing_id=test.id)
-            result.append(WritingSerializer(
-                id=test.id,
-                user_id=test.user_id,
-                start_time=test.start_time,
-                end_time=test.end_time,
-                status=test.status,
-                part1=WritingPart1Serializer.from_orm(part1) if part1 else None,
-                part2=WritingPart2Serializer.from_orm(part2) if part2 else None,
-            ))
-        return result
+    """
+    Service for managing writing tests and sessions.
+    """
 
     @staticmethod
-    async def get_writing_test(test_id: int):
-        test = await Writing.get_or_none(id=test_id).prefetch_related("part1", "part2")
-        if not test:
-            raise HTTPException(status_code=404, detail="Writing test not found")
-        part1 = await WritingPart1.get_or_none(writing_id=test.id)
-        part2 = await WritingPart2.get_or_none(writing_id=test.id)
-        
-        return WritingSerializer(
-            id=test.id,
-            user_id=test.user_id,
-            start_time=test.start_time,
-            end_time=test.end_time,
-            status=test.status,
-            part1=WritingPart1Serializer.from_orm(part1) if part1 else None,
-            part2=WritingPart2Serializer.from_orm(part2) if part2 else None,
-        )
-
-    @staticmethod
-    async def create_writing_test(user_id: int, start_time: Optional[datetime] = None):
-        test = await Writing.create(
-            user_id=user_id,
-            start_time=start_time or datetime.now(timezone.utc),
-            status="started",
-        )
-        await WritingPart1.create(writing_id=test.id, content="Part 1 content")
-        await WritingPart2.create(writing_id=test.id, content="Part 2 content")
-        return test
-
-    @staticmethod
-    async def submit_writing_test(test_id: int, part1_answer: Optional[str], part2_answer: Optional[str]):
-        test = await Writing.get_or_none(id=test_id).prefetch_related("part1", "part2")
-        if not test:
-            raise HTTPException(status_code=404, detail="Writing test not found")
-        if test.status == "completed":
-            raise HTTPException(status_code=400, detail="This test has already been completed")
-        if test.part1:
-            test.part1.answer = part1_answer
-            await test.part1.save()
-        if test.part2:
-            test.part2.answer = part2_answer
-            await test.part2.save()
-        test.status = "completed"
-        test.end_time = datetime.now(timezone.utc)
-        await test.save()
-        return {"message": "Writing test submitted successfully"}
-
-    @staticmethod
-    async def cancel_writing_test(test_id: int):
-        test = await Writing.get_or_none(id=test_id)
-        if not test:
-            raise HTTPException(status_code=404, detail="Writing test not found")
-        if test.status in ["completed", "cancelled"]:
-            raise HTTPException(status_code=400, detail="Test cannot be cancelled")
-        test.status = "cancelled"
-        await test.save()
-        return {"message": "Writing test cancelled successfully"}
-
-    @staticmethod
-    async def get_writing_part1(part1_id: int):
-        part1 = await WritingPart1.get_or_none(id=part1_id)
-        if not part1:
-            raise HTTPException(status_code=404, detail="Writing part 1 not found")
-        return part1
-
-    @staticmethod
-    async def get_writing_part2(part2_id: int):
-        part2 = await WritingPart2.get_or_none(id=part2_id)
-        if not part2:
-            raise HTTPException(status_code=404, detail="Writing part 2 not found")
-        return part2
-
-    @staticmethod
-    async def analyse_writing(test_id: int, api_key: str):
+    async def start_session(user, t: dict) -> Dict[str, Any]:
         """
-        Run analysis for a writing test (can be called from Celery or directly).
+        Start a new writing session for a user with questions and diagrams generated by OpenAI.
         """
-        return await WritingAnalyseService.analyse(test_id)
+        price = await get_user_actual_test_price(user, TestTypeEnum.WRITING_ENG)
+        if user.tokens < price:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail=t["insufficient_tokens"]
+            )
+
+        chatgpt = ChatGPTWritingIntegration()
+        part1_data = await chatgpt.generate_writing_part1_question()
+        part2_data = await chatgpt.generate_writing_part2_question()
+
+        part1_question = part1_data["question"]
+        chart_type = part1_data["chart_type"]
+        categories = part1_data["categories"]
+        year1 = part1_data["year1"]
+        year2 = part1_data["year2"]
+        data_year1 = part1_data["data_year1"]
+        data_year2 = part1_data["data_year2"]
+
+        # Generate diagram using integration
+        if chart_type == "bar":
+            diagram_path = chatgpt.create_bar_chart(categories, year1, year2, data_year1, data_year2)
+        elif chart_type == "line":
+            diagram_path = chatgpt.create_line_chart(categories, year1, year2, data_year1, data_year2)
+        elif chart_type == "pie":
+            diagram_path = chatgpt.create_pie_chart(categories, year1, year2, data_year1, data_year2)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=t["unknown_chart_type"]
+            )
+        diagram_path = diagram_path.replace("media/", "")
+
+        part2_question = part2_data["question"]
+
+        async with in_transaction():
+            user.tokens -= price
+            await user.save()
+            await TokenTransaction.create(
+                user_id=user.id,
+                transaction_type=TransactionType.TEST_WRITING,
+                amount=price,
+                balance_after_transaction=user.tokens,
+                description=t["transaction_description"].format(price=price),
+            )
+
+            writing = await Writing.create(
+                user_id=user.id,
+                status=WritingStatus.STARTED.value,
+                start_time=datetime.now(timezone.utc),
+            )
+
+            diagram_data = {
+                "categories": categories,
+                "year1": year1,
+                "year2": year2,
+                "data_year1": data_year1,
+                "data_year2": data_year2,
+            }
+            await WritingPart1.create(
+                writing=writing,
+                content=part1_question,
+                diagram=diagram_path,
+                diagram_data=diagram_data,
+                answer="",
+            )
+            await WritingPart2.create(
+                writing=writing,
+                content=part2_question,
+                answer="",
+            )
+
+        return await WritingService.get_session(writing.id, user.id, t)
+
+    @staticmethod
+    async def get_session(session_id: int, user_id: int, t: dict) -> Dict[str, Any]:
+        """
+        Retrieve a writing session and its questions.
+        """
+        writing = await Writing.get_or_none(id=session_id, user_id=user_id)
+        if not writing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=t["session_not_found"]
+            )
+        part1 = await WritingPart1.get_or_none(writing=writing)
+        part2 = await WritingPart2.get_or_none(writing=writing)
+        return {
+            "session_id": writing.id,
+            "status": writing.status,
+            "start_time": writing.start_time,
+            "part1": {
+                "content": part1.content if part1 else None,
+                "diagram": part1.diagram if part1 else None,
+                "diagram_data": part1.diagram_data if part1 else None,
+            },
+            "part2": {
+                "content": part2.content if part2 else None,
+            }
+        }
+
+    @staticmethod
+    async def submit_answers(
+        session_id: int, user_id: int, part1_answer: str, part2_answer: str, lang_code: str, t: dict
+    ) -> Dict[str, Any]:
+        """
+        Submit user's answers for both writing parts, perform analysis via WritingAnalyseService, and save results.
+        """
+        writing = await Writing.get_or_none(id=session_id, user_id=user_id)
+        if not writing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=t["session_not_found"]
+            )
+        if writing.status == WritingStatus.COMPLETED.value:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=t["session_already_completed"]
+            )
+
+        part1 = await WritingPart1.get_or_none(writing=writing)
+        part2 = await WritingPart2.get_or_none(writing=writing)
+        if not part1 or not part2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=t["writing_parts_not_found"]
+            )
+
+        async with in_transaction():
+            if part1_answer:
+                part1.answer = part1_answer
+                await part1.save()
+            if part2_answer:
+                part2.answer = part2_answer
+                await part2.save()
+
+            writing.status = WritingStatus.COMPLETED.value
+            writing.end_time = datetime.now(timezone.utc)
+            await writing.save(update_fields=["status", "end_time"])
+
+            writing_analyse = await WritingAnalyseService.analyse(writing.id)
+
+        return {
+            "message": t["answers_submitted"],
+            "analysis": {
+                "task_achievement_feedback": writing_analyse.task_achievement_feedback,
+                "task_achievement_score": float(writing_analyse.task_achievement_score) if writing_analyse.task_achievement_score is not None else None,
+                "lexical_resource_feedback": writing_analyse.lexical_resource_feedback,
+                "lexical_resource_score": float(writing_analyse.lexical_resource_score) if writing_analyse.lexical_resource_score is not None else None,
+                "coherence_and_cohesion_feedback": writing_analyse.coherence_and_cohesion_feedback,
+                "coherence_and_cohesion_score": float(writing_analyse.coherence_and_cohesion_score) if writing_analyse.coherence_and_cohesion_score is not None else None,
+                "grammatical_range_and_accuracy_feedback": writing_analyse.grammatical_range_and_accuracy_feedback,
+                "grammatical_range_and_accuracy_score": float(writing_analyse.grammatical_range_and_accuracy_score) if writing_analyse.grammatical_range_and_accuracy_score is not None else None,
+                "word_count_feedback": writing_analyse.word_count_feedback,
+                "word_count_score": float(writing_analyse.word_count_score) if writing_analyse.word_count_score is not None else None,
+                "overall_band_score": float(writing_analyse.overall_band_score) if writing_analyse.overall_band_score is not None else None,
+                "total_feedback": writing_analyse.total_feedback,
+                "timing": writing_analyse.duration.total_seconds() if writing_analyse.duration else None,
+            },
+        }
+
+    @staticmethod
+    async def get_analysis(session_id: int, user_id: int, t: dict) -> Dict[str, Any]:
+        """
+        Get or create analysis for a completed writing session.
+        """
+        writing = await Writing.get_or_none(id=session_id, user_id=user_id)
+        if not writing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=t["session_not_found"]
+            )
+        if writing.status != WritingStatus.COMPLETED.value:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=t["session_not_completed"]
+            )
+        analyse = await WritingAnalyseService.analyse(writing.id)
+        return {
+            "analysis": {
+                "task_achievement_feedback": analyse.task_achievement_feedback,
+                "task_achievement_score": float(analyse.task_achievement_score) if analyse.task_achievement_score is not None else None,
+                "lexical_resource_feedback": analyse.lexical_resource_feedback,
+                "lexical_resource_score": float(analyse.lexical_resource_score) if analyse.lexical_resource_score is not None else None,
+                "coherence_and_cohesion_feedback": analyse.coherence_and_cohesion_feedback,
+                "coherence_and_cohesion_score": float(analyse.coherence_and_cohesion_score) if analyse.coherence_and_cohesion_score is not None else None,
+                "grammatical_range_and_accuracy_feedback": analyse.grammatical_range_and_accuracy_feedback,
+                "grammatical_range_and_accuracy_score": float(analyse.grammatical_range_and_accuracy_score) if analyse.grammatical_range_and_accuracy_score is not None else None,
+                "word_count_feedback": analyse.word_count_feedback,
+                "word_count_score": float(analyse.word_count_score) if analyse.word_count_score is not None else None,
+                "overall_band_score": float(analyse.overall_band_score) if analyse.overall_band_score is not None else None,
+                "total_feedback": analyse.total_feedback,
+                "timing": analyse.duration.total_seconds() if analyse.duration else None,
+            }
+        }

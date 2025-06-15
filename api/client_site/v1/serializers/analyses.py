@@ -11,7 +11,6 @@ class ListeningAnalyseSerializer(BaseModel):
     overall_score: float
     timing: Optional[str] = None
     status: str
-    feedback: Optional[Any] = None
 
 class ReadingAnalyseSerializer(SafeSerializer):
     reading_id: int
@@ -19,7 +18,6 @@ class ReadingAnalyseSerializer(SafeSerializer):
     correct_answers: int
     overall_score: float
     timing: str
-    feedback: str
 
 class SpeakingAnalyseSerializer(SafeSerializer):
     speaking_id: int

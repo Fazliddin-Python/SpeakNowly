@@ -3,7 +3,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 import logging
 
-from models.tests import Reading, UserListeningSession, Speaking, Writing
+from models.tests import Reading, ListeningSession, Speaking, Writing
 from models.analyses import ListeningAnalyse, ReadingAnalyse, SpeakingAnalyse, WritingAnalyse
 from ...serializers.tests.history import HistoryItem, UserProgressSerializer, MainStatsSerializer
 from utils.auth.auth import get_current_user
@@ -81,7 +81,7 @@ async def get_user_test_history(
 
     # Listening
     if type in [None, "listening"]:
-        listenings = await UserListeningSession.filter(user_id=user_id).order_by("-created_at").all()
+        listenings = await ListeningSession.filter(user_id=user_id).order_by("-created_at").all()
         for l in listenings:
             analyse = await ListeningAnalyse.get_or_none(session_id=l.id)
             score = float(analyse.overall_score) if analyse else 0

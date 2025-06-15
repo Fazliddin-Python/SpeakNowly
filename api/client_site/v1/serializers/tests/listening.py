@@ -5,13 +5,13 @@ from pydantic import Field, field_validator, model_validator, HttpUrl, BaseModel
 
 from ...serializers.base import BaseSerializer
 from models.tests.listening import (
-    QuestionType,
+    ListeningQuestionType,
     Listening,
     ListeningPart,
     ListeningSection,
     ListeningQuestion,
-    UserListeningSession,
-    PartNumber,
+    ListeningSession,
+    ListeningPartNumber,
 )
 
 
@@ -24,7 +24,7 @@ class UserListeningSessionSerializer(BaseModel):
     end_time: Optional[datetime] = Field(None, description="End time of the session")
 
     @classmethod
-    async def from_orm(cls, obj: UserListeningSession) -> "UserListeningSessionSerializer":
+    async def from_orm(cls, obj: ListeningSession) -> "UserListeningSessionSerializer":
         return cls(
             id=obj.id,
             user_id=obj.user_id,
@@ -61,7 +61,7 @@ class ListeningSectionSerializer(BaseModel):
     section_number: int = Field(..., description="Section number")
     start_index: int = Field(..., description="Start index in the audio")
     end_index: int = Field(..., description="End index in the audio")
-    question_type: QuestionType = Field(..., description="Type of questions")
+    question_type: ListeningQuestionType = Field(..., description="Type of questions")
     question_text: Optional[str] = Field(None, description="Text for the section")
     options: Optional[Union[List[str], Dict[str, str]]] = None
     questions: Optional[List[ListeningQuestionSerializer]] = Field(None, description="List of questions")
@@ -89,7 +89,7 @@ class ListeningSectionSerializer(BaseModel):
 class ListeningPartSerializer(BaseModel):
     id: int = Field(..., description="ID of the part")
     listening_id: int = Field(..., description="ID of the parent listening")
-    part_number: PartNumber = Field(..., description="Part number")
+    part_number: ListeningPartNumber = Field(..., description="Part number")
     audio_file: str = Field(..., description="Audio file URL")
     sections: Optional[List[ListeningSectionSerializer]] = Field(None, description="List of sections in the part")
 
@@ -166,7 +166,7 @@ class ListeningSectionCreateSerializer(BaseSerializer):
     section_number: int = Field(..., ge=1, description="Section index within the part")
     start_index: int = Field(..., ge=0, description="Start timestamp or index in the audio file")
     end_index: int = Field(..., ge=0, description="End timestamp or index in the audio file")
-    question_type: QuestionType = Field(..., description="Type of questions in this section (enum)")
+    question_type: ListeningQuestionType = Field(..., description="Type of questions in this section (enum)")
     question_text: Optional[str] = Field(None, description="Prompt text for the section")
     options: Optional[List[str]] = Field(None, description="Shared options for questions, if applicable")
 
@@ -178,7 +178,7 @@ class ListeningSectionCreateSerializer(BaseSerializer):
         opts = self.options
         if end_idx < start_idx:
             raise ValueError("end_index must be greater than or equal to start_index")
-        if qtype in {QuestionType.CHOICE, QuestionType.MULTIPLE_ANSWERS, QuestionType.MATCHING}:
+        if qtype in {ListeningQuestionType.CHOICE, ListeningQuestionType.MULTIPLE_ANSWERS, ListeningQuestionType.MATCHING}:
             if not opts or not isinstance(opts, list):
                 raise ValueError(f"For question_type='{qtype.value}', 'options' must be a non-empty list of strings")
             for item in opts:
@@ -186,7 +186,7 @@ class ListeningSectionCreateSerializer(BaseSerializer):
                     raise ValueError("Each element in 'options' must be a non-empty string")
         else:
             self.options = None
-            if qtype in {QuestionType.FORM_COMPLETION, QuestionType.SENTENCE_COMPLETION, QuestionType.CLOZE_TEST}:
+            if qtype in {ListeningQuestionType.FORM_COMPLETION, ListeningQuestionType.SENTENCE_COMPLETION, ListeningQuestionType.CLOZE_TEST}:
                 qt = self.question_text
                 if not qt or not qt.strip():
                     raise ValueError(f"For question_type='{qtype.value}', 'question_text' must be a non-empty string")
@@ -315,7 +315,7 @@ class ListeningDataSlimSerializer(BaseModel):
     questions: List[ListeningQuestionSerializer] = Field(..., description="All questions in the session")  # Новое поле
 
     @classmethod
-    async def from_orm(cls, session_obj: UserListeningSession) -> "ListeningDataSlimSerializer":
+    async def from_orm(cls, session_obj: ListeningSession) -> "ListeningDataSlimSerializer":
         exam_obj = await session_obj.exam
         exam_serialized = await ExamShortSerializer.from_orm(exam_obj)
         parts_qs = exam_obj.parts.order_by("part_number").all() if hasattr(exam_obj, "parts") else []

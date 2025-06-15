@@ -225,7 +225,7 @@ async def get_writing_detail(
             "word_count_feedback": analyse.word_count_feedback,
             "word_count_score": analyse.word_count_score,
             "timing_feedback": analyse.timing_feedback,
-            "timing_time": analyse.timing_time,
+            "timing_time": analyse.duration,
             "overall_band_score": analyse.overall_band_score,
             "total_feedback": analyse.total_feedback,
         }

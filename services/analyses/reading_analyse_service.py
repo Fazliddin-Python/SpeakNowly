@@ -1,142 +1,75 @@
-import logging
-import json
 from datetime import timedelta
 from fastapi import HTTPException, status
 from tortoise.transactions import in_transaction
-
-from models.tests.reading import Reading, Answer
 from models.analyses import ReadingAnalyse
-from models.tests.constants import Constants
-
-logger = logging.getLogger(__name__)
+from models.tests import Constants, Reading, ReadingAnswer, ReadingPassage, ListeningQuestionType
+from services.chatgpt.reading_integration import ChatGPTReadingIntegration
 
 class ReadingAnalyseService:
     @staticmethod
-    async def analyse_reading(reading_id: int, user_id: int) -> list[ReadingAnalyse]:
-        reading = await Reading.get_or_none(id=reading_id)
-        if not reading or reading.status != Constants.ReadingStatus.COMPLETED:
-            logger.warning("Reading %s not found or not completed", reading_id)
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail="Reading session not found or not completed")
-
-        passages = await reading.passages.all()
-        if not passages:
-            logger.warning("No passages found for reading %s", reading_id)
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail="No passages found for this reading session")
-
-        answers = await Answer.filter(
-            reading_id=reading_id,
-            user_id=user_id
-        ).prefetch_related("question")
+    async def analyse(reading_id: int, user_id: int) -> list[ReadingAnalyse]:
+        reading = await Reading.get_or_none(id=reading_id).prefetch_related("passages")
+        if not reading:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Reading session not found")
+        
+        if reading.status != Constants.ReadingStatus.COMPLETED:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Reading session is not completed")
+        
+        passages = reading.passages
+        
+        answers = await ReadingAnswer.filter(reading_id=reading_id, user_id=user_id).prefetch_related("question")
         answers_by_passage = {}
         for ans in answers:
-            answers_by_passage.setdefault(ans.passage_id, []).append(ans)
-
-        if reading.start_time and reading.end_time:
-            timing = reading.end_time - reading.start_time
-            if not isinstance(timing, timedelta):
-                timing = timedelta(seconds=float(timing))
-        else:
-            timing = timedelta(0)
-
+            answers_by_passage.setdefault(ans.question.passage_id, []).append(ans)
+        
+        duration = (reading.end_time - reading.start_time) if (reading.start_time and reading.end_time) else timedelta(0)
+        
         result = []
-
+        chatgpt = ChatGPTReadingIntegration()
         async with in_transaction():
             for passage in passages:
                 passage_answers = answers_by_passage.get(passage.id, [])
-                total = len(passage_answers)
-                correct = sum(1 for a in passage_answers if a.is_correct)
-                band = round((correct / total) * 9, 1) if total else 0.0
-
-                feedback = f"You answered {correct}/{total} correctly. Estimated band: {band}."
-
+                if not passage_answers:
+                    continue
+                questions_data = []
+                for ans in passage_answers:
+                    qtype = getattr(ans.question, "type", None)
+                    if qtype == ListeningQuestionType.MULTIPLE_CHOICE:
+                        user_answer = ans.variant.text if getattr(ans, "variant", None) else (ans.text_answer or "")
+                    else:
+                        user_answer = ans.text_answer or ""
+                    questions_data.append({
+                        "question": ans.question.text,
+                        "type": qtype,
+                        "user_answer": user_answer,
+                    })
+                try:
+                    analysis = await chatgpt.check_passage_answers(
+                        text=passage.text,
+                        questions=questions_data,
+                        passage_id=passage.id
+                    )
+                except Exception as e:
+                    raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"ChatGPT analysis failed: {e}")
+                stats = None
+                for item in analysis:
+                    if "stats" in item:
+                        stats = item["stats"]
+                if not stats:
+                    raise HTTPException(status.HTTP_502_BAD_GATEWAY, "No stats in ChatGPT response")
                 obj, created = await ReadingAnalyse.get_or_create(
                     passage_id=passage.id,
                     user_id=user_id,
                     defaults={
-                        "correct_answers": correct,
-                        "overall_score": band,
-                        "timing": timing,
-                        "feedback": feedback,
+                        "correct_answers": stats.get("total_correct", 0),
+                        "overall_score": stats.get("overall_score", 0.0),
+                        "duration": duration,
                     }
                 )
                 if not created:
-                    obj.correct_answers = correct
-                    obj.overall_score = band
-                    obj.timing = timing
-                    obj.feedback = feedback
+                    obj.correct_answers = stats.get("total_correct", 0)
+                    obj.overall_score = stats.get("overall_score", 0.0)
+                    obj.duration = duration
                     await obj.save()
-
                 result.append(obj)
-                logger.info("Finished analysis for passage %s (created=%s)", passage.id, created)
-
         return result
-
-    @staticmethod
-    async def get_analysis(reading_id: int, user_id: int) -> dict:
-        reading = await Reading.get_or_none(id=reading_id)
-        if not reading:
-            return {
-                "reading_id": reading_id,
-                "analyse": [],
-                "responses": []
-            }
-
-        passages = await reading.passages.all()
-        if not passages:
-            return {
-                "reading_id": reading_id,
-                "analyse": [],
-                "responses": []
-            }
-
-        analyses = await ReadingAnalyse.filter(
-            passage_id__in=[p.id for p in passages],
-            user_id=user_id
-        )
-
-        analysis_data = []
-        for analyse in analyses:
-            analysis_data.append({
-                "passage_id": analyse.passage_id,
-                "correct_answers": analyse.correct_answers,
-                "overall_score": float(analyse.overall_score),
-                "timing": str(analyse.timing) if analyse.timing else None,
-                "feedback": analyse.feedback,
-            })
-
-        answers = await Answer.filter(
-            reading_id=reading_id,
-            user_id=user_id
-        ).prefetch_related("question")
-
-        responses = []
-        for a in answers:
-            responses.append({
-                "id": a.id,
-                "question_id": a.question_id,
-                "passage_id": a.question.passage_id,
-                "user_answer": a.variant_id if a.variant_id else a.text,
-                "is_correct": a.is_correct,
-                "correct_answer": a.correct_answer,
-            })
-
-        return {
-            "reading_id": reading_id,
-            "analyse": {str(a["passage_id"]): a for a in analysis_data},
-            "responses": responses
-        }
-
-    @staticmethod
-    async def exists(reading_id: int, user_id: int) -> bool:
-        reading = await Reading.get_or_none(id=reading_id)
-        if not reading:
-            return False
-        passages = await reading.passages.all()
-        if not passages:
-            return False
-        return await ReadingAnalyse.filter(
-            passage_id__in=[p.id for p in passages],
-            user_id=user_id
-        ).exists()

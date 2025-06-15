@@ -1,6 +1,6 @@
 from tortoise import fields
 from ..base import BaseModel
-from .constants import Constants  # Importing Constants to resolve the error
+from .constants import Constants
 
 class Reading(BaseModel):
     """Reading session: links a user to a set of texts (passages), stores time, result, and test status."""
@@ -23,7 +23,7 @@ class Reading(BaseModel):
         passages_titles = ", ".join([p.title for p in self.passages.all()[:3]])
         return f"{self.user.get_full_name()} - {self.status} - {passages_titles}"
 
-class Answer(BaseModel):
+class ReadingAnswer(BaseModel):
     """User's answer to a question: stores the selected option or answer text, correctness, and link to the reading session."""
     ANSWERED = "answered"
     NOT_ANSWERED = "not_answered"
@@ -47,7 +47,7 @@ class Answer(BaseModel):
     def __str__(self) -> str:
         return f"Answer to {self.question.text}"
     
-class Passage(BaseModel):
+class ReadingPassage(BaseModel):
     """Text (passage) for reading: contains text, difficulty level, number, and related questions."""
     level = fields.CharEnumField(
         enum_type=Constants.PassageLevel, default=Constants.PassageLevel.EASY, description="Difficulty level of the passage"
@@ -65,7 +65,7 @@ class Passage(BaseModel):
     def __str__(self) -> str:
         return self.title
     
-class Question(BaseModel):
+class ReadingQuestion(BaseModel):
     """Question for a passage: contains question text, type (text/multiple choice), and score for a correct answer."""
     passage = fields.ForeignKeyField('models.Passage', related_name='questions', null=True, on_delete=fields.CASCADE, description="Related passage")
     text = fields.TextField(description="Text of the question")
@@ -80,7 +80,7 @@ class Question(BaseModel):
     def __str__(self) -> str:
         return self.text
     
-class Variant(BaseModel):
+class ReadingVariant(BaseModel):
     """Answer option for Multiple Choice: text and correctness flag."""
     question = fields.ForeignKeyField('models.Question', related_name='variants', on_delete=fields.CASCADE, description="Related question")
     text = fields.TextField(description="Text of the variant")

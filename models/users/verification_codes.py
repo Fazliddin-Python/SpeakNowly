@@ -7,6 +7,7 @@ from datetime import datetime, timezone, timedelta
 from enum import Enum
 
 class VerificationType(str, Enum):
+    """Enumeration for different types of verification."""
     REGISTER = "register"
     LOGIN = "login"
     RESET_PASSWORD = "reset_password"
@@ -14,6 +15,7 @@ class VerificationType(str, Enum):
     UPDATE_EMAIL = "update_email"
 
 class VerificationCode(BaseModel):
+    """Model representing a verification code for user actions."""
     email = fields.CharField(max_length=255, null=True, description="Email")
     user = fields.ForeignKeyField('models.User', related_name='verification_codes', null=True, description="User")
     verification_type = fields.CharEnumField(VerificationType, description="Verification Type")

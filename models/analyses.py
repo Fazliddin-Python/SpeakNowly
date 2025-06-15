@@ -2,15 +2,15 @@ from tortoise import fields
 from .base import BaseModel
 
 class ListeningAnalyse(BaseModel):
+    """Stores analysis results for a listening test."""
     session = fields.OneToOneField(
         "models.UserListeningSession", related_name="analysis", description="Related listening session"
     )
     user = fields.ForeignKeyField("models.User", related_name="listening_analyses", description="User who took the test")
     correct_answers = fields.IntField(default=0, description="Number of correct answers")
     overall_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Overall score")
-    timing = fields.TimeDeltaField(description="Time taken for the test")
-    feedback = fields.JSONField(null=True, description="Qualitative feedback from ChatGPT")
     status = fields.CharField(max_length=32, default="pending", description="Status of analysis")
+    duration = fields.TimeDeltaField(description="Time taken for the test")
 
     class Meta:
         table = "listening_analyses"
@@ -22,6 +22,7 @@ class ListeningAnalyse(BaseModel):
 
 
 class WritingAnalyse(BaseModel):
+    """Stores analysis results for a writing test."""
     writing = fields.OneToOneField(
         "models.Writing", related_name="analyse", description="Related writing test"
     )
@@ -36,9 +37,9 @@ class WritingAnalyse(BaseModel):
     word_count_feedback = fields.TextField(description="Feedback on word count")
     word_count_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Score for word count")
     timing_feedback = fields.TextField(description="Feedback on timing")
-    timing_time = fields.TimeDeltaField(null=True, description="Time taken for the test")
     overall_band_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Overall band score")
     total_feedback = fields.TextField(description="Overall feedback")
+    duration = fields.TimeDeltaField(null=True, description="Time taken for the test")
 
     class Meta:
         table = "writing_analyses"
@@ -74,12 +75,12 @@ class SpeakingAnalyse(BaseModel):
 
 
 class ReadingAnalyse(BaseModel):
+    """Stores analysis results for a reading test."""
     user = fields.ForeignKeyField("models.User", related_name="reading_analyses", description="User who took the test")
     passage = fields.ForeignKeyField("models.Passage", related_name="analyses", description="Related reading passage")
     correct_answers = fields.IntField(default=0, description="Number of correct answers")
     overall_score = fields.DecimalField(max_digits=5, decimal_places=2, description="Overall score")
-    timing = fields.TimeDeltaField(null=True, description="Time taken for the test")
-    feedback = fields.TextField(description="Feedback for the user")
+    duration = fields.TimeDeltaField(null=True, description="Time taken for the test")
 
     class Meta:
         table = "reading_analyses"

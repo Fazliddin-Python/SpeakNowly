@@ -1,5 +1,5 @@
 from datetime import datetime, timezone, timedelta
-from typing import Optional, TypedDict, Union
+from typing import Optional, TypedDict
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -9,6 +9,9 @@ from config import SECRET_KEY, ALGORITHM
 from models.users.users import User
 
 class TokenPayload(TypedDict, total=True):
+    """
+    TypedDict for JWT token payload structure.
+    """
     sub: str
     email: str
     exp: int
@@ -16,7 +19,7 @@ class TokenPayload(TypedDict, total=True):
 
 security = HTTPBearer()
 
-def create_access_token(
+async def create_access_token(
     subject: str,
     email: str,
     expires_delta: Optional[timedelta] = None
@@ -31,7 +34,7 @@ def create_access_token(
     payload = {"sub": subject, "email": email, "exp": expire_timestamp, "type": "access"}
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
-def create_refresh_token(
+async def create_refresh_token(
     subject: str,
     email: str,
     expires_delta: Optional[timedelta] = None
@@ -46,7 +49,7 @@ def create_refresh_token(
     payload = {"sub": subject, "email": email, "exp": expire_timestamp, "type": "refresh"}
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
-def decode_access_token(
+async def decode_access_token(
     token: str,
     *,
     require_refresh: bool = False
@@ -85,7 +88,7 @@ async def get_current_user(
     FastAPI dependency: extract the current user from the access token.
     """
     token_str = credentials.credentials
-    payload = decode_access_token(token_str, require_refresh=False)
+    payload = await decode_access_token(token_str, require_refresh=False)
     user_id = payload["sub"]
     user = await User.get_or_none(id=user_id)
     if not user:

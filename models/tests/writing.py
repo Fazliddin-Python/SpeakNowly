@@ -3,6 +3,7 @@ from tortoise import fields
 from ..base import BaseModel
 
 class WritingStatus(str, Enum):
+    """Status of a writing test."""
     STARTED = "started"
     PENDING = "pending"
     CANCELLED = "cancelled"
@@ -10,6 +11,7 @@ class WritingStatus(str, Enum):
     EXPIRED = "expired"
 
 class Writing(BaseModel):
+    """Represents a writing test instance for a user."""
     status = fields.CharEnumField(
         enum_type=WritingStatus,
         max_length=15,
@@ -25,6 +27,7 @@ class Writing(BaseModel):
         table = "writings"
 
 class WritingPart1(BaseModel):
+    """Part 1 of the writing test, typically involving a diagram or visual content."""
     writing = fields.OneToOneField("models.Writing", related_name="part1", on_delete="CASCADE", description="Related writing test part 1")
     content = fields.TextField(description="Content of the test")
     diagram = fields.CharField(max_length=255, null=True, description="Diagram file path")
@@ -35,6 +38,7 @@ class WritingPart1(BaseModel):
         table = "writing_part1"
 
 class WritingPart2(BaseModel):
+    """Part 2 of the writing test, typically involving an essay or written response."""
     writing = fields.OneToOneField("models.Writing", related_name="part2", on_delete="CASCADE", description="Related writing test part 2")
     content = fields.TextField(description="Content of the test")
     answer = fields.TextField(null=True, description="User's answer")

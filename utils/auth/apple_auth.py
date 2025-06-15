@@ -1,4 +1,4 @@
-import requests
+import httpx
 import jwt
 from jwcrypto import jwk
 from fastapi import HTTPException
@@ -6,15 +6,15 @@ from fastapi import HTTPException
 JWK_URL = "https://appleid.apple.com/auth/keys"
 TOKEN_AUDIENCE = "https://appleid.apple.com"
 
-
-def get_apple_jwk(kid: str) -> dict:
+async def get_apple_jwk(kid: str) -> dict:
     """
-    Fetch Apple's public JWK matching the given key ID.
+    Fetch Apple's public JWK matching the given key ID (async version).
     """
     try:
-        resp = requests.get(JWK_URL, timeout=5)
-        resp.raise_for_status()
-        jwks = resp.json().get("keys", [])
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(JWK_URL, timeout=5)
+            resp.raise_for_status()
+            jwks = resp.json().get("keys", [])
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch JWKs: {e}")
 
@@ -23,10 +23,9 @@ def get_apple_jwk(kid: str) -> dict:
             return key
     raise HTTPException(status_code=400, detail="JWK not found for given kid")
 
-
-def decode_apple_id_token(id_token: str, client_id: str) -> dict:
+async def decode_apple_id_token(id_token: str, client_id: str) -> dict:
     """
-    Decode and validate Apple ID token using JWKS.
+    Decode and validate Apple ID token using JWKS (async version).
     """
     if not id_token:
         raise HTTPException(status_code=400, detail="Missing id_token parameter")
@@ -37,7 +36,7 @@ def decode_apple_id_token(id_token: str, client_id: str) -> dict:
         if not kid:
             raise HTTPException(status_code=400, detail="Missing kid in token header")
 
-        jwk_data = get_apple_jwk(kid)
+        jwk_data = await get_apple_jwk(kid)
         key = jwk.JWK(**jwk_data)
         public_key = key.export_to_pem().decode("utf-8")
 

@@ -1,15 +1,24 @@
 from models.analyses import ListeningAnalyse, SpeakingAnalyse, WritingAnalyse
 from models.tests import Reading
-from tortoise.expressions import Q
 
 class IELTSScoreCalculator:
+    """
+    Service for calculating the average IELTS score for a user.
+    """
+
     @classmethod
-    async def get_average_score(cls, queryset, field):
+    async def get_average_score(cls, queryset, field: str) -> float:
+        """
+        Calculate the average score for a given field in a queryset.
+        """
         values = [getattr(obj, field, 0) for obj in queryset if getattr(obj, field, None) is not None]
         return sum(values) / len(values) if values else 0
 
     @classmethod
-    async def calculate(cls, user):
+    async def calculate(cls, user) -> float:
+        """
+        Calculate the overall IELTS score for a user.
+        """
         listening = await ListeningAnalyse.filter(user_id=user.id).all()
         listening_avg = await cls.get_average_score(listening, "overall_score")
 

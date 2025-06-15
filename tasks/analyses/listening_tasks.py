@@ -13,12 +13,11 @@ def analyse_listening_task(self, session_id: int):
     Redis and Tortoise are initialized in celery_app.worker_process_init.
     """
     try:
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        print(f"Starting listening analysis for session {session_id} on loop {loop}")
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    try:
         loop.run_until_complete(ListeningAnalyseService.analyse(session_id))
         logger.info(f"Listening analysis completed for session {session_id}")
     except Exception as exc:

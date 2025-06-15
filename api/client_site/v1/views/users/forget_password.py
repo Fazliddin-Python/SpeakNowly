@@ -6,7 +6,7 @@ from redis.asyncio import Redis
 from ...serializers.users.forget_password import ForgetPasswordSerializer, ResetPasswordSerializer
 from services.users.verification_service import VerificationService
 from services.users.user_service import UserService
-from utils.limiters.forget_password import ForgetPasswordLimiter
+from utils.limiters import get_forget_password_limiter
 from utils.i18n import get_translation
 from tasks.users import log_user_activity
 from models.users.verification_codes import VerificationType
@@ -16,7 +16,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 redis_client = Redis.from_url(REDIS_URL, decode_responses=True)
-forget_limiter = ForgetPasswordLimiter(redis_client)
+forget_password_limiter = get_forget_password_limiter(redis_client)
 
 
 @router.post("/forget-password/", status_code=status.HTTP_200_OK)
@@ -43,12 +43,12 @@ async def request_password_reset(
         raise HTTPException(status_code=404, detail=t["user_not_found"])
 
     # 2. Rate-limit check
-    if await forget_limiter.is_blocked(normalized_email):
+    if await forget_password_limiter.is_blocked(normalized_email):
         logger.warning("Password reset blocked due to too many attempts: %s", normalized_email)
         raise HTTPException(status_code=429, detail=t["too_many_attempts"])
 
     # 3. Register failed attempt for limiter
-    await forget_limiter.register_failed_attempt(normalized_email)
+    await forget_password_limiter.register_attempt(normalized_email)
 
     # 4. Send verification code
     try:
@@ -98,7 +98,7 @@ async def confirm_password_reset(
         raise HTTPException(status_code=exc.status_code, detail=detail)
 
     # 2. Reset limiter on success
-    await forget_limiter.reset_attempts(normalized_email)
+    await forget_password_limiter.reset_attempts(normalized_email)
 
     # 3. Change password
     await UserService.change_password(user.id, data.new_password, t)

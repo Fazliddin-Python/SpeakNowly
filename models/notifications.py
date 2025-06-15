@@ -10,15 +10,9 @@ class MessageType(str, Enum):
 class Message(BaseModel):
     user = fields.ForeignKeyField("models.User", related_name="messages", null=True, description="User")
     type = fields.CharEnumField(MessageType, default=MessageType.SITE, description="Type")
-    title_en = fields.CharField(max_length=255, description="Title (EN)")
-    title_ru = fields.CharField(max_length=255, null=True, description="Title (RU)")
-    title_uz = fields.CharField(max_length=255, null=True, description="Title (UZ)")
-    description_en = fields.TextField(null=True, description="Description (EN)")
-    description_ru = fields.TextField(null=True, description="Description (RU)")
-    description_uz = fields.TextField(null=True, description="Description (UZ)")
-    content_en = fields.TextField(null=True, description="Content (EN)")
-    content_ru = fields.TextField(null=True, description="Content (RU)")
-    content_uz = fields.TextField(null=True, description="Content (UZ)")
+    title = fields.CharField(max_length=255, description="Title")
+    description = fields.TextField(null=True, description="Description")
+    content = fields.TextField(null=True, description="Content")
     created_at = fields.DatetimeField(auto_now_add=True)
 
     class Meta:

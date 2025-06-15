@@ -242,7 +242,7 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
 }
 
 
-def get_translation(request: Request) -> Dict[str, str]:
+async def get_translation(request: Request) -> Dict[str, str]:
     """
     Return translation dictionary based on Accept-Language header.
     Supported languages: en, ru, uz. Defaults to English.

@@ -1,102 +1,225 @@
-from models.tests.speaking import Speaking, SpeakingQuestions, SpeakingAnswers
-from fastapi import HTTPException, UploadFile
 from datetime import datetime, timezone
-from typing import List, Optional
-from services.analyses.speaking_analyse_service import SpeakingAnalyseService
+from typing import Dict, Any
+import json
+
+from fastapi import HTTPException, status, UploadFile
+from tortoise.transactions import in_transaction
+
+from models.tests import (
+    Speaking,
+    SpeakingAnalyse,
+    SpeakingAnswer,
+    SpeakingQuestion,
+    SpeakingStatus,
+    TestTypeEnum,
+)
+from services.analyses import SpeakingAnalyseService
+from services.chatgpt.speaking_integration import ChatGPTSpeakingIntegration
+from utils.get_actual_price import get_user_actual_test_price
+from models import TokenTransaction, TransactionType, User
+
 
 class SpeakingService:
-    @staticmethod
-    async def get_speaking_tests(user_id: int):
-        tests = await Speaking.filter(user_id=user_id).all()
-        if not tests:
-            raise HTTPException(status_code=404, detail="No speaking tests found for the user")
-        return tests
+    """
+    Service for managing speaking tests and sessions.
+    """
 
     @staticmethod
-    async def get_speaking_test(test_id: int):
-        test = await Speaking.get_or_none(id=test_id).prefetch_related("questions")
-        if not test:
-            raise HTTPException(status_code=404, detail="Speaking test not found")
-        return test
-
-    @staticmethod
-    async def create_speaking_test(user_id: int, start_time: Optional[datetime] = None):
-        return await Speaking.create(
-            user_id=user_id,
-            start_time=start_time or datetime.now(timezone.utc),
-            status="started",
-        )
-
-    @staticmethod
-    async def submit_speaking_answer(
-        test_id: int,
-        question_id: int,
-        audio_answer: Optional[UploadFile],
-        text_answer: Optional[str]
-    ):
-        test = await Speaking.get_or_none(id=test_id)
-        if not test:
-            raise HTTPException(status_code=404, detail="Speaking test not found")
-        question = await SpeakingQuestions.get_or_none(id=question_id, speaking_id=test_id)
-        if not question:
-            raise HTTPException(status_code=404, detail="Question not found for this test")
-        audio_path = None
-        if audio_answer:
-            audio_path = f"audio_responses/{audio_answer.filename}"
-            with open(audio_path, "wb") as f:
-                f.write(await audio_answer.read())
-            # Если нужно транскрибировать аудио, реализуй функцию в integration.py:
-            # from services.chatgpt.integration import transcribe_audio
-            # text_answer = await transcribe_audio(audio_path)
-            # Пока просто сохраняем путь к аудио, а text_answer не меняем
-        await SpeakingAnswers.create(
-            question_id=question_id,
-            text_answer=text_answer,
-            audio_answer=audio_path,
-        )
-        return {"message": "Answer submitted successfully", "text_answer": text_answer}
-
-    @staticmethod
-    async def complete_speaking_test(test_id: int):
-        test = await Speaking.get_or_none(id=test_id)
-        if not test:
-            raise HTTPException(status_code=404, detail="Speaking test not found")
-        if test.status == "completed":
-            raise HTTPException(status_code=400, detail="Test is already completed")
-        test.status = "completed"
-        test.end_time = datetime.now(timezone.utc)
-        await test.save()
-        return {"message": "Speaking test completed successfully"}
-
-    @staticmethod
-    async def get_speaking_questions(test_id: int):
-        questions = await SpeakingQuestions.filter(speaking_id=test_id).all()
-        if not questions:
-            raise HTTPException(status_code=404, detail="No questions found for this test")
-        return questions
-
-    @staticmethod
-    async def create_speaking_question(test_id: int, part: str, title: Optional[str], content: str):
-        test = await Speaking.get_or_none(id=test_id)
-        if not test:
-            raise HTTPException(status_code=404, detail="Speaking test not found")
-        return await SpeakingQuestions.create(
-            speaking_id=test_id,
-            part=part,
-            title=title,
-            content=content,
-        )
-
-    @staticmethod
-    async def get_speaking_answers(test_id: int):
-        answers = await SpeakingAnswers.filter(question__speaking_id=test_id).all()
-        if not answers:
-            raise HTTPException(status_code=404, detail="No answers found for this test")
-        return answers
-
-    @staticmethod
-    async def analyse_speaking(test_id: int):
+    async def start_session(user, t: dict) -> Dict[str, Any]:
         """
-        Run analysis for a speaking test (can be called from Celery or directly).
+        Start a new speaking session for a user with questions generated by ChatGPT.
         """
-        return await SpeakingAnalyseService.analyse(test_id)
+        price = await get_user_actual_test_price(user, TestTypeEnum.SPEAKING_ENG)
+        if user.tokens < price:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail=t["insufficient_tokens"]
+            )
+
+        chatgpt = ChatGPTSpeakingIntegration()
+        try:
+            questions_data = await chatgpt.generate_ielts_speaking_questions()
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=t["question_generation_failed"]
+            )
+
+        async with in_transaction():
+            user.tokens -= price
+            await user.save()
+            await TokenTransaction.create(
+                user_id=user.id,
+                transaction_type=TransactionType.TEST_SPEAKING,
+                amount=price,
+                balance_after_transaction=user.tokens,
+                description=t["transaction_description"].format(price=price),
+            )
+
+            session = await Speaking.create(
+                user_id=user.id,
+                start_time=datetime.now(timezone.utc),
+                status=SpeakingStatus.STARTED.value,
+            )
+
+            for part_key in ["part1", "part2", "part3"]:
+                q = questions_data.get(part_key)
+                if not q:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=t["question_parsing_failed"]
+                    )
+                await SpeakingQuestion.create(
+                    speaking=session,
+                    part=part_key,
+                    title=q["title"],
+                    content=q["question"],
+                )
+
+        return await SpeakingService.get_session(session.id, user.id, t)
+
+    @staticmethod
+    async def get_session(session_id: int, user_id: int, t: dict) -> Dict[str, Any]:
+        """
+        Retrieve a speaking session and its questions.
+        """
+        session = await Speaking.get_or_none(id=session_id, user_id=user_id)
+        if not session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=t["session_not_found"]
+            )
+        questions = await SpeakingQuestion.filter(speaking=session).order_by("part")
+        return {
+            "session_id": session.id,
+            "start_time": session.start_time,
+            "status": session.status,
+            "questions": [
+                {
+                    "id": q.id,
+                    "part": q.part,
+                    "title": q.title,
+                    "content": q.content,
+                }
+                for q in questions
+            ],
+        }
+
+    @staticmethod
+    async def submit_answers(
+        session_id: int, user_id: int, audio_files: Dict[str, UploadFile], t: dict
+    ) -> Dict[str, Any]:
+        """
+        Submit user's audio answers, transcribe them, and perform analysis.
+        """
+        session = await Speaking.get_or_none(id=session_id, user_id=user_id)
+        if not session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=t["session_not_found"]
+            )
+
+        if session.status == SpeakingStatus.COMPLETED.value:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=t["session_already_completed"]
+            )
+
+        questions = await SpeakingQuestion.filter(speaking=session).order_by("part")
+        if len(questions) != 3:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=t["invalid_question_count"]
+            )
+
+        part_map = {q.part: q for q in questions}
+        chatgpt = ChatGPTSpeakingIntegration()
+
+        async with in_transaction():
+            answers = {}
+            for part_key in ["part1", "part2", "part3"]:
+                audio = audio_files.get(part_key)
+                if not audio:
+                    continue
+                question = part_map.get(part_key)
+                if not question:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=t["question_not_found"]
+                    )
+                # Use async transcription from integration
+                text = await chatgpt.transcribe_audio_file_async(audio)
+                answer = await SpeakingAnswer.create(
+                    question=question,
+                    audio_answer=audio.filename,
+                    text_answer=text,
+                )
+                answers[part_key] = answer
+
+            if len(answers) != 3:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=t["not_all_audio_uploaded"]
+                )
+
+            session.status = SpeakingStatus.COMPLETED.value
+            session.end_time = datetime.now(timezone.utc)
+            await session.save(update_fields=["status", "end_time"])
+
+            # Get analysis and return it
+            analyse = await SpeakingAnalyseService.analyse(session.id)
+            if not analyse:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=t["analysis_not_found"]
+                )
+
+        return {
+            "message": t["answers_submitted"],
+            "analysis": {
+                "feedback": analyse.feedback,
+                "overall_band_score": float(analyse.overall_band_score) if analyse.overall_band_score is not None else None,
+                "fluency_and_coherence_score": float(analyse.fluency_and_coherence_score) if analyse.fluency_and_coherence_score is not None else None,
+                "fluency_and_coherence_feedback": analyse.fluency_and_coherence_feedback,
+                "lexical_resource_score": float(analyse.lexical_resource_score) if analyse.lexical_resource_score is not None else None,
+                "lexical_resource_feedback": analyse.lexical_resource_feedback,
+                "grammatical_range_and_accuracy_score": float(analyse.grammatical_range_and_accuracy_score) if analyse.grammatical_range_and_accuracy_score is not None else None,
+                "grammatical_range_and_accuracy_feedback": analyse.grammatical_range_and_accuracy_feedback,
+                "pronunciation_score": float(analyse.pronunciation_score) if analyse.pronunciation_score is not None else None,
+                "pronunciation_feedback": analyse.pronunciation_feedback,
+                "timing": analyse.duration.total_seconds() if analyse.duration else None,
+            },
+        }
+
+    @staticmethod
+    async def get_analysis(session_id: int, user_id: int, t: dict) -> Dict[str, Any]:
+        """
+        Get or create analysis for a completed speaking session.
+        """
+        session = await Speaking.get_or_none(id=session_id, user_id=user_id)
+        if not session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=t["session_not_found"]
+            )
+        if session.status != SpeakingStatus.COMPLETED.value:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=t["session_not_completed"]
+            )
+        analyse = await SpeakingAnalyseService.analyse(session.id)
+        return {
+            "analysis": {
+                "feedback": analyse.feedback,
+                "overall_band_score": float(analyse.overall_band_score) if analyse.overall_band_score is not None else None,
+                "fluency_and_coherence_score": float(analyse.fluency_and_coherence_score) if analyse.fluency_and_coherence_score is not None else None,
+                "fluency_and_coherence_feedback": analyse.fluency_and_coherence_feedback,
+                "lexical_resource_score": float(analyse.lexical_resource_score) if analyse.lexical_resource_score is not None else None,
+                "lexical_resource_feedback": analyse.lexical_resource_feedback,
+                "grammatical_range_and_accuracy_score": float(analyse.grammatical_range_and_accuracy_score) if analyse.grammatical_range_and_accuracy_score is not None else None,
+                "grammatical_range_and_accuracy_feedback": analyse.grammatical_range_and_accuracy_feedback,
+                "pronunciation_score": float(analyse.pronunciation_score) if analyse.pronunciation_score is not None else None,
+                "pronunciation_feedback": analyse.pronunciation_feedback,
+                "timing": analyse.duration.total_seconds() if analyse.duration else None,
+            }
+        }

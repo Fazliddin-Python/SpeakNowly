@@ -1,1 +1,1 @@
-from .activity_tasks import *
+from .activity_tasks import log_user_activity

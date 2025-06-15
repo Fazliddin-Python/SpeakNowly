@@ -5,8 +5,8 @@ from datetime import datetime, timedelta
 from models.users import User
 from models.transactions import TokenTransaction
 from ...serializers.tests.top import TopUserIELTSSerializer
-from services.tests.ielts_score import IELTSScoreCalculator
-from utils.auth.auth import get_current_user
+from utils.ielts_score import IELTSScoreCalculator
+from utils.auth import get_current_user
 
 router = APIRouter()
 

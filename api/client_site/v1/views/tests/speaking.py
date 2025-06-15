@@ -20,8 +20,8 @@ from services.analyses.speaking_analyse_service import SpeakingAnalyseService
 
 from models.tests.speaking import (
     Speaking,
-    SpeakingQuestions,
-    SpeakingAnswers,
+    SpeakingQuestion,
+    SpeakingAnswer,
     SpeakingPart,
     SpeakingStatus,
 )
@@ -46,7 +46,7 @@ def active_user(user=Depends(get_current_user), t=Depends(get_translation)):
 
 
 async def build_speaking_response(test: Speaking) -> SpeakingResponseType:
-    qs = await SpeakingQuestions.filter(speaking_id=test.id)
+    qs = await SpeakingQuestion.filter(speaking_id=test.id)
     q_map = {
         f"part{q.part.name[-1].lower()}": QuestionPart(id=q.id, title=q.title, content=q.content)
         for q in qs
@@ -113,7 +113,7 @@ async def create_speaking_test(
             if title_key not in gen or q_key not in gen:
                 logger.error("Missing keys in generated questions: %s", gen)
                 raise HTTPException(status_code=500, detail=t["internal_error"])
-            await SpeakingQuestions.create(
+            await SpeakingQuestion.create(
                 speaking_id=speaking.id,
                 part=part,
                 title=gen[title_key],
@@ -152,7 +152,7 @@ async def submit_speaking_answers(
     if test.user_id != user.id:
         raise HTTPException(status_code=403, detail=t["permission_denied"])
 
-    qs = await SpeakingQuestions.filter(speaking_id=session_id)
+    qs = await SpeakingQuestion.filter(speaking_id=session_id)
     if not qs:
         raise HTTPException(status_code=400, detail="No questions found for this speaking session")
 
@@ -163,7 +163,7 @@ async def submit_speaking_answers(
         return await build_speaking_response(test)
 
     # Block repeated submission
-    already = await SpeakingAnswers.filter(question__speaking_id=session_id).exists()
+    already = await SpeakingAnswer.filter(question__speaking_id=session_id).exists()
     if already:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -202,8 +202,8 @@ async def submit_speaking_answers(
             logger.exception("Transcription failed for %s part %s", session_id, part_enum)
             text = ""
 
-        question_obj = await SpeakingQuestions.get(speaking_id=session_id, part=part_enum)
-        await SpeakingAnswers.create(
+        question_obj = await SpeakingQuestion.get(speaking_id=session_id, part=part_enum)
+        await SpeakingAnswer.create(
             question_id=question_obj.id,
             audio_answer=audio_url,
             text_answer=text,

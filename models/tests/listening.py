@@ -3,7 +3,8 @@ from ..base import BaseModel
 from enum import Enum
 
 
-class QuestionType(str, Enum):
+class ListeningQuestionType(str, Enum):
+    """Types of questions that can be asked in a Listening test."""
     FORM_COMPLETION = "form_completion"
     CHOICE = "choice"
     MULTIPLE_ANSWERS = "multiple_answers"
@@ -12,7 +13,8 @@ class QuestionType(str, Enum):
     CLOZE_TEST = "cloze_test"
 
 
-class PartNumber(int, Enum):
+class ListeningPartNumber(int, Enum):
+    """Enumeration for the parts of a Listening test."""
     PART_1 = 1
     PART_2 = 2
     PART_3 = 3
@@ -20,6 +22,7 @@ class PartNumber(int, Enum):
 
 
 class ListeningSessionStatus(str, Enum):
+    """Status of a Listening test session."""
     STARTED = "started"
     PENDING = "pending"
     CANCELLED = "cancelled"
@@ -49,7 +52,7 @@ class ListeningPart(BaseModel):
         related_name="parts",
         description="Related listening test"
     )
-    part_number = fields.IntEnumField(PartNumber, description="Part number of the test")
+    part_number = fields.IntEnumField(ListeningPartNumber, description="Part number of the test")
     audio_file = fields.CharField(max_length=255, description="Path or URL of the audio file for this part")
 
     class Meta:
@@ -72,7 +75,7 @@ class ListeningSection(BaseModel):
     section_number = fields.IntField(description="Section number within the part")
     start_index = fields.IntField(description="Start index/timestamp of this section")
     end_index = fields.IntField(description="End index/timestamp of this section")
-    question_type = fields.CharEnumField(QuestionType, description="Type of questions in this section")
+    question_type = fields.CharEnumField(ListeningQuestionType, description="Type of questions in this section")
     question_text = fields.TextField(null=True, description="Prompt text for the section (if applicable)")
     options = fields.JSONField(null=True, description="Options shared among questions in this section")
 
@@ -107,7 +110,7 @@ class ListeningQuestion(BaseModel):
         return f"Question {self.index} in Section {self.section_id}"
 
 
-class UserListeningSession(BaseModel):
+class ListeningSession(BaseModel):
     """Tracks a user’s attempt at a Listening test."""
     status = fields.CharEnumField(
         ListeningSessionStatus,
@@ -138,7 +141,7 @@ class UserListeningSession(BaseModel):
         return f"Session {self.id} for User {self.user_id}"
 
 
-class UserResponse(BaseModel):
+class ListeningAnswer(BaseModel):
     """Stores a user’s answer to a ListeningQuestion within a session."""
     session = fields.ForeignKeyField(
         "models.UserListeningSession",
@@ -158,7 +161,7 @@ class UserResponse(BaseModel):
     )
     user_answer = fields.JSONField(null=True, description="User’s submitted answer")
     is_correct = fields.BooleanField(default=False, description="Whether the user’s answer was correct")
-    score = fields.IntField(default=0, description="Score awarded for this response")
+    score = fields.DecimalField(max_digits=5, decimal_places=2, default=0.0, description="Score awarded for this response")
 
     class Meta:
         table = "user_responses"

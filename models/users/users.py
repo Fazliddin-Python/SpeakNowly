@@ -1,10 +1,11 @@
-from ..tariffs import Tariff
 from tortoise import fields
-from ..base import BaseModel
 from passlib.hash import bcrypt  # For password hashing
+from ..base import BaseModel
+from ..tariffs import Tariff
 
 
 class User(BaseModel):
+    """Represents a user in the system."""
     telegram_id = fields.BigIntField(unique=True, null=True, description="Telegram ID")
     email = fields.CharField(max_length=255, unique=True, description="Email Address")
     first_name = fields.CharField(max_length=255, null=True, description="First Name")
@@ -48,6 +49,7 @@ class User(BaseModel):
 
 
 class UserActivityLog(BaseModel):
+    """Logs user activities such as login, logout, and other actions."""
     user = fields.ForeignKeyField("models.User", related_name="activity_logs", description="User")
     action = fields.CharField(max_length=255, description="Action performed by the user")
     timestamp = fields.DatetimeField(auto_now_add=True, description="Timestamp of the action")

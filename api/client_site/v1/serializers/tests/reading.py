@@ -2,7 +2,7 @@ from typing import List, Dict, Any, Optional
 from pydantic import Field, field_validator
 from datetime import datetime
 from ..base import BaseSerializer, SafeSerializer
-from models.tests.reading import Passage as PassageModel, Question as QuestionModel, Variant as VariantModel
+from models.tests.reading import ReadingPassage as PassageModel, ReadingQuestion as QuestionModel, ReadingVariant as VariantModel
 from models.tests.constants import Constants
 
 # -----------------------------

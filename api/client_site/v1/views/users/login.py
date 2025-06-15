@@ -13,7 +13,7 @@ from utils.auth.auth import create_access_token, create_refresh_token, decode_ac
 from utils.auth.oauth2_auth import oauth2_sign_in
 from utils.i18n import get_translation
 from tasks.users import log_user_activity
-from utils.limiters.login import LoginLimiter
+from utils.limiters import get_login_limiter
 from config import REDIS_URL
 
 router = APIRouter()
@@ -21,7 +21,7 @@ bearer_scheme = HTTPBearer()
 logger = logging.getLogger(__name__)
 
 redis_client = Redis.from_url(REDIS_URL, decode_responses=True)
-login_limiter = LoginLimiter(redis_client)
+login_limiter = get_login_limiter(redis_client)
 
 
 @router.post(
@@ -59,7 +59,7 @@ async def login(
         user = await UserService.authenticate(email, data.password, t)
 
         # 3. Reset limiter counter on success
-        await login_limiter.reset_attempts(email)
+        await login_limiter.reset(email)
 
         # 4. Update last_login timestamp
         await UserService.update_user(user.id, t, last_login=datetime.utcnow())
@@ -77,7 +77,7 @@ async def login(
 
     except HTTPException as exc:
         logger.warning("HTTPException during login: %s\n%s", exc.detail, traceback.format_exc())
-        await login_limiter.register_failed_attempt(email)
+        await login_limiter.register_attempt(email)
         detail = exc.detail if isinstance(exc.detail, str) else t.get("internal_error", "Internal server error")
         raise HTTPException(status_code=exc.status_code, detail=detail)
     except Exception as exc:

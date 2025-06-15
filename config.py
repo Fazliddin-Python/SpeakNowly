@@ -28,25 +28,22 @@ DATABASE_CONFIG = {
     "apps": {
         "models": {
             "models": [
-                "models.users.users",
-                "models.tests.listening",
-                "models.tests.reading",
-                "models.tests.speaking",
-                "models.tests.writing",
+                "models.users",
+                "models.tests",
                 "models.analyses",
                 "models.comments",
                 "models.notifications",
                 "models.tariffs",
-                "models.payments",
-                "models.users",
-                "models.tests",
                 "models.transactions",
+                "models.payments",
                 "aerich.models"
             ],
             "default_connection": "default",
         }
     },
 }
+
+REDIS_URL = config("REDIS_URL", default="redis://localhost:6379/0")
 
 # === Email settings ===
 EMAIL_BACKEND = config("EMAIL_BACKEND", default="http")  # smtp или http
@@ -65,36 +62,6 @@ EMAIL_PROVIDER_APIKEY = config("EMAIL_PROVIDER_APIKEY", default="")
 # === JWT settings ===
 ACCESS_TOKEN_EXPIRE = timedelta(days=5)
 REFRESH_TOKEN_EXPIRE = timedelta(days=90)
-
-# === Celery (Redis) ===
-CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = config("CELERY_RESULT_BACKEND", default="redis://localhost:6379/0")
-CELERY_ACCEPT_CONTENT = ["json"]
-CELERY_TASK_SERIALIZER = "json"
-CELERY_RESULT_SERIALIZER = "json"
-CELERY_TIMEZONE = "UTC"
-
-REDIS_URL = config("REDIS_URL", default="redis://localhost:6379/0")
-CELERY_TASK_ROUTES = {
-    "tasks.users.activity_tasks.log_user_activity": {"queue": "user_activity"},
-    "services.users.email_service.send_email_task": {"queue": "emails"},
-    "tasks.analyses.listening_tasks.analyse_listening_task": {"queue": "analyses"},
-    "tasks.analyses.reading_tasks.analyse_reading_task": {"queue": "analyses"},
-    "tasks.analyses.speaking_tasks.analyse_speaking_task": {"queue": "analyses"},
-    "tasks.analyses.writing_tasks.analyse_writing_task": {"queue": "analyses"},
-    "tasks.comments_tasks.notify_admin_about_comment": {"queue": "comments"},
-    "tasks.notifications_tasks.send_mass_notification": {"queue": "notifications"},
-}
-CELERY_INCLUDE = [
-    "tasks.users.activity_tasks",
-    "services.users.email_service",
-    "tasks.analyses.listening_tasks",
-    "tasks.analyses.reading_tasks",
-    "tasks.analyses.speaking_tasks",
-    "tasks.analyses.writing_tasks",
-    "tasks.comments_tasks",
-    "tasks.notifications_tasks",
-]
 
 # === Api keys ===
 GOOGLE_CLIENT_ID = config("GOOGLE_CLIENT_ID", default="")

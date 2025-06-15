@@ -35,7 +35,7 @@ class Speaking(BaseModel):
         return f"Speaking test {self.id} for user {self.user_id}"
 
 
-class SpeakingQuestions(BaseModel):
+class SpeakingQuestion(BaseModel):
     """A question belonging to a speaking test."""
     speaking = fields.ForeignKeyField("models.Speaking", related_name="questions", on_delete=fields.CASCADE, description="Related speaking test")
     part = fields.CharEnumField(SpeakingPart, null=True, description="Part of the speaking test")
@@ -52,7 +52,7 @@ class SpeakingQuestions(BaseModel):
         return f"{self.part} for Speaking {self.speaking_id}: {snippet}"
 
 
-class SpeakingAnswers(BaseModel):
+class SpeakingAnswer(BaseModel):
     """The answer to a single speaking question."""
     question = fields.OneToOneField("models.SpeakingQuestions", related_name="answer", on_delete=fields.CASCADE, description="The question this answer refers to")
     text_answer = fields.TextField(null=True, description="Transcribed text of the audio answer")

@@ -11,7 +11,7 @@ from utils.auth.auth import get_current_user
 from utils.i18n import get_translation
 from tasks.users import log_user_activity
 from models.users.verification_codes import VerificationType
-from utils.limiters.email_update import EmailUpdateLimiter
+from utils.limiters import EmailUpdateLimiter
 from config import REDIS_URL
 
 router = APIRouter()
@@ -60,7 +60,7 @@ async def request_email_update(
         raise HTTPException(status_code=429, detail=t["too_many_attempts"])
 
     # 5. Register attempt for limiter
-    await email_update_limiter.register_failed_attempt(new_email)
+    await email_update_limiter.register_attempt(new_email)
 
     # 6. Send OTP
     try:
