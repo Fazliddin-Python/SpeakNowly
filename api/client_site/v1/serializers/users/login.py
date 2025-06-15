@@ -1,5 +1,4 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Literal, Optional
 
 
 class LoginSerializer(BaseModel):
@@ -18,5 +17,5 @@ class OAuth2SignInSerializer(BaseModel):
 class AuthResponseSerializer(BaseModel):
     """Serializer for authentication response."""
     access_token: str = Field(..., description="JWT access token")
-    refresh_token: Optional[str] = Field(None, description="JWT refresh token")
+    refresh_token: str = Field(..., description="JWT refresh token")
     auth_type: str = Field(..., description="Auth type, e.g., Bearer")

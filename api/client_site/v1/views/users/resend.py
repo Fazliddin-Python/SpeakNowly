@@ -1,21 +1,17 @@
-import logging
-
 from fastapi import APIRouter, HTTPException, status, Depends
 from redis.asyncio import Redis
 
-from ...serializers.users.resend import ResendOTPSchema, ResendOTPResponseSerializer
-from services.users.verification_service import VerificationService
+from ...serializers.users import ResendOTPSchema, ResendOTPResponseSerializer
+from services.users import VerificationService
+from models.users import VerificationType
 from utils.limiters import get_resend_limiter
 from utils.i18n import get_translation
-from models.users.verification_codes import VerificationType
 from config import REDIS_URL
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
 
 redis_client = Redis.from_url(REDIS_URL, decode_responses=True)
 resend_limiter = get_resend_limiter(redis_client)
-
 
 @router.post(
     "/resend-otp/",
@@ -38,17 +34,12 @@ async def resend_otp(
     """
     email = data.email.lower().strip()
     key = f"{data.verification_type}:{email}"
-    logger.info("Resend OTP requested for %s type=%s", email, data.verification_type)
 
-    # 2. Rate-limit check
     if await resend_limiter.is_blocked(key):
-        logger.warning("Resend OTP blocked due to too many attempts: %s type=%s", email, data.verification_type)
-        raise HTTPException(status_code=429, detail=t["too_many_attempts"])
+        raise HTTPException(status_code=429, detail=t["too_many_attempts"].format(minutes=5))
 
-    # 3. Register resend attempt for limiter
     await resend_limiter.register_attempt(key)
 
-    # 4. Send OTP
     try:
         await VerificationService.send_verification_code(
             email=email,
@@ -56,8 +47,6 @@ async def resend_otp(
         )
     except HTTPException as exc:
         detail = exc.detail if isinstance(exc.detail, str) else t["otp_resend_failed"]
-        logger.warning("Resend OTP failed for %s: %s", email, detail)
         raise HTTPException(status_code=exc.status_code, detail=detail)
 
-    logger.info("OTP resent to %s type=%s", email, data.verification_type)
     return ResendOTPResponseSerializer(message=t["code_resent"])

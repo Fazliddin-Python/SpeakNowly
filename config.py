@@ -22,7 +22,7 @@ CORS_ALLOW_HEADERS = [
 ]
 
 # === Database (Tortoise ORM) ===
-DATABASE_URL = "postgres://speaknowly_owner:npg_Jt6HSF3okzxi@ep-ancient-dust-a2pcxrgh-pooler.eu-central-1.aws.neon.tech/speaknowly"
+DATABASE_URL = "postgresql://SpeakNowly_owner:npg_0VE3cUXbhdRn@ep-square-credit-a2fs6dxa-pooler.eu-central-1.aws.neon.tech/SpeakNowly"
 DATABASE_CONFIG = {
     "connections": {"default": DATABASE_URL},
     "apps": {

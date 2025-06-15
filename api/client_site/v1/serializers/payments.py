@@ -1,12 +1,19 @@
-from pydantic import Field, UUID4, validator
+from pydantic import BaseModel, Field, UUID4
 from typing import Optional
-from datetime import datetime, timezone
-from .base import SafeSerializer, BaseSerializer
+from datetime import datetime
 from models.payments import PaymentStatus
 
 
-class PaymentSerializer(SafeSerializer):
-    """Serializer for basic payment information."""
+class PaymentCreateSerializer(BaseModel):
+    """Create payment."""
+    user_id: int = Field(..., description="User ID")
+    tariff_id: int = Field(..., description="Tariff ID")
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+
+
+class PaymentSerializer(BaseModel):
+    """Basic payment info."""
     uuid: UUID4
     user_id: int
     tariff_id: int
@@ -14,10 +21,13 @@ class PaymentSerializer(SafeSerializer):
     start_date: datetime
     end_date: datetime
     status: PaymentStatus
+    atmos_invoice_id: Optional[str]
+    atmos_status: Optional[str]
+    payment_url: Optional[str]
 
 
-class PaymentDetailSerializer(SafeSerializer):
-    """Serializer for detailed payment information."""
+class PaymentDetailSerializer(BaseModel):
+    """Detailed payment info."""
     uuid: UUID4
     user: dict
     tariff: dict
@@ -25,24 +35,13 @@ class PaymentDetailSerializer(SafeSerializer):
     start_date: datetime
     end_date: datetime
     status: PaymentStatus
-
-    @validator("user", "tariff")
-    def validate_nested_objects(cls, value):
-        if not value:
-            raise ValueError("User and Tariff details must be provided")
-        return value
+    atmos_invoice_id: Optional[str]
+    atmos_status: Optional[str]
+    payment_url: Optional[str]
 
 
-class PaymentCreateSerializer(BaseSerializer):
-    """Serializer for creating a payment."""
-    user_id: int = Field(..., description="ID of the user making the payment")
-    tariff_id: int = Field(..., description="ID of the tariff being purchased")
-    start_date: Optional[datetime] = Field(None, description="Start date of the payment")
-    end_date: Optional[datetime] = Field(None, description="End date of the payment")
-
-
-class PaymentListSerializer(SafeSerializer):
-    """Serializer for listing payments."""
+class PaymentListSerializer(BaseModel):
+    """List payments."""
     uuid: UUID4
     user_id: int
     tariff_id: int
@@ -50,3 +49,6 @@ class PaymentListSerializer(SafeSerializer):
     start_date: datetime
     end_date: datetime
     status: PaymentStatus
+    atmos_invoice_id: Optional[str]
+    atmos_status: Optional[str]
+    payment_url: Optional[str]

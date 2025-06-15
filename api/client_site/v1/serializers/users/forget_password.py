@@ -2,20 +2,24 @@ from pydantic import BaseModel, EmailStr, Field
 
 class ForgetPasswordSerializer(BaseModel):
     """Serializer for requesting a password reset."""
-    email: EmailStr = Field(..., description="Email address of the user")
-
+    email: EmailStr = Field(..., description="User's email address")
 
 class ResetPasswordSerializer(BaseModel):
-    """Serializer for verifying OTP and setting a new password in one step."""
-    email: EmailStr = Field(..., description="Email address of the user")
+    """Serializer for verifying OTP and setting a new password."""
+    email: EmailStr = Field(..., description="User's email address")
     code: int = Field(..., description="Verification code sent to the email")
-    new_password: str = Field(..., min_length=8, description="New password (minimum 8 characters)")
+    new_password: str = Field(..., min_length=8, description="New password (min 8 chars, 1 digit, 1 lowercase, 1 uppercase)")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "email": "user@example.com",
-                "code": 12345,
-                "new_password": "NewPass123"
-            }
-        }
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        import re
+        if len(value) < 8:
+            raise ValueError("Password must be at least 8 characters long")
+        if not re.search(r"[A-Z]", value):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not re.search(r"[a-z]", value):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not re.search(r"\d", value):
+            raise ValueError("Password must contain at least one digit")
+        return value

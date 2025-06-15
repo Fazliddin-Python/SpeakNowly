@@ -1,71 +1,54 @@
-import logging
 from fastapi import APIRouter, HTTPException, Request, Depends
 from typing import List
-
 from models.tariffs import TariffCategory
 from ..serializers.tariffs import PlanInfo, TariffInfo, FeatureItemInfo, FeatureInfo
 from services.cache_service import cache
 from utils.i18n import get_translation
 
-logger = logging.getLogger(__name__)
 router = APIRouter()
 
-
 def _translate(obj, field: str, lang: str) -> str:
-    """
-    1) Try <field>_<lang>
-    2) Fallback to <field> if missing
-    """
+    """Get translated field or fallback."""
     return getattr(obj, f"{field}_{lang}", None) or getattr(obj, field, "") or ""
-
 
 @router.get("/", response_model=List[PlanInfo])
 async def list_plans(
     request: Request,
     t: dict = Depends(get_translation),
 ):
-    """
-    Return all plans with nested tariffs and features.
-    Accept-Language header must be one of: en, ru, uz.
-    """
+    """Return all plans with tariffs and features for main page."""
     raw_lang = request.headers.get("Accept-Language", "en").split(",")[0]
     lang = raw_lang.split("-")[0].lower()
     if lang not in {"en", "ru", "uz"}:
         raise HTTPException(status_code=400, detail=t.get("invalid_language", "Unsupported language"))
 
-    logger.debug("Requested language: %s", lang)
     cache_key = f"plans_{lang}"
     cached = await cache.get(cache_key)
     if cached:
         return cached
 
     categories = await TariffCategory.filter(is_active=True).prefetch_related(
-        "tariffs__features__feature"
+        "tariffs__tariff_features__feature"
     )
 
     result: List[PlanInfo] = []
     for category in categories:
-        logger.debug("Category %d: name_uz=%s", category.id, category.name_uz)
         category_name = _translate(category, "name", lang)
-        active_tariffs = [tariff for tariff in category.tariffs if tariff.is_active]
         tariffs_list: List[TariffInfo] = []
 
-        for tariff in active_tariffs:
-            logger.debug("Tariff %d: name_uz=%s", tariff.id, tariff.name_uz)
+        for tariff in category.tariffs:
+            if not tariff.is_active:
+                continue
             t_name = _translate(tariff, "name", lang)
             t_desc = _translate(tariff, "description", lang)
-            redirect_url = getattr(tariff, "redirect_url", "") or ""
             features_list: List[FeatureItemInfo] = []
 
-            for tf in tariff.features:
+            for tf in tariff.tariff_features:
                 feat = tf.feature
                 if not feat:
                     continue
-
-                logger.debug("Feature %d: name_uz=%s", feat.id, feat.name_uz)
                 f_name = _translate(feat, "name", lang)
                 f_desc = _translate(feat, "description", lang)
-
                 feature_info = FeatureInfo(
                     id=feat.id,
                     name=f_name,
@@ -87,7 +70,7 @@ async def list_plans(
                 description=t_desc,
                 tokens=int(tariff.tokens),
                 duration=int(tariff.duration),
-                redirect_url=redirect_url,
+                redirect_url=None,
                 is_default=bool(tariff.is_default),
                 price_in_stars=int(tariff.price_in_stars),
                 features=features_list

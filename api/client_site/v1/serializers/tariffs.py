@@ -1,13 +1,11 @@
-from pydantic import BaseModel, validator
+from pydantic import BaseModel
 from typing import Optional, List
 
-
 class FeatureInfo(BaseModel):
-    """Feature information."""
+    """Feature info."""
     id: int
     name: str
-    description: Optional[str] = ""
-
+    description: Optional[str]
 
 class FeatureItemInfo(BaseModel):
     """Tariff feature item."""
@@ -16,30 +14,22 @@ class FeatureItemInfo(BaseModel):
     feature: FeatureInfo
     is_included: bool
 
-
 class TariffInfo(BaseModel):
-    """Tariff information."""
+    """Tariff info."""
     id: int
     name: str
+    old_price: Optional[float]
     price: float
-    old_price: Optional[float] = None
+    price_in_stars: int
     description: str
     tokens: int
     duration: int
-    redirect_url: str
-    is_default: bool
-    price_in_stars: int = 0
     features: List[FeatureItemInfo]
-
-    @validator("price", "tokens", "duration", pre=True)
-    def non_negative(cls, v):
-        if isinstance(v, (int, float)) and v < 0:
-            raise ValueError("Must be non-negative")
-        return v
-
+    is_default: bool
+    redirect_url: Optional[str]
 
 class PlanInfo(BaseModel):
-    """Plan (category) information."""
+    """Plan (category) info."""
     id: int
     name: str
     sale: float

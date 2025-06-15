@@ -1,7 +1,6 @@
 import re
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional
-
 
 class ProfileSerializer(BaseModel):
     """Serializer for user profile data."""
@@ -9,44 +8,42 @@ class ProfileSerializer(BaseModel):
     first_name: Optional[str] = Field(None, description="User's first name")
     last_name: Optional[str] = Field(None, description="User's last name")
     age: Optional[int] = Field(None, ge=0, le=120, description="User's age")
-    photo: Optional[str] = Field(None, description="URL of the user's photo")
+    photo: Optional[str] = Field(None, description="User photo URL (/media/ only)")
     tokens: int = Field(..., description="User's token balance")
     is_premium: bool = Field(..., description="Whether the user has a premium tariff")
 
-    @validator("photo")
+    @field_validator("photo")
+    @classmethod
     def validate_photo(cls, v):
         if v is None:
             return v
-        if v.startswith("http://") or v.startswith("https://") or v.startswith("/media/"):
+        if v.startswith("/media/"):
             return v
-        raise ValueError("Photo URL must start with http, https, or /media/")
-
-    class Config:
-        from_attributes = True
-
-
+        raise ValueError("Photo URL must start with /media/")
+    
 class ProfileUpdateSerializer(BaseModel):
     """Serializer for updating user profile fields."""
     first_name: Optional[str] = Field(None, description="User's first name")
     last_name: Optional[str] = Field(None, description="User's last name")
     age: Optional[int] = Field(None, ge=0, le=120, description="User's age")
-    photo: Optional[str] = Field(None, description="URL of the user's photo")
+    photo: Optional[str] = Field(None, description="User photo URL (/media/ only)")
 
-    @validator("photo")
+    @field_validator("photo")
+    @classmethod
     def validate_photo_url(cls, value: Optional[str]) -> Optional[str]:
-        if value and not (
-            value.startswith("http://") or value.startswith("https://") or value.startswith("/media/")
-        ):
-            raise ValueError("Photo URL must start with http, https, or /media/")
-        return value
-
+        if value is None:
+            return value
+        if value.startswith("/media/"):
+            return value
+        raise ValueError("Photo URL must start with /media/")
 
 class ProfilePasswordUpdateSerializer(BaseModel):
     """Serializer for updating user password."""
     old_password: str = Field(..., description="Current password")
-    new_password: str = Field(..., min_length=8, description="New password (min 8 chars)")
+    new_password: str = Field(..., min_length=8, description="New password (min 8 chars, 1 digit, 1 lowercase, 1 uppercase)")
 
-    @validator("new_password")
+    @field_validator("new_password")
+    @classmethod
     def validate_new_password(cls, value: str) -> str:
         if len(value) < 8:
             raise ValueError("Password must be at least 8 characters long")
@@ -56,6 +53,4 @@ class ProfilePasswordUpdateSerializer(BaseModel):
             raise ValueError("Password must contain at least one lowercase letter")
         if not re.search(r"\d", value):
             raise ValueError("Password must contain at least one digit")
-        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", value):
-            raise ValueError("Password must contain at least one special character")
         return value

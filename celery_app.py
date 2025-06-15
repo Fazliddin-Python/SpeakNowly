@@ -24,8 +24,7 @@ celery_app = Celery(
         "tasks.analyses.reading_tasks",
         "tasks.analyses.speaking_tasks",
         "tasks.analyses.writing_tasks",
-        "tasks.comments_tasks",
-        "tasks.notifications_tasks",
+        "tasks.tariffs_tasks",
     ],
 )
 
@@ -38,8 +37,8 @@ celery_app.conf.update(
         "tasks.analyses.reading_tasks.analyse_reading_task": {"queue": "analyses"},
         "tasks.analyses.speaking_tasks.analyse_speaking_task": {"queue": "analyses"},
         "tasks.analyses.writing_tasks.analyse_writing_task": {"queue": "analyses"},
-        "tasks.comments_tasks.notify_admin_about_comment": {"queue": "comments"},
-        "tasks.notifications_tasks.send_mass_notification": {"queue": "notifications"},
+        "tasks.tariffs_tasks.check_expired_tariffs": {"queue": "tariffs"},
+        "tasks.tariffs_tasks.give_daily_tariff_bonus": {"queue": "tariffs"},
     },
     accept_content=["json"],
     task_serializer="json",
