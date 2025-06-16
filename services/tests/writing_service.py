@@ -1,8 +1,7 @@
-from datetime import datetime, timezone
-from typing import Dict, Any
-
 from fastapi import HTTPException, status
+from typing import Dict, Any
 from tortoise.transactions import in_transaction
+from datetime import datetime, timezone
 
 from models.tests import (
     Writing,
@@ -101,7 +100,7 @@ class WritingService:
         return await WritingService.get_session(writing.id, user.id, t)
 
     @staticmethod
-    async def get_session(session_id: int, user_id: int, t: dict) -> Dict[str, Any]:
+    async def get_session(session_id: int, user_id: int, t: dict) -> "Writing":
         """
         Retrieve a writing session and its questions.
         """
@@ -111,21 +110,7 @@ class WritingService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=t["session_not_found"]
             )
-        part1 = await WritingPart1.get_or_none(writing=writing)
-        part2 = await WritingPart2.get_or_none(writing=writing)
-        return {
-            "session_id": writing.id,
-            "status": writing.status,
-            "start_time": writing.start_time,
-            "part1": {
-                "content": part1.content if part1 else None,
-                "diagram": part1.diagram if part1 else None,
-                "diagram_data": part1.diagram_data if part1 else None,
-            },
-            "part2": {
-                "content": part2.content if part2 else None,
-            }
-        }
+        return writing
 
     @staticmethod
     async def submit_answers(

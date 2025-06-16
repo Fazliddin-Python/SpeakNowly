@@ -1,12 +1,10 @@
-import asyncio
-from typing import Optional, Any
 from fastapi import HTTPException, status
+from typing import Optional, Any
 from tortoise.transactions import in_transaction
 from pydantic import validate_email as pydantic_validate_email, ValidationError
+import asyncio
 
-from models.users.users import User
-from models.tariffs import Tariff
-from models.transactions import TokenTransaction, TransactionType
+from models import Tariff, TokenTransaction, TransactionType, User
 
 ALLOWED_UPDATE_FIELDS = {
     "email", "first_name", "last_name", "age", "photo", "last_login",

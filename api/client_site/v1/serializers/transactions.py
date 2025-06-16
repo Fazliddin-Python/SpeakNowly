@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
-from models.transactions import TransactionType
+from models import TransactionType
 
 class TokenTransactionSerializer(BaseModel):
     user_id: int

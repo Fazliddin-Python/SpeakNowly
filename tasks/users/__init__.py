@@ -1,1 +1,0 @@
-from .activity_tasks import log_user_activity

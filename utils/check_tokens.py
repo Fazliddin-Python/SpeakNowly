@@ -18,7 +18,7 @@ async def check_user_tokens(
     if price is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Test type '{test_type}' not found"
+            detail=t.get("test_type_not_found", "Test type not found")
         )
 
     if user.tokens < price:

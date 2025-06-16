@@ -1,7 +1,9 @@
-import json
 from fastapi import HTTPException, status, UploadFile
+import json
+import re
 from openai import AuthenticationError, BadRequestError, OpenAIError, RateLimitError
 from .base_integration import BaseChatGPTIntegration
+from io import BytesIO
 
 QUESTIONS_PROMPT = """
 Create a set of IELTS Speaking test questions divided into 3 parts without any unnecessary notes. Please try to find relevant and updated IELTS questions:
@@ -9,6 +11,13 @@ In the first part, always ask for full name, address, work/education. Then you c
 Part 2 should consist of descriptive and three-point questions.
 Part 3 should be argumentative questions. Create questions related to part 2. There should be a total of 3-6 questions.
 Make sure the questions are relevant to the IELTS Speaking exam and focus on general, interrelated topics that test the student's fluency and consistency in English, and the total time should be 1-15 minutes per candidate.
+Return ONLY a valid JSON object. Do not include any explanations, markdown, or text outside the JSON. If you understand, reply only with the JSON object.
+
+{
+  "part1": {"title": "...", "question": "..."},
+  "part2": {"title": "...", "question": "..."},
+  "part3": {"title": "...", "question": "..."}
+}
 """
 
 ANALYSE_PROMPT = """
@@ -23,6 +32,21 @@ Please provide:
 Individual scores (Band 1 to Band 9) for each criterion.
 A detailed analysis explaining the strengths and weaknesses for each criterion.
 A final overall band score (Band 1 to Band 9) based on the average of the individual scores.
+
+Return ONLY a valid JSON object. Do not include any explanations, markdown, or text outside the JSON. If you understand, reply only with the JSON object.
+
+{
+  "fluency_and_coherence_score": ...,
+  "fluency_and_coherence_feedback": "...",
+  "lexical_resource_score": ...,
+  "lexical_resource_feedback": "...",
+  "grammatical_range_and_accuracy_score": ...,
+  "grammatical_range_and_accuracy_feedback": "...",
+  "pronunciation_score": ...,
+  "pronunciation_feedback": "...",
+  "overall_band_score": ...,
+  "feedback": "..."
+}
 """
 
 class ChatGPTSpeakingIntegration(BaseChatGPTIntegration):
@@ -67,16 +91,39 @@ class ChatGPTSpeakingIntegration(BaseChatGPTIntegration):
             ],
             temperature=0.0,
         )
-        return json.loads(response.choices[0].message.content)
+        raw = response.choices[0].message.content
+        print("GPT RAW:", raw)
+        if not raw or not raw.strip():
+            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "OpenAI вернул пустой ответ для анализа.")
+
+        # Удаляем markdown и ищем JSON
+        match = re.search(r'\{.*\}', raw, re.DOTALL)
+        if not match:
+            raise HTTPException(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                f"OpenAI вернул невалидный JSON:\n{raw}"
+            )
+        json_str = match.group(0)
+        try:
+            return json.loads(json_str)
+        except Exception as e:
+            raise HTTPException(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                f"Ошибка парсинга ответа OpenAI: {e}\nRAW: {json_str}"
+            )
 
     async def transcribe_audio_file_async(self, audio: UploadFile, lang="en") -> str:
         """
         Asynchronously transcribe audio using OpenAI Whisper.
         """
         try:
+            # Read file content asynchronously
             content = await audio.read()
+            file_like = BytesIO(content)
+            file_like.name = audio.filename
+
             transcript = await self.async_client.audio.transcriptions.create(
-                file=content,
+                file=file_like,
                 model="whisper-1",
                 response_format="text",
                 language=lang

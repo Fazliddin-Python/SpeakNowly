@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, status
-from tasks.users import log_user_activity
 from utils.auth import get_current_user
 from utils.i18n import get_translation
+from utils.arq_pool import get_arq_redis
 
 router = APIRouter()
 
@@ -11,15 +11,13 @@ router = APIRouter()
 )
 async def logout(
     current_user=Depends(get_current_user),
-    t: dict = Depends(get_translation)
+    t: dict = Depends(get_translation),
+    redis=Depends(get_arq_redis)
 ):
     """
-    Log out the current user.
-
-    Steps:
-    1. Authenticate user.
-    2. Log activity.
-    3. Return 204.
+    Log out current user and enqueue activity log job.
     """
-    await log_user_activity.delay(current_user.id, "logout")
+    await redis.enqueue_job(
+        "log_user_activity", user_id=current_user.id, action="logout"
+    )
     return {"message": t["logout_successful"]}

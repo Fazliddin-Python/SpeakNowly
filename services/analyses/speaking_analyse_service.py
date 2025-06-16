@@ -1,14 +1,28 @@
-from datetime import timedelta
 from fastapi import HTTPException, status
-from typing import Optional
 from tortoise.transactions import in_transaction
+from datetime import timedelta
+from services.chatgpt import ChatGPTSpeakingIntegration
 from models.analyses import SpeakingAnalyse
 from models.tests import Speaking, SpeakingAnswer, SpeakingStatus
-from services.chatgpt.speaking_integration import ChatGPTSpeakingIntegration
+
+def analyse_to_dict(analyse: SpeakingAnalyse) -> dict:
+    return {
+        "feedback": analyse.feedback,
+        "overall_band_score": float(analyse.overall_band_score) if analyse.overall_band_score is not None else None,
+        "fluency_and_coherence_score": float(analyse.fluency_and_coherence_score) if analyse.fluency_and_coherence_score is not None else None,
+        "fluency_and_coherence_feedback": analyse.fluency_and_coherence_feedback,
+        "lexical_resource_score": float(analyse.lexical_resource_score) if analyse.lexical_resource_score is not None else None,
+        "lexical_resource_feedback": analyse.lexical_resource_feedback,
+        "grammatical_range_and_accuracy_score": float(analyse.grammatical_range_and_accuracy_score) if analyse.grammatical_range_and_accuracy_score is not None else None,
+        "grammatical_range_and_accuracy_feedback": analyse.grammatical_range_and_accuracy_feedback,
+        "pronunciation_score": float(analyse.pronunciation_score) if analyse.pronunciation_score is not None else None,
+        "pronunciation_feedback": analyse.pronunciation_feedback,
+        "timing": analyse.duration.total_seconds() if analyse.duration else None,
+    }
 
 class SpeakingAnalyseService:
     @staticmethod
-    async def analyse(test_id: int) -> SpeakingAnalyse:
+    async def analyse(test_id: int) -> dict:
         test = await Speaking.get_or_none(id=test_id)
         if not test:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Speaking test not found")
@@ -18,9 +32,9 @@ class SpeakingAnalyseService:
         
         existing = await SpeakingAnalyse.get_or_none(speaking_id=test.id)
         if existing:
-            return existing
+            return analyse_to_dict(existing)
         
-        answers = await SpeakingAnswer.filter(question__speaking_id=test_id).order_by("question__part").all()
+        answers = await SpeakingAnswer.filter(question__speaking_id=test_id).order_by("question__part").prefetch_related("question")
         if len(answers) < 3:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not all answers found for this test")
         
@@ -31,7 +45,7 @@ class SpeakingAnalyseService:
         if not analysis:
             raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Failed to analyse speaking test")
         
-        duration = (test.end_time - test.start_time) if (test.start_time and test.end_time) else None
+        duration = (test.end_time - test.start_time) if (test.start_time and test.end_time) else timedelta(0)
         
         speaking_analyse = await SpeakingAnalyse.create(
             speaking_id=test.id,
@@ -48,4 +62,4 @@ class SpeakingAnalyseService:
             duration=duration,
         )
         
-        return speaking_analyse
+        return analyse_to_dict(speaking_analyse)

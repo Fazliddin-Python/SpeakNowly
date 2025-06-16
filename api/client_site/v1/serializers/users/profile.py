@@ -1,6 +1,6 @@
-import re
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional
+import re
 
 class ProfileSerializer(BaseModel):
     """Serializer for user profile data."""
@@ -21,6 +21,8 @@ class ProfileSerializer(BaseModel):
             return v
         raise ValueError("Photo URL must start with /media/")
     
+    model_config = {"from_attributes": True}
+
 class ProfileUpdateSerializer(BaseModel):
     """Serializer for updating user profile fields."""
     first_name: Optional[str] = Field(None, description="User's first name")
@@ -36,6 +38,8 @@ class ProfileUpdateSerializer(BaseModel):
         if value.startswith("/media/"):
             return value
         raise ValueError("Photo URL must start with /media/")
+    
+    model_config = {"from_attributes": True}
 
 class ProfilePasswordUpdateSerializer(BaseModel):
     """Serializer for updating user password."""
@@ -54,3 +58,5 @@ class ProfilePasswordUpdateSerializer(BaseModel):
         if not re.search(r"\d", value):
             raise ValueError("Password must contain at least one digit")
         return value
+    
+    model_config = {"from_attributes": True}

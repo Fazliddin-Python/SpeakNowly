@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Request
 from typing import List
-from models.notifications import Message, ReadStatus
+
 from ..serializers.notifications import MessageListSerializer, MessageDetailSerializer
+from models import Message, ReadStatus
 from utils.auth import get_current_user
 from utils.i18n import get_translation
 

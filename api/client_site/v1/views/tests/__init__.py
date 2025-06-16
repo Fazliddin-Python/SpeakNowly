@@ -7,7 +7,7 @@ from .speaking import router as speaking_router
 from .writing import router as writing_router
 
 router = APIRouter()
-router.include_router(history_router)
+router.include_router(history_router, prefix="/history", tags=["Test History"])
 router.include_router(top_router, prefix="/top", tags=["Top Tests"])
 router.include_router(listening_router, prefix="/listening", tags=["Listening Tests"])
 router.include_router(reading_router, prefix="/reading", tags=["Reading Tests"])

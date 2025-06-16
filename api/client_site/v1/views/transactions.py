@@ -2,8 +2,7 @@ from fastapi import APIRouter, HTTPException, Query, Depends, status
 from typing import List, Optional
 from tortoise.exceptions import DoesNotExist
 from tortoise.transactions import in_transaction
-from models.transactions import TokenTransaction, TransactionType
-from models.users.users import User
+
 from ..serializers.transactions import (
     TokenTransactionSerializer,
     TokenTransactionCreateSerializer,
@@ -11,6 +10,7 @@ from ..serializers.transactions import (
     TokenTransactionDetailSerializer,
 )
 from ..serializers.payments import PaymentCreateSerializer
+from models import TokenTransaction, TransactionType, User
 from utils.auth import get_current_user
 from utils.i18n import get_translation
 

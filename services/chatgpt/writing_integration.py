@@ -1,9 +1,10 @@
+from fastapi import HTTPException
 import json
 import os
 from datetime import datetime
 import matplotlib.pyplot as plt
+import re
 
-from fastapi import HTTPException
 from .base_integration import BaseChatGPTIntegration
 
 ANALYSE_PROMPT = """
@@ -59,8 +60,18 @@ You are an expert IELTS examiner. Your task is to evaluate IELTS Writing Task 1 
 
 PART1_PROMPT = """
 Create a line or bar or pie chart based on an IELTS Writing Task 1 question comparing five categories in two different years on a given topic.
-The data for the chart is in JSON format with the keys question, categories, years, and:
-question, categories, year1, year2, data_year1, data_year2.
+The data for the chart is in JSON format with the keys question, chart_type, categories, years, and:
+Return ONLY a valid JSON object with the following structure, no explanations, markdown, or code. Do not include any text outside the JSON.
+
+{
+  "question": "...",
+  "chart_type": "bar" | "line" | "pie",
+  "categories": [...],
+  "year1": ...,
+  "year2": ...,
+  "data_year1": [...],
+  "data_year2": [...]
+}
 """
 
 PART2_PROMPT = """
@@ -83,10 +94,18 @@ class ChatGPTWritingIntegration(BaseChatGPTIntegration):
             messages=[{"role": "system", "content": PART1_PROMPT}],
             temperature=0.0,
         )
+        raw = response.choices[0].message.content
+        if not raw or not raw.strip():
+            raise HTTPException(status_code=500, detail="OpenAI вернул пустой ответ для Task 1 question.")
+        # Ищем JSON в ответе
+        match = re.search(r'\{[\s\S]*\}', raw)
+        if not match:
+            raise HTTPException(status_code=500, detail=f"Failed to find JSON in GPT response: {raw}")
+        json_str = match.group(0)
         try:
-            return json.loads(response.choices[0].message.content)
+            return json.loads(json_str)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to parse Task 1 question: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to parse Task 1 question: {e}\nRAW: {json_str}")
 
     async def generate_writing_part2_question(self) -> dict:
         """
@@ -97,10 +116,18 @@ class ChatGPTWritingIntegration(BaseChatGPTIntegration):
             messages=[{"role": "system", "content": PART2_PROMPT}],
             temperature=0.0,
         )
-        try:
-            return json.loads(response.choices[0].message.content)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to parse Task 2 question: {e}")
+        raw = response.choices[0].message.content
+        if not raw or not raw.strip():
+            raise HTTPException(status_code=500, detail="OpenAI вернул пустой ответ для Task 2 question.")
+        # Ищем JSON в ответе
+        match = re.search(r'\{[\s\S]*\}', raw)
+        if match:
+            json_str = match.group(0)
+            try:
+                return json.loads(json_str)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to parse Task 2 question: {e}\nRAW: {json_str}")
+        return {"question": raw.strip()}
 
     def create_bar_chart(self, categories, year1, year2, data_year1, data_year2) -> str:
         output_dir = "media/writing/diagrams"
@@ -174,15 +201,22 @@ class ChatGPTWritingIntegration(BaseChatGPTIntegration):
 
 🗣 IMPORTANT: Please return ALL feedback, scores, and explanations in this language: {language_name.upper()}.
 Only use {language_name} language. Do NOT include English explanations.
+Return ONLY a valid JSON object. Do not include any explanations, markdown, or text outside the JSON. If you understand, reply only with the JSON object.
 """
         response = await self._generate_response(
             prompt=prompt_with_lang,
             user_content=json.dumps(data, ensure_ascii=False)
         )
+        print("GPT RAW RESPONSE:", repr(response))
+        match = re.search(r'```(?:json)?\s*([\s\S]+?)\s*```', response)
+        if match:
+            json_str = match.group(1)
+        else:
+            json_str = response
         try:
-            return json.loads(response)
+            return json.loads(json_str)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to parse ChatGPT response: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to parse ChatGPT response: {e}\nRAW: {response}")
 
     async def _generate_response(self, prompt: str, user_content: str) -> str:
         response = await self.async_client.chat.completions.create(

@@ -1,7 +1,7 @@
-import re
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional
 from datetime import datetime
+import re
 
 
 class UserBaseSerializer(BaseModel):
@@ -89,6 +89,8 @@ class UserResponseSerializer(UserBaseSerializer):
     is_staff: bool = Field(..., description="Is the user staff")
     is_superuser: bool = Field(..., description="Is the user superuser")
     last_login: Optional[datetime] = Field(None, description="Last login timestamp")
+    
+    model_config = {"from_attributes": True}
 
 
 class UserActivityLogSerializer(BaseModel):

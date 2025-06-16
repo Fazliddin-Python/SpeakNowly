@@ -1,36 +1,45 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import timedelta, datetime
+from tortoise.expressions import Q
+import random
 
-from models.users import User
-from models.transactions import TokenTransaction
 from ...serializers.tests.top import TopUserIELTSSerializer
+from models import User, TokenTransaction
 from utils.ielts_score import IELTSScoreCalculator
-from utils.auth import get_current_user
 
 router = APIRouter()
 
-def active_user(user=Depends(get_current_user)):
-    """
-    Ensures the user is active.
-    """
-    if not user.is_active:
-        from fastapi import HTTPException, status
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not active")
-    return user
+MOCK_IMAGES = [
+    "http://dummyimage.com/163x100.png/5fa2dd/ffffff",
+    "http://dummyimage.com/169x100.png/cc0000/ffffff",
+    "http://dummyimage.com/212x100.png/dddddd/000000",
+    "http://dummyimage.com/121x100.png/ff4444/ffffff",
+    "http://dummyimage.com/238x100.png/dddddd/000000",
+    "http://dummyimage.com/148x100.png/ff4444/ffffff",
+    "http://dummyimage.com/206x100.png/dddddd/000000",
+    "http://dummyimage.com/161x100.png/dddddd/000000",
+    "http://dummyimage.com/213x100.png/ff4444/ffffff",
+    "http://dummyimage.com/134x100.png/5fa2dd/ffffff",
+]
+
+MOCK_NAMES = [
+    "Darcy", "Robb", "Aile", "Uriel", "Elsinore", "Christopher", "Carolann", "Louie", "Moina", "Berne",
+    "Renault", "Kristofer", "Darren", "Willy", "Omar", "Karney", "Vivia", "Mabelle", "Nara", "Josiah"
+]
 
 @router.get(
-    "/",
+    "/ielts/",
     response_model=List[TopUserIELTSSerializer],
-    summary="Get real top users by IELTS score"
+    status_code=status.HTTP_200_OK,
+    summary="Get top users by IELTS score"
 )
-async def get_top_users(
-    period: Optional[str] = Query(None, description="Filter by period: week, month, etc."),
-    test_type: Optional[str] = Query(None, description="Filter by test type"),
-    user=Depends(active_user),
+async def get_top_users_ielts(
+    period: Optional[str] = Query(None, description="Period: week, month, or all"),
+    test_type: Optional[str] = Query(None, description="Test type (READING_ENG, etc.)"),
 ):
     """
-    Returns the top users by IELTS score (real data).
+    Get top 100 users by IELTS score for a given period and test type.
     """
     now = datetime.utcnow()
     if period == "week":
@@ -40,31 +49,94 @@ async def get_top_users(
     else:
         start_date = None
 
-    transactions = await TokenTransaction.all()
+    filters = Q()
     if start_date:
-        transactions = [t for t in transactions if t.created_at >= start_date]
+        filters &= Q(created_at__gte=start_date)
     if test_type:
-        transactions = [t for t in transactions if t.transaction_type == test_type.upper()]
+        filters &= Q(transaction_type=test_type.upper())
 
-    # Get unique user_ids from transactions
-    user_ids = list({t.user_id for t in transactions if t.user_id})
-
-    # Get all users in one query
+    transactions = await TokenTransaction.filter(filters).prefetch_related("user")
+    user_ids = set(t.user_id for t in transactions)
     users = await User.filter(id__in=user_ids)
-    users_dict = {u.id: u for u in users}
 
     user_scores = {}
-    for user_id in user_ids:
-        user_obj = users_dict.get(user_id)
-        if not user_obj:
-            continue
-        score = await IELTSScoreCalculator.calculate(user_obj)
-        user_scores[user_obj.id] = {
-            "first_name": user_obj.first_name or "",
-            "last_name": user_obj.last_name or "",
-            "ielts_score": score,
-            "image": getattr(user_obj, "photo", None),
-        }
+    for user in users:
+        user_scores[user] = await IELTSScoreCalculator.calculate(user)
 
-    sorted_users = sorted(user_scores.values(), key=lambda x: x["ielts_score"], reverse=True)
-    return sorted_users[:100]
+    sorted_users = sorted(user_scores.items(), key=lambda item: item[1], reverse=True)
+
+    top_users = []
+    for index, (user, score) in enumerate(sorted_users[:100], start=1):
+        top_users.append(
+            TopUserIELTSSerializer(
+                first_name=user.first_name,
+                last_name=user.last_name,
+                ielts_score=score,
+                image=getattr(user, "photo", None) if hasattr(user, "photo") else None,
+            )
+        )
+
+    return top_users
+
+
+@router.get(
+    "/ielts/mock3/",
+    response_model=List[dict],
+    status_code=status.HTTP_200_OK,
+    summary="Get mock top 3 users"
+)
+async def mock_top3_users_ielts():
+    """
+    Get mock top 3 users (for demo/testing).
+    """
+    return [
+        {
+            "id": 1,
+            "full_name": "Darcy",
+            "data": "14.03.2025",
+            "ball": 21,
+            "image": "http://dummyimage.com/163x100.png/5fa2dd/ffffff",
+        },
+        {
+            "id": 2,
+            "full_name": "Robb",
+            "data": "17.11.2024",
+            "ball": 53,
+            "image": "http://dummyimage.com/169x100.png/cc0000/ffffff",
+        },
+        {
+            "id": 3,
+            "full_name": "Aile",
+            "data": "28.01.2025",
+            "ball": 9,
+            "image": "http://dummyimage.com/212x100.png/dddddd/000000",
+        },
+    ]
+
+
+@router.get(
+    "/ielts/mock100/",
+    response_model=List[dict],
+    status_code=status.HTTP_200_OK,
+    summary="Get mock top 100 users"
+)
+async def mock_top_users_ielts():
+    """
+    Get mock top 100 users (randomly generated).
+    """
+    data = []
+    today = datetime.today()
+    for i in range(1, 101):
+        name = random.choice(MOCK_NAMES)
+        full_name = name
+        date = (today - timedelta(days=random.randint(0, 365))).strftime("%d.%m.%Y")
+        ball = random.randint(1, 100)
+        image = random.choice(MOCK_IMAGES)
+        data.append({
+            "id": i,
+            "full_name": full_name,
+            "data": date,
+            "ball": ball,
+            "image": image,
+        })
+    return data

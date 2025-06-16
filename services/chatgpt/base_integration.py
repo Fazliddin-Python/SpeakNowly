@@ -1,5 +1,5 @@
-from typing import Optional
 from fastapi import HTTPException
+from typing import Optional
 import openai
 from config import OPENAI_API_KEY
 

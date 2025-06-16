@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
 from typing import List
-from models.tariffs import TariffCategory
+
 from ..serializers.tariffs import PlanInfo, TariffInfo, FeatureItemInfo, FeatureInfo
+from models import TariffCategory
 from services.cache_service import cache
 from utils.i18n import get_translation
 

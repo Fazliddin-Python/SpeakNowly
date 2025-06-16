@@ -1,7 +1,8 @@
 from fastapi import APIRouter
 from typing import List
-from models.comments import Comment
+
 from ..serializers.comments import CommentListSerializer, CommentListUserSerializer
+from models import Comment
 
 router = APIRouter()
 

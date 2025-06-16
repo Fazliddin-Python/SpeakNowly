@@ -54,7 +54,7 @@ class SpeakingQuestion(BaseModel):
 
 class SpeakingAnswer(BaseModel):
     """The answer to a single speaking question."""
-    question = fields.OneToOneField("models.SpeakingQuestions", related_name="answer", on_delete=fields.CASCADE, description="The question this answer refers to")
+    question = fields.OneToOneField("models.SpeakingQuestion", related_name="answer", on_delete=fields.CASCADE, description="The question this answer refers to")
     text_answer = fields.TextField(null=True, description="Transcribed text of the audio answer")
     audio_answer = fields.CharField(max_length=255, null=True, description="File path to the stored audio answer")
 

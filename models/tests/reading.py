@@ -8,7 +8,7 @@ class Reading(BaseModel):
         enum_type=Constants.ReadingStatus, default=Constants.ReadingStatus.PENDING, description="Status of the test"
     )
     user = fields.ForeignKeyField('models.User', related_name='reading_sessions', on_delete=fields.CASCADE, description="Related user")
-    passages = fields.ManyToManyField('models.Passage', related_name='readings', description="Related passages")
+    passages = fields.ManyToManyField('models.ReadingPassage', related_name='readings', description="Related passages")
     start_time = fields.DatetimeField(description="Start time of the test")
     end_time = fields.DatetimeField(null=True, description="End time of the test")
     score = fields.DecimalField(max_digits=3, decimal_places=1, default=0, description="Score of the test")
@@ -31,8 +31,8 @@ class ReadingAnswer(BaseModel):
     status = fields.CharField(max_length=12, default=NOT_ANSWERED, description="Status of the answer")
     user = fields.ForeignKeyField('models.User', related_name='user_answers', on_delete=fields.CASCADE, description="Related user")
     reading = fields.ForeignKeyField('models.Reading', related_name='user_answers', null=True, on_delete=fields.CASCADE, description="Related reading")
-    question = fields.ForeignKeyField('models.Question', related_name='user_answers', on_delete=fields.CASCADE, description="Related question")
-    variant = fields.ForeignKeyField('models.Variant', related_name='user_answers', null=True, on_delete=fields.CASCADE, description="Selected variant")
+    question = fields.ForeignKeyField('models.ReadingQuestion', related_name='user_answers', on_delete=fields.CASCADE, description="Related question")
+    variant = fields.ForeignKeyField('models.ReadingVariant', related_name='user_answers', null=True, on_delete=fields.CASCADE, description="Selected variant")
     text = fields.TextField(null=True, description="Answer text")
     explanation = fields.TextField(null=True, description="Explanation for the answer")
     is_correct = fields.BooleanField(null=True, description="Whether the answer is correct")
@@ -67,7 +67,7 @@ class ReadingPassage(BaseModel):
     
 class ReadingQuestion(BaseModel):
     """Question for a passage: contains question text, type (text/multiple choice), and score for a correct answer."""
-    passage = fields.ForeignKeyField('models.Passage', related_name='questions', null=True, on_delete=fields.CASCADE, description="Related passage")
+    passage = fields.ForeignKeyField('models.ReadingPassage', related_name='questions', null=True, on_delete=fields.CASCADE, description="Related passage")
     text = fields.TextField(description="Text of the question")
     type = fields.CharEnumField(enum_type=Constants.QuestionType, description="Type of the question")
     score = fields.IntField(description="Score for the question")
@@ -82,7 +82,7 @@ class ReadingQuestion(BaseModel):
     
 class ReadingVariant(BaseModel):
     """Answer option for Multiple Choice: text and correctness flag."""
-    question = fields.ForeignKeyField('models.Question', related_name='variants', on_delete=fields.CASCADE, description="Related question")
+    question = fields.ForeignKeyField('models.ReadingQuestion', related_name='variants', on_delete=fields.CASCADE, description="Related question")
     text = fields.TextField(description="Text of the variant")
     is_correct = fields.BooleanField(default=False, description="Whether the variant is correct")
 

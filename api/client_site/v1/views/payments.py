@@ -1,19 +1,17 @@
 from fastapi import APIRouter, HTTPException, status, Query, Request, Depends
 from typing import List
 from tortoise.exceptions import DoesNotExist
-from models.payments import Payment
-from models.tariffs import Tariff
-from models.users.users import User
+from datetime import datetime, timezone, timedelta
+from uuid import uuid4, UUID
+
 from ..serializers.payments import (
     PaymentSerializer,
     PaymentDetailSerializer,
     PaymentCreateSerializer,
     PaymentListSerializer,
 )
-from uuid import uuid4, UUID
-from datetime import datetime, timezone, timedelta
-from services.payments.atmos_service import AtmosService
-from models.transactions import TokenTransaction, TransactionType
+from services.payments import AtmosService
+from models import Payment, Tariff, TokenTransaction, TransactionType, User
 from utils.auth import get_current_user
 from utils.i18n import get_translation
 

@@ -1,25 +1,22 @@
-from typing import Optional, Any
-from pydantic import BaseModel, Field
-from datetime import timedelta
-from .base import SafeSerializer, BaseModel
+from typing import Optional
+from pydantic import BaseModel
 
 class ListeningAnalyseSerializer(BaseModel):
-    """Serializer for listening session analysis results."""
     session_id: int
-    user_id: Optional[int] = None
+    user_id: Optional[int]
     correct_answers: int
     overall_score: float
-    timing: Optional[str] = None
-    status: str
+    duration: Optional[str]
+    status: Optional[str]
 
-class ReadingAnalyseSerializer(SafeSerializer):
-    reading_id: int
+class ReadingAnalyseSerializer(BaseModel):
+    passage_id: int
     user_id: int
     correct_answers: int
     overall_score: float
-    timing: str
+    duration: Optional[str]
 
-class SpeakingAnalyseSerializer(SafeSerializer):
+class SpeakingAnalyseSerializer(BaseModel):
     speaking_id: int
     feedback: Optional[str]
     overall_band_score: Optional[float]
@@ -33,19 +30,19 @@ class SpeakingAnalyseSerializer(SafeSerializer):
     pronunciation_feedback: Optional[str]
     duration: Optional[str]
 
-class WritingAnalyseSerializer(SafeSerializer):
+class WritingAnalyseSerializer(BaseModel):
     writing_id: int
-    task_achievement_feedback: str
-    task_achievement_score: float
-    lexical_resource_feedback: str
-    lexical_resource_score: float
-    coherence_and_cohesion_feedback: str
-    coherence_and_cohesion_score: float
-    grammatical_range_and_accuracy_feedback: str
-    grammatical_range_and_accuracy_score: float
-    word_count_feedback: str
-    word_count_score: float
-    timing_feedback: str
-    timing_time: Optional[str]
-    overall_band_score: float
-    total_feedback: str
+    task_achievement_feedback: Optional[str]
+    task_achievement_score: Optional[float]
+    lexical_resource_feedback: Optional[str]
+    lexical_resource_score: Optional[float]
+    coherence_and_cohesion_feedback: Optional[str]
+    coherence_and_cohesion_score: Optional[float]
+    grammatical_range_and_accuracy_feedback: Optional[str]
+    grammatical_range_and_accuracy_score: Optional[float]
+    word_count_feedback: Optional[str]
+    word_count_score: Optional[float]
+    timing_feedback: Optional[str]
+    overall_band_score: Optional[float]
+    total_feedback: Optional[str]
+    duration: Optional[str]

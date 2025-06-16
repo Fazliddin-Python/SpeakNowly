@@ -4,7 +4,7 @@ from .base import BaseModel
 class ListeningAnalyse(BaseModel):
     """Stores analysis results for a listening test."""
     session = fields.OneToOneField(
-        "models.UserListeningSession", related_name="analysis", description="Related listening session"
+        "models.ListeningSession", related_name="analysis", description="Related listening session"
     )
     user = fields.ForeignKeyField("models.User", related_name="listening_analyses", description="User who took the test")
     correct_answers = fields.IntField(default=0, description="Number of correct answers")
@@ -77,7 +77,7 @@ class SpeakingAnalyse(BaseModel):
 class ReadingAnalyse(BaseModel):
     """Stores analysis results for a reading test."""
     user = fields.ForeignKeyField("models.User", related_name="reading_analyses", description="User who took the test")
-    passage = fields.ForeignKeyField("models.Passage", related_name="analyses", description="Related reading passage")
+    passage = fields.ForeignKeyField("models.ReadingPassage", related_name="analyses", description="Related reading passage")
     correct_answers = fields.IntField(default=0, description="Number of correct answers")
     overall_score = fields.DecimalField(max_digits=5, decimal_places=2, description="Overall score")
     duration = fields.TimeDeltaField(null=True, description="Time taken for the test")

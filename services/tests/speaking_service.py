@@ -1,22 +1,49 @@
-from datetime import datetime, timezone
-from typing import Dict, Any
-import json
-
 from fastapi import HTTPException, status, UploadFile
+from typing import Dict, Any
 from tortoise.transactions import in_transaction
+from datetime import datetime, timezone
+import json
+import os
+from uuid import uuid4
+from pathlib import Path
+import aiofiles
 
 from models.tests import (
     Speaking,
-    SpeakingAnalyse,
     SpeakingAnswer,
     SpeakingQuestion,
     SpeakingStatus,
     TestTypeEnum,
+    SpeakingPart,
 )
 from services.analyses import SpeakingAnalyseService
 from services.chatgpt.speaking_integration import ChatGPTSpeakingIntegration
 from utils.get_actual_price import get_user_actual_test_price
 from models import TokenTransaction, TransactionType, User
+from config import BASE_DIR
+
+MEDIA_ROOT = BASE_DIR / "media" / "user_audios"
+MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
+
+PART_MAP = {
+    "part1": SpeakingPart.PART_1.value,
+    "part2": SpeakingPart.PART_2.value,
+    "part3": SpeakingPart.PART_3.value,
+}
+
+
+async def save_upload_file_async(upload_file: UploadFile, folder: Path = MEDIA_ROOT) -> str:
+    ext = os.path.splitext(upload_file.filename)[1]
+    filename = f"{uuid4().hex}{ext}"
+    file_path = folder / filename
+    async with aiofiles.open(file_path, "wb") as out_file:
+        while True:
+            chunk = await upload_file.read(1024 * 1024)
+            if not chunk:
+                break
+            await out_file.write(chunk)
+    await upload_file.seek(0)
+    return str(file_path.relative_to(BASE_DIR))
 
 
 class SpeakingService:
@@ -71,7 +98,7 @@ class SpeakingService:
                     )
                 await SpeakingQuestion.create(
                     speaking=session,
-                    part=part_key,
+                    part=PART_MAP[part_key],
                     title=q["title"],
                     content=q["question"],
                 )
@@ -90,19 +117,32 @@ class SpeakingService:
                 detail=t["session_not_found"]
             )
         questions = await SpeakingQuestion.filter(speaking=session).order_by("part")
+        part_map = {q.part: q for q in questions}
         return {
-            "session_id": session.id,
+            "id": session.id,
             "start_time": session.start_time,
+            "end_time": session.end_time,
+            "created_at": session.created_at,
+            "updated_at": session.updated_at,
             "status": session.status,
-            "questions": [
-                {
-                    "id": q.id,
-                    "part": q.part,
-                    "title": q.title,
-                    "content": q.content,
-                }
-                for q in questions
-            ],
+            "questions": {
+                "part1": {
+                    "id": part_map[SpeakingPart.PART_1.value].id,
+                    "title": part_map[SpeakingPart.PART_1.value].title,
+                    "content": part_map[SpeakingPart.PART_1.value].content,
+                },
+                "part2": {
+                    "id": part_map[SpeakingPart.PART_2.value].id,
+                    "title": part_map[SpeakingPart.PART_2.value].title,
+                    "content": part_map[SpeakingPart.PART_2.value].content,
+                },
+                "part3": {
+                    "id": part_map[SpeakingPart.PART_3.value].id,
+                    "title": part_map[SpeakingPart.PART_3.value].title,
+                    "content": part_map[SpeakingPart.PART_3.value].content,
+                },
+            },
+            "analyse": None,
         }
 
     @staticmethod
@@ -141,17 +181,17 @@ class SpeakingService:
                 audio = audio_files.get(part_key)
                 if not audio:
                     continue
-                question = part_map.get(part_key)
+                question = part_map.get(PART_MAP[part_key])
                 if not question:
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail=t["question_not_found"]
                     )
-                # Use async transcription from integration
+                audio_path = await save_upload_file_async(audio)
                 text = await chatgpt.transcribe_audio_file_async(audio)
                 answer = await SpeakingAnswer.create(
                     question=question,
-                    audio_answer=audio.filename,
+                    audio_answer=audio_path,
                     text_answer=text,
                 )
                 answers[part_key] = answer
@@ -177,17 +217,17 @@ class SpeakingService:
         return {
             "message": t["answers_submitted"],
             "analysis": {
-                "feedback": analyse.feedback,
-                "overall_band_score": float(analyse.overall_band_score) if analyse.overall_band_score is not None else None,
-                "fluency_and_coherence_score": float(analyse.fluency_and_coherence_score) if analyse.fluency_and_coherence_score is not None else None,
-                "fluency_and_coherence_feedback": analyse.fluency_and_coherence_feedback,
-                "lexical_resource_score": float(analyse.lexical_resource_score) if analyse.lexical_resource_score is not None else None,
-                "lexical_resource_feedback": analyse.lexical_resource_feedback,
-                "grammatical_range_and_accuracy_score": float(analyse.grammatical_range_and_accuracy_score) if analyse.grammatical_range_and_accuracy_score is not None else None,
-                "grammatical_range_and_accuracy_feedback": analyse.grammatical_range_and_accuracy_feedback,
-                "pronunciation_score": float(analyse.pronunciation_score) if analyse.pronunciation_score is not None else None,
-                "pronunciation_feedback": analyse.pronunciation_feedback,
-                "timing": analyse.duration.total_seconds() if analyse.duration else None,
+                "feedback": analyse["feedback"],
+                "overall_band_score": analyse["overall_band_score"],
+                "fluency_and_coherence_score": analyse["fluency_and_coherence_score"],
+                "fluency_and_coherence_feedback": analyse["fluency_and_coherence_feedback"],
+                "lexical_resource_score": analyse["lexical_resource_score"],
+                "lexical_resource_feedback": analyse["lexical_resource_feedback"],
+                "grammatical_range_and_accuracy_score": analyse["grammatical_range_and_accuracy_score"],
+                "grammatical_range_and_accuracy_feedback": analyse["grammatical_range_and_accuracy_feedback"],
+                "pronunciation_score": analyse["pronunciation_score"],
+                "pronunciation_feedback": analyse["pronunciation_feedback"],
+                "timing": analyse["timing"],
             },
         }
 
@@ -210,16 +250,16 @@ class SpeakingService:
         analyse = await SpeakingAnalyseService.analyse(session.id)
         return {
             "analysis": {
-                "feedback": analyse.feedback,
-                "overall_band_score": float(analyse.overall_band_score) if analyse.overall_band_score is not None else None,
-                "fluency_and_coherence_score": float(analyse.fluency_and_coherence_score) if analyse.fluency_and_coherence_score is not None else None,
-                "fluency_and_coherence_feedback": analyse.fluency_and_coherence_feedback,
-                "lexical_resource_score": float(analyse.lexical_resource_score) if analyse.lexical_resource_score is not None else None,
-                "lexical_resource_feedback": analyse.lexical_resource_feedback,
-                "grammatical_range_and_accuracy_score": float(analyse.grammatical_range_and_accuracy_score) if analyse.grammatical_range_and_accuracy_score is not None else None,
-                "grammatical_range_and_accuracy_feedback": analyse.grammatical_range_and_accuracy_feedback,
-                "pronunciation_score": float(analyse.pronunciation_score) if analyse.pronunciation_score is not None else None,
-                "pronunciation_feedback": analyse.pronunciation_feedback,
-                "timing": analyse.duration.total_seconds() if analyse.duration else None,
+                "feedback": analyse["feedback"],
+                "overall_band_score": analyse["overall_band_score"],
+                "fluency_and_coherence_score": analyse["fluency_and_coherence_score"],
+                "fluency_and_coherence_feedback": analyse["fluency_and_coherence_feedback"],
+                "lexical_resource_score": analyse["lexical_resource_score"],
+                "lexical_resource_feedback": analyse["lexical_resource_feedback"],
+                "grammatical_range_and_accuracy_score": analyse["grammatical_range_and_accuracy_score"],
+                "grammatical_range_and_accuracy_feedback": analyse["grammatical_range_and_accuracy_feedback"],
+                "pronunciation_score": analyse["pronunciation_score"],
+                "pronunciation_feedback": analyse["pronunciation_feedback"],
+                "timing": analyse["timing"],
             }
         }

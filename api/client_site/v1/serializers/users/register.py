@@ -1,5 +1,5 @@
-import re
 from pydantic import BaseModel, EmailStr, Field, field_validator
+import re
 
 class RegisterSerializer(BaseModel):
     """Serializer for user registration."""

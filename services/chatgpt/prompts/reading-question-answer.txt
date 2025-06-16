@@ -8,29 +8,29 @@ For each question, compare the user's answer to the correct ones and determine:
 - No add comments return only json
 - send overall score in 0 to 9 band (hard check all tests)
 
+Return ONLY valid JSON array, no markdown, no comments, no explanations.
 Return a structured JSON response with the following format:
 [
-    {
-        "passages": {
-            "passage_id": <id>,
-            "analysis": [
-                {
-                    "question_id": <id>,
-                    "correct_answer": "<id> or <text>",
-                    "explanation": "<reason>",
-                    "is_correct": <true/false>
-                }
-            ]
-        },
+  {
+    "passages": {
+      "passage_id": <id>,
+      "analysis": [
         {
-        "stats": {
-            "total_correct": <int>,
-            "total_questions": <int>,
-            "accuracy": <percentage>,
-            "overall_score": <int>
+          "question_id": <id>,
+          "user_answer": "<user's answer>",
+          "correct_answer": "<id> or <text>",
+          "explanation": "<reason>",
+          "is_correct": <true/false>
         }
+      ]
+    },
+    "stats": {
+      "total_correct": <int>,
+      "total_questions": <int>,
+      "accuracy": <percentage>,
+      "overall_score": <int>
     }
-    }
+  }
 ]
 
 Here is the data to analyze:

@@ -36,17 +36,18 @@ async def resend_otp(
     key = f"{data.verification_type}:{email}"
 
     if await resend_limiter.is_blocked(key):
-        raise HTTPException(status_code=429, detail=t["too_many_attempts"].format(minutes=5))
+        raise HTTPException(status_code=429, detail=t["too_many_attempts"])
 
-    await resend_limiter.register_attempt(key)
 
     try:
         await VerificationService.send_verification_code(
             email=email,
-            verification_type=data.verification_type
+            verification_type=data.verification_type,
+            t=t
         )
     except HTTPException as exc:
         detail = exc.detail if isinstance(exc.detail, str) else t["otp_resend_failed"]
         raise HTTPException(status_code=exc.status_code, detail=detail)
 
+    await resend_limiter.register_attempt(key)
     return ResendOTPResponseSerializer(message=t["code_resent"])

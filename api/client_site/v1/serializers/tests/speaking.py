@@ -1,93 +1,92 @@
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel
 
+class QuestionPartSerializer(BaseModel):
+    """Serializer for a single speaking question part."""
+    id: int = Field(..., description="ID of the question")
+    title: str = Field(..., description="Title of the question")
+    content: str = Field(..., description="Content of the question")
 
-class QuestionPart(BaseModel):
-    """
-    Represents a single question part (part1, part2, or part3)
-    as seen in the front-end TS interface.
-    """
-    id: int
-    title: str
-    content: str
+    @classmethod
+    async def from_orm(cls, obj) -> "QuestionPartSerializer":
+        return cls(
+            id=obj.id,
+            title=obj.title,
+            content=obj.content,
+        )
 
+class QuestionsSerializer(BaseModel):
+    """Serializer for all three speaking question parts."""
+    part1: QuestionPartSerializer = Field(..., description="Part 1 question")
+    part2: QuestionPartSerializer = Field(..., description="Part 2 question")
+    part3: QuestionPartSerializer = Field(..., description="Part 3 question")
 
-class Questions(BaseModel):
-    """
-    Groups three QuestionPart objects under keys: part1, part2, part3.
-    """
-    part1: QuestionPart
-    part2: QuestionPart
-    part3: QuestionPart
+    @classmethod
+    async def from_orm(cls, speaking_obj, questions_qs) -> "QuestionsSerializer":
+        parts = {q.part: q for q in questions_qs}
+        return cls(
+            part1=await QuestionPartSerializer.from_orm(parts.get(1)),
+            part2=await QuestionPartSerializer.from_orm(parts.get(2)),
+            part3=await QuestionPartSerializer.from_orm(parts.get(3)),
+        )
 
+class AnalyseSerializer(BaseModel):
+    """Serializer for IELTS speaking analysis."""
+    id: int = Field(..., description="ID of the analysis")
+    speaking: int = Field(..., description="Speaking test ID")
+    feedback: str = Field(..., description="General feedback")
+    overall_band_score: str = Field(..., description="Overall band score")
+    fluency_and_coherence_score: str = Field(..., description="Fluency and coherence score")
+    fluency_and_coherence_feedback: str = Field(..., description="Fluency and coherence feedback")
+    lexical_resource_score: str = Field(..., description="Lexical resource score")
+    lexical_resource_feedback: str = Field(..., description="Lexical resource feedback")
+    grammatical_range_and_accuracy_score: str = Field(..., description="Grammatical range and accuracy score")
+    grammatical_range_and_accuracy_feedback: str = Field(..., description="Grammatical range and accuracy feedback")
+    pronunciation_score: str = Field(..., description="Pronunciation score")
+    pronunciation_feedback: str = Field(..., description="Pronunciation feedback")
 
-class Analyse(BaseModel):
-    """
-    Represents the IELTS speaking analysis object, with string fields
-    to match the frontend interface.
-    """
-    id: int
-    speaking: int
-    feedback: str
-    overall_band_score: str
-    fluency_and_coherence_score: str
-    fluency_and_coherence_feedback: str
-    lexical_resource_score: str
-    lexical_resource_feedback: str
-    grammatical_range_and_accuracy_score: str
-    grammatical_range_and_accuracy_feedback: str
-    pronunciation_score: str
-    pronunciation_feedback: str
+    @classmethod
+    async def from_orm(cls, obj) -> "AnalyseSerializer":
+        return cls(
+            id=obj.id,
+            speaking=obj.speaking_id,
+            feedback=obj.feedback,
+            overall_band_score=obj.overall_band_score,
+            fluency_and_coherence_score=obj.fluency_and_coherence_score,
+            fluency_and_coherence_feedback=obj.fluency_and_coherence_feedback,
+            lexical_resource_score=obj.lexical_resource_score,
+            lexical_resource_feedback=obj.lexical_resource_feedback,
+            grammatical_range_and_accuracy_score=obj.grammatical_range_and_accuracy_score,
+            grammatical_range_and_accuracy_feedback=obj.grammatical_range_and_accuracy_feedback,
+            pronunciation_score=obj.pronunciation_score,
+            pronunciation_feedback=obj.pronunciation_feedback,
+        )
 
+class SpeakingSerializer(BaseModel):
+    """Serializer for a speaking test with questions and analysis."""
+    id: int = Field(..., description="ID of the speaking test")
+    start_time: Optional[datetime] = Field(None, description="Start time")
+    end_time: Optional[datetime] = Field(None, description="End time")
+    created_at: datetime = Field(..., description="Created at")
+    updated_at: datetime = Field(..., description="Updated at")
+    status: str = Field(..., description="Status")
+    questions: QuestionsSerializer = Field(..., description="Questions for all parts")
+    analyse: Optional[AnalyseSerializer] = Field(None, description="Analysis result")
 
-class SpeakingResponseType(BaseModel):
-    """
-    The top-level response model for a Speaking test, matching:
-      export interface SpeakingResponseType { … }
-    """
-    id: int
-    start_time: Optional[datetime]
-    end_time: Optional[datetime]
-    created_at: datetime
-    updated_at: datetime
-    status: str
-    questions: Questions
-    analyse: Optional[Analyse] = None
-
-
-class SpeakingCreate(BaseModel):
-    """
-    Request model for creating Speaking.
-    Fields are optional, status is usually set by default on the server.
-    """
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
-
-
-class SpeakingAnalyseCreate(BaseModel):
-    """
-    Request model for creating/updating analysis (if a separate endpoint is needed).
-    Fields are strings to match the frontend; the server can convert to Decimal when saving.
-    """
-    speaking: int
-    feedback: Optional[str] = None
-    overall_band_score: Optional[str] = None
-    fluency_and_coherence_score: Optional[str] = None
-    fluency_and_coherence_feedback: Optional[str] = None
-    lexical_resource_score: Optional[str] = None
-    lexical_resource_feedback: Optional[str] = None
-    grammatical_range_and_accuracy_score: Optional[str] = None
-    grammatical_range_and_accuracy_feedback: Optional[str] = None
-    pronunciation_score: Optional[str] = None
-    pronunciation_feedback: Optional[str] = None
-    duration: Optional[str] = None  # for example, ISO 8601 duration if the frontend sends it
-
-
-class SpeakingAudioAnswerResult(BaseModel):
-    """
-    Result after uploading audio: either a message or an analysis.
-    """
-    detail: Optional[str] = None
-    analyse: Optional[Analyse] = None
-
+    @classmethod
+    async def from_orm(cls, obj) -> "SpeakingSerializer":
+        questions_qs = await obj.questions.all()
+        questions = await QuestionsSerializer.from_orm(obj, questions_qs)
+        analyse_obj = await obj.analyse
+        analyse = await AnalyseSerializer.from_orm(analyse_obj) if analyse_obj else None
+        return cls(
+            id=obj.id,
+            start_time=obj.start_time,
+            end_time=obj.end_time,
+            created_at=obj.created_at,
+            updated_at=obj.updated_at,
+            status=obj.status,
+            questions=questions,
+            analyse=analyse,
+        )

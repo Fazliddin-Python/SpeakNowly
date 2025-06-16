@@ -1,426 +1,144 @@
-from fastapi import APIRouter, Form, HTTPException, Depends, status, Request, UploadFile, File
 import asyncio
-import logging
-from typing import List, Any, Dict
+from fastapi import APIRouter, Depends, status, Request
+from typing import Dict
 
-from models.tests.listening import ListeningPart
-from services.tests.listening_service import ListeningService
-from ...serializers.tests.listening import (
-    ListeningSerializer,
-    ListeningCreateSerializer,
-    ListeningPartSerializer,
-    ListeningPartCreateSerializer,
-    ListeningSectionSerializer,
-    ListeningSectionCreateSerializer,
-    ListeningQuestionSerializer,
-    ListeningQuestionCreateSerializer,
-    UserListeningSessionSerializer,
+from models.transactions import TransactionType
+from ...serializers.tests import (
     ListeningDataSlimSerializer,
+    ListeningPartSerializer,
     ListeningAnswerSerializer,
     ListeningAnalyseResponseSerializer,
+    ListeningSessionExamSerializer,
 )
-from utils.auth.auth import get_current_user
-from utils.i18n import get_translation
+from services.tests import ListeningService
+from models.tests import TestTypeEnum
+from utils.auth import active_user
+from utils import get_translation, check_user_tokens
+from utils.arq_pool import get_arq_redis
 
-logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def audit_action(action: str):
-    """
-    Dependency factory: logs user action and returns the user object.
-    """
-    def wrapper(request: Request, user=Depends(get_current_user)):
-        logger.info(f"User {user.id} action='{action}' path='{request.url.path}'")
-        return user
-    return wrapper
-
-
-def active_user(user=Depends(get_current_user), t=Depends(get_translation)):
-    """
-    Ensures the user is active.
-    """
-    if not user.is_active:
-        logger.warning(f"Inactive user (id={user.id}) attempted access")
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=t["inactive_user"])
-    return user
-
-
-def admin_required(user=Depends(get_current_user), t=Depends(get_translation)):
-    """
-    Ensures the user has admin privileges.
-    """
-    if not (user.is_staff and user.is_superuser):
-        logger.warning(f"Permission denied for user_id={user.id}")
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=t["permission_denied"])
-    return user
-
-
-@router.get("/tests/", response_model=List[ListeningSerializer], summary="List all listening tests")
-async def list_listening_tests(
-    user=Depends(active_user),
-    t: dict = Depends(get_translation),
-    _: Any = Depends(audit_action("list_listening_tests")),
-):
-    """
-    Retrieve all listening tests with nested parts, sections, and questions.
-    (This endpoint is admin‐only if parts/questions include correct answers;
-     otherwise, adjust accordingly.)
-    """
-    logger.info(f"Retrieving all listening tests for user {user.id}")
-    tests = await ListeningService.list_tests()
-    return await asyncio.gather(*[ListeningSerializer.from_orm(test) for test in tests])
-
-
-@router.get("/tests/{test_id}/", response_model=ListeningSerializer, summary="Get a listening test by ID")
-async def retrieve_listening_test(
-    test_id: int,
-    user=Depends(active_user),
-    t: dict = Depends(get_translation),
-    _: Any = Depends(audit_action("retrieve_listening_test")),
-):
-    """
-    Retrieve a specific listening test by its ID.
-    """
-    logger.info(f"Retrieving listening test id={test_id} for user {user.id}")
-    test = await ListeningService.get_test(test_id, t=t)
-    return await ListeningSerializer.from_orm(test)
-
-
-@router.post(
-    "/tests/",
-    response_model=ListeningSerializer,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a new listening test",
-)
-async def create_listening_test(
-    payload: ListeningCreateSerializer,
-    _: Any = Depends(admin_required),
-    t: dict = Depends(get_translation),
-    __: Any = Depends(audit_action("create_listening_test")),
-):
-    """
-    Create a new listening test. Requires admin privileges.
-    """
-    logger.info("Admin creating a new listening test")
-    test = await ListeningService.create_test(payload.dict())
-    return await ListeningSerializer.from_orm(test)
-
-
-@router.delete(
-    "/tests/{test_id}/",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a listening test",
-)
-async def delete_listening_test(
-    test_id: int,
-    _: Any = Depends(admin_required),
-    t: dict = Depends(get_translation),
-    __: Any = Depends(audit_action("delete_listening_test")),
-):
-    """
-    Delete a listening test by its ID. Requires admin privileges.
-    """
-    logger.info(f"Admin deleting listening test id={test_id}")
-    await ListeningService.delete_test(test_id, t=t)
-
-
-@router.get(
-    "/parts/{part_id}/",
-    response_model=ListeningPartSerializer,
-    summary="Get listening part",
-)
-async def get_listening_part(
-    part_id: int,
-    user=Depends(active_user),
-    t: dict = Depends(get_translation),
-    _: Any = Depends(audit_action("get_listening_part")),
-):
-    """
-    Retrieve a listening part by its ID.
-    """
-    logger.info(f"Retrieving listening part id={part_id} for user {user.id}")
-    part = await ListeningService.get_part(part_id, t=t)
-    return await ListeningPartSerializer.from_orm(part)
-
-
-@router.post(
-    "/parts/",
-    response_model=ListeningPartSerializer,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create listening part",
-)
-async def create_listening_part(
-    listening_id: int = Form(...),
-    part_number: int = Form(...),
-    audio_file: UploadFile = File(...),
-    _: Any = Depends(admin_required),
-    t: dict = Depends(get_translation),
-    __: Any = Depends(audit_action("create_listening_part")),
-):
-    """
-    Create a new listening part. Requires admin privileges.
-    """
-    logger.info("Admin creating a new listening part")
-    part = await ListeningService.create_part(
-        listening_id=listening_id,
-        part_number=part_number,
-        audio_file=audio_file,
-        t=t,
+async def _serialize_listening_session(data):
+    session_obj = type("SessionObj", (), {
+        "id": data["session_id"],
+        "status": data["status"],
+        "start_time": data["start_time"],
+        "end_time": data["end_time"],
+    })()
+    exam = await ListeningSessionExamSerializer.from_orm(data["exam"])
+    parts = await asyncio.gather(*(ListeningPartSerializer.from_orm(p) for p in data["parts"]))
+    return ListeningDataSlimSerializer(
+        session_id=session_obj.id,
+        status=session_obj.status,
+        start_time=session_obj.start_time,
+        end_time=session_obj.end_time,
+        exam=exam,
+        parts=parts,
     )
-    return await ListeningPartSerializer.from_orm(part)
-
-
-@router.get(
-    "/sections/",
-    response_model=List[ListeningSectionSerializer],
-    summary="List all sections",
-)
-async def list_listening_sections(
-    user=Depends(active_user),
-    t: dict = Depends(get_translation),
-    _: Any = Depends(audit_action("list_listening_sections")),
-):
-    """
-    Retrieve all listening sections with their questions.
-    """
-    logger.info(f"Retrieving all listening sections for user {user.id}")
-    sections = await ListeningService.list_sections()
-    return await asyncio.gather(*[ListeningSectionSerializer.from_orm(sec) for sec in sections])
-
-
-@router.get(
-    "/sections/{section_id}/",
-    response_model=ListeningSectionSerializer,
-    summary="Get listening section",
-)
-async def get_listening_section(
-    section_id: int,
-    user=Depends(active_user),
-    t: dict = Depends(get_translation),
-    _: Any = Depends(audit_action("get_listening_section")),
-):
-    """
-    Retrieve a listening section by its ID.
-    """
-    logger.info(f"Retrieving listening section id={section_id} for user {user.id}")
-    section = await ListeningService.get_section(section_id, t=t)
-    return await ListeningSectionSerializer.from_orm(section)
-
-
-@router.post(
-    "/sections/",
-    response_model=ListeningSectionSerializer,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create listening section",
-)
-async def create_listening_section(
-    payload: ListeningSectionCreateSerializer,
-    _: Any = Depends(admin_required),
-    t: dict = Depends(get_translation),
-    __: Any = Depends(audit_action("create_listening_section")),
-):
-    """
-    Create a new listening section. Requires admin privileges.
-    """
-    logger.info("Admin creating a new listening section")
-    section = await ListeningService.create_section(payload.dict())
-    return await ListeningSectionSerializer.from_orm(section)
-
-
-@router.delete(
-    "/sections/{section_id}/",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete listening section",
-)
-async def delete_listening_section(
-    section_id: int,
-    _: Any = Depends(admin_required),
-    t: dict = Depends(get_translation),
-    __: Any = Depends(audit_action("delete_listening_section")),
-):
-    """
-    Delete a listening section by its ID. Requires admin privileges.
-    """
-    logger.info(f"Admin deleting listening section id={section_id}")
-    await ListeningService.delete_section(section_id, t=t)
-
-
-@router.get(
-    "/questions/",
-    response_model=List[ListeningQuestionSerializer],
-    summary="List all questions",
-)
-async def list_listening_questions(
-    user=Depends(active_user),
-    t: dict = Depends(get_translation),
-    _: Any = Depends(audit_action("list_listening_questions")),
-):
-    """
-    Retrieve all listening questions.
-    """
-    logger.info(f"Retrieving all listening questions for user {user.id}")
-    questions = await ListeningService.list_questions()
-    return await asyncio.gather(*[ListeningQuestionSerializer.from_orm(q) for q in questions])
-
-
-@router.get(
-    "/questions/{question_id}/",
-    response_model=ListeningQuestionSerializer,
-    summary="Get listening question",
-)
-async def get_listening_question(
-    question_id: int,
-    user=Depends(active_user),
-    t: dict = Depends(get_translation),
-    _: Any = Depends(audit_action("get_listening_question")),
-):
-    """
-    Retrieve a listening question by its ID.
-    """
-    logger.info(f"Retrieving listening question id={question_id} for user {user.id}")
-    question = await ListeningService.get_question(question_id, t=t)
-    return await ListeningQuestionSerializer.from_orm(question)
-
-
-@router.post(
-    "/questions/",
-    response_model=ListeningQuestionSerializer,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create listening question",
-)
-async def create_listening_question(
-    payload: ListeningQuestionCreateSerializer,
-    _: Any = Depends(admin_required),
-    t: dict = Depends(get_translation),
-    __: Any = Depends(audit_action("create_listening_question")),
-):
-    """
-    Create a new listening question. Requires admin privileges.
-    """
-    logger.info("Admin creating a new listening question")
-    question = await ListeningService.create_question(payload.dict())
-    return await ListeningQuestionSerializer.from_orm(question)
-
-
-@router.delete(
-    "/questions/{question_id}/",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete listening question",
-)
-async def delete_listening_question(
-    question_id: int,
-    _: Any = Depends(admin_required),
-    t: dict = Depends(get_translation),
-    __: Any = Depends(audit_action("delete_listening_question")),
-):
-    """
-    Delete a listening question by its ID. Requires admin privileges.
-    """
-    logger.info(f"Admin deleting listening question id={question_id}")
-    await ListeningService.delete_question(question_id, t=t)
 
 
 @router.post(
     "/start/",
     response_model=ListeningDataSlimSerializer,
     status_code=status.HTTP_201_CREATED,
-    summary="Start a new listening session",
+    summary="Start a new listening session"
 )
-async def start_session(
-    request: Request,
+async def start_listening_test(
     user=Depends(active_user),
-    t=Depends(get_translation),
-    _: Any = Depends(audit_action("start_listening_session")),
+    t: Dict[str, str] = Depends(get_translation),
+    request: Request = None,
+    redis=Depends(get_arq_redis),
+):
+    await check_user_tokens(user, TransactionType.TEST_LISTENING, request, t)
+    session_data = await ListeningService.start_session(user, t)
+    return await _serialize_listening_session(session_data)
+
+
+@router.get(
+    "/session/{session_id}/",
+    response_model=ListeningDataSlimSerializer,
+    status_code=status.HTTP_200_OK,
+    summary="Get listening session details"
+)
+async def get_listening_session(
+    session_id: int,
+    user=Depends(active_user),
+    t: Dict[str, str] = Depends(get_translation),
 ):
     """
-    Start a new listening session and return full test data for the session.
+    Get details of a listening session.
     """
-    session = await ListeningService.start_session(user, request, t)
-    data = await ListeningService.get_session_data(session.id, user.id, t)
-    return ListeningDataSlimSerializer(**data)
+    data = await ListeningService.get_session_data(session_id, user.id, t)
+    return await _serialize_listening_session(data)
+
+
+@router.get(
+    "/parts/{part_id}/",
+    response_model=ListeningPartSerializer,
+    status_code=status.HTTP_200_OK,
+    summary="Get listening part"
+)
+async def get_listening_part(
+    part_id: int,
+    user=Depends(active_user),
+    t: Dict[str, str] = Depends(get_translation),
+):
+    """
+    Get details of a listening part (sections and questions).
+    """
+    part = await ListeningService.get_part(part_id, t)
+    return await ListeningPartSerializer.from_orm(part)
+
+
+@router.post(
+    "/session/{session_id}/submit/",
+    status_code=status.HTTP_201_CREATED,
+    summary="Submit answers for a listening session"
+)
+async def submit_listening_answers(
+    session_id: int,
+    payload: ListeningAnswerSerializer,
+    user=Depends(active_user),
+    t: Dict[str, str] = Depends(get_translation),
+    redis=Depends(get_arq_redis),
+):
+    result = await ListeningService.submit_answers(session_id, user.id, payload.answers, t)
+    await redis.enqueue_job("analyse_listening", session_id=session_id)
+    return result
 
 
 @router.post(
     "/session/{session_id}/cancel/",
     status_code=status.HTTP_200_OK,
-    summary="Cancel a listening session",
+    summary="Cancel a listening session"
 )
-async def cancel_session(
+async def cancel_listening_session(
     session_id: int,
     user=Depends(active_user),
-    t=Depends(get_translation),
-    _: Any = Depends(audit_action("cancel_listening_session")),
+    t: Dict[str, str] = Depends(get_translation),
 ):
     """
-    Cancel an ongoing listening session.
+    Cancel a listening session.
     """
-    await ListeningService.cancel_session(session_id, user.id, t)
-    return {"detail": t["session_cancelled"]}
-
-
-@router.post(
-    "/session/{session_id}/submit/",
-    status_code=status.HTTP_200_OK,
-    summary="Submit listening answers",
-)
-async def submit_answers(
-    session_id: int,
-    payload: ListeningAnswerSerializer,
-    user=Depends(active_user),
-    t=Depends(get_translation),
-    _: Any = Depends(audit_action("submit_listening_answers")),
-):
-    """
-    Submit user answers and return the total correct count.
-    """
-    total = await ListeningService.submit_answers(session_id, user.id, payload.dict(), t)
-    return {"detail": t["answers_submitted"], "total_correct": total}
-
-
-@router.get(
-    "/session/{session_id}/data/",
-    response_model=ListeningDataSlimSerializer,
-    summary="Get session data",
-)
-async def get_session_data(
-    session_id: int,
-    user=Depends(active_user),
-    t=Depends(get_translation),
-    _: Any = Depends(audit_action("get_listening_data")),
-):
-    """
-    Fetch minimal session data for the listening session.
-    """
-    data = await ListeningService.get_session_data(session_id, user.id, t)
-    return ListeningDataSlimSerializer(**data)
+    result = await ListeningService.cancel_session(session_id, user.id, t)
+    return result
 
 
 @router.get(
     "/session/{session_id}/analyse/",
     response_model=ListeningAnalyseResponseSerializer,
-    summary="Get listening analysis",
+    status_code=status.HTTP_200_OK,
+    summary="Get analysis for a completed listening session"
 )
-async def get_analysis(
+async def get_listening_analysis(
     session_id: int,
     user=Depends(active_user),
-    t=Depends(get_translation),
-    _: Any = Depends(audit_action("get_listening_analysis")),
+    t: Dict[str, str] = Depends(get_translation),
+    request: Request = None,
 ):
     """
-    Retrieve detailed analysis for the listening session, including parts with audio URLs.
+    Get analysis for a completed listening session.
     """
-    # Get base analysis and responses
-    result = await ListeningService.get_analysis(session_id, user.id, t)
-
-    # Also fetch session to retrieve exam_id
-    session = await ListeningService.get_session(session_id, user.id, t)
-
-    # Add listening_parts to match DRF response
-    parts = await ListeningPart.filter(listening_id=session.exam_id).all()
-    listening_parts = [
-        {"part_number": p.part_number, "audio_file": p.audio_file}
-        for p in sorted(parts, key=lambda p: p.part_number)
-    ]
-    result["listening_parts"] = listening_parts
+    result = await ListeningService.get_analysis(session_id, user.id, t, request)
     return result

@@ -35,6 +35,14 @@ class Tariff(BaseModel):
     is_active = fields.BooleanField(default=True, description="Active")
     is_default = fields.BooleanField(default=False, description="Default")
 
+    @classmethod
+    async def get_default_tariff(cls):
+        """
+        Get the default tariff.
+        :return: Tariff object or None if not found.
+        """
+        return await cls.filter(is_default=True).first()
+
     class Meta:
         table = "tariffs"
         verbose_name = "Tariff"

@@ -1,10 +1,10 @@
+from fastapi import HTTPException
+
 import logging
 import asyncio
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-
-from fastapi import HTTPException
 
 from config import (
     SMTP_HOST,

@@ -1,4 +1,5 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
+import re
 
 class ForgetPasswordSerializer(BaseModel):
     """Serializer for requesting a password reset."""
@@ -13,7 +14,6 @@ class ResetPasswordSerializer(BaseModel):
     @field_validator("new_password")
     @classmethod
     def validate_new_password(cls, value: str) -> str:
-        import re
         if len(value) < 8:
             raise ValueError("Password must be at least 8 characters long")
         if not re.search(r"[A-Z]", value):

@@ -1,50 +1,66 @@
+import asyncio
+from fastapi import HTTPException
 from random import randint
 from datetime import datetime, timezone, timedelta
-from fastapi import HTTPException
+from arq import create_pool
+from arq.connections import RedisSettings
 
-from services.users.user_service import UserService
-from tasks.users.email_tasks import send_email_async
-from models.users.verification_codes import VerificationCode, VerificationType
-from models.users.users import User
+from services.users import UserService
+from models.users import VerificationCode, VerificationType, User
+from utils.arq_pool import get_redis_settings
 
 CODE_TTL = timedelta(minutes=10)
 
-
 class VerificationService:
     """
-    Service for handling email verification during registration and other flows.
+    Handles email verification for registration, password reset, and email update flows using ARQ.
+    Enforces code TTL and resend limits, and sends emails via Redis queue.
     """
 
     @staticmethod
-    async def send_verification_code(email: str, verification_type: str) -> str:
+    async def send_verification_code(email: str, verification_type: str, t: dict) -> str:
         """
-        Send a verification code to the user's email.
+        Generate and send a verification code:
+        1. Validate verification_type.
+        2. Enforce resend limit.
+        3. Prevent sending if user already verified (REGISTER).
+        4. Delete old unused codes.
+        5. Generate 5-digit code.
+        6. Prepare plain and HTML email bodies with localization.
+        7. Enqueue send_email task via ARQ.
+        8. Persist the code in the database.
+        9. Return the generated code.
         """
         # 1. Validate verification type
         try:
             otp_type = VerificationType(verification_type)
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid verification type")
+            raise HTTPException(status_code=400, detail=t.get("invalid_verification_type", "Invalid verification type"))
 
-        # 2. Check resend limiter
-        if hasattr(VerificationCode, "is_resend_blocked"):
-            if await VerificationCode.is_resend_blocked(email, otp_type):
-                raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
-        else:
-            raise HTTPException(status_code=500, detail="Internal server error")
+        # 2. Resend limiter check
+        if await VerificationCode.is_resend_blocked(email, otp_type):
+            raise HTTPException(status_code=429, detail=t.get("too_many_attempts", "Too many attempts, please try again later"))
 
-        # 3. Check if user is already verified (for registration)
+        # 3. Prevent sending if already verified during registration
         user = await UserService.get_by_email(email)
-        if user and user.is_verified and otp_type == VerificationType.REGISTER:
-            raise HTTPException(status_code=400, detail="Email already registered")
+        if otp_type == VerificationType.REGISTER and user and user.is_verified:
+            raise HTTPException(status_code=400, detail=t.get("user_already_registered", "Email already registered"))
 
-        # 4. Generate a random code
+        # 4. Delete old unused codes
+        await VerificationCode.filter(
+            email=email,
+            verification_type=otp_type,
+            is_used=False,
+            is_expired=False
+        ).delete()
+
+        # 5. Generate code
         code = f"{randint(10000, 99999)}"
 
         # 5. Prepare email content
         subject = "Your Verification Code"
         body = f"Your verification code is: {code}\n\nThis code is valid for 10 minutes."
-        html_body = f"""\
+        html_body = f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -139,19 +155,28 @@ class VerificationService:
 </html>
 """
 
-        # 6. Send email via Celery
-        await send_email_async.adefer(subject, [email], body, html_body)
+        # 6. Enqueue email
+        redis_settings = get_redis_settings()
+        redis = await create_pool(redis_settings)
+        await redis.enqueue_job(
+            "send_email",
+            subject=subject,
+            recipients=[email],
+            body=body,
+            html_body=html_body
+        )
+        await redis.close()
 
-        # 7. Save or update the code in the database
-        await VerificationCode.update_or_create(
+        # 8. Persist code record
+        now = datetime.now(timezone.utc)
+        await VerificationCode.create(
             email=email,
             verification_type=otp_type,
-            defaults={
-                "code": int(code),
-                "is_used": False,
-                "is_expired": False,
-                "created_at": datetime.now(timezone.utc),
-            }
+            code=int(code),
+            is_used=False,
+            is_expired=False,
+            created_at=now,
+            updated_at=now
         )
 
         return code
@@ -161,18 +186,24 @@ class VerificationService:
         email: str,
         code: str,
         verification_type: str,
+        t: dict,
         user_id: int = None
     ) -> User:
         """
-        Verify the code for the given email and verification type.
+        Verify the code and return the User:
+        1. Validate type.
+        2. Fetch latest unused/unexpired code.
+        3. Expire if TTL exceeded.
+        4. Match code.
+        5. Mark used.
+        6. Return User instance.
         """
-        # 1. Validate verification type
         try:
             otp_type = VerificationType(verification_type)
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid verification type")
+            raise HTTPException(status_code=400, detail=t.get("invalid_verification_type", "Invalid verification type"))
 
-        # 2. Retrieve the latest unused, unexpired code
+        # Fetch the latest unused code
         record = await VerificationCode.filter(
             email=email,
             verification_type=otp_type,
@@ -180,44 +211,36 @@ class VerificationService:
             is_expired=False
         ).order_by("-updated_at").first()
         if not record:
-            raise HTTPException(status_code=400, detail="Verification code not found or used")
+            raise HTTPException(status_code=400, detail=t.get("code_not_found", "Code not found or used"))
 
-        # 3. Check if the code is expired
         if datetime.now(timezone.utc) - record.updated_at > CODE_TTL:
             record.is_expired = True
             await record.save()
-            raise HTTPException(status_code=400, detail="Verification code expired")
+            raise HTTPException(status_code=400, detail=t.get("code_expired", "Verification code expired"))
 
-        # 4. Check if the code matches
         if str(record.code) != str(code):
-            raise HTTPException(status_code=400, detail="Invalid verification code")
+            raise HTTPException(status_code=400, detail=t.get("invalid_code", "Invalid verification code"))
 
-        # 5. Mark the code as used
         record.is_used = True
         await record.save()
 
-        # 6. Return the user
         if otp_type == VerificationType.UPDATE_EMAIL and user_id:
             user = await UserService.get_by_id(user_id)
-            if not user:
-                raise HTTPException(status_code=404, detail="User not found")
-            return user
         else:
             user = await UserService.get_by_email(email)
-            if not user:
-                raise HTTPException(status_code=404, detail="User not found")
-            return user
+        if not user:
+            raise HTTPException(status_code=404, detail=t.get("user_not_found", "User not found"))
+        return user
 
     @staticmethod
     async def delete_unused_codes(email: str, verification_type: str) -> None:
         """
-        Delete all unused and unexpired codes for the user.
+        Delete unused, unexpired codes.
         """
         try:
             otp_type = VerificationType(verification_type)
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid verification type")
-
+            return
         await VerificationCode.filter(
             email=email,
             verification_type=otp_type,

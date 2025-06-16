@@ -144,7 +144,7 @@ class ListeningSession(BaseModel):
 class ListeningAnswer(BaseModel):
     """Stores a user’s answer to a ListeningQuestion within a session."""
     session = fields.ForeignKeyField(
-        "models.UserListeningSession",
+        "models.ListeningSession",
         on_delete=fields.CASCADE,
         related_name="responses",
         description="Related listening session"

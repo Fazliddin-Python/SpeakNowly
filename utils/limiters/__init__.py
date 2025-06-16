@@ -15,9 +15,9 @@ def get_register_limiter(redis_client):
 
 def get_resend_limiter(redis_client):
     """
-    Create an async resend OTP limiter: 3 attempts per 5 minutes.
+    Create an async resend OTP limiter: 5 attempts per 5 minutes.
     """
-    return AsyncLimiter(redis_client, prefix="resend", max_attempts=3, period=timedelta(minutes=5))
+    return AsyncLimiter(redis_client, prefix="resend", max_attempts=5, period=timedelta(minutes=5))
 
 def get_forget_password_limiter(redis_client):
     """
