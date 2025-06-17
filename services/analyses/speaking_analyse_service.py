@@ -23,43 +23,71 @@ def analyse_to_dict(analyse: SpeakingAnalyse) -> dict:
 class SpeakingAnalyseService:
     @staticmethod
     async def analyse(test_id: int) -> dict:
+        t = {
+            "no_answer_feedback": "No answer",
+            "not_all_audio_uploaded": "Not all audio uploaded"
+        }
         test = await Speaking.get_or_none(id=test_id)
         if not test:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Speaking test not found")
-        
         if test.status != SpeakingStatus.COMPLETED.value:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Speaking test is not completed")
-        
         existing = await SpeakingAnalyse.get_or_none(speaking_id=test.id)
         if existing:
             return analyse_to_dict(existing)
-        
+
         answers = await SpeakingAnswer.filter(question__speaking_id=test_id).order_by("question__part").prefetch_related("question")
-        if len(answers) < 3:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not all answers found for this test")
-        
-        part1, part2, part3 = answers[0], answers[1], answers[2]
-        
+        # Always prepare part1, part2, part3 (use fake if missing)
+        fake_answer = type("FakeAnswer", (), {"question": type("Q", (), {"title": "", "content": ""})(), "text_answer": ""})
+        part1 = answers[0] if len(answers) > 0 else fake_answer
+        part2 = answers[1] if len(answers) > 1 else fake_answer
+        part3 = answers[2] if len(answers) > 2 else fake_answer
+
         chatgpt = ChatGPTSpeakingIntegration()
         analysis = await chatgpt.generate_ielts_speaking_analyse(part1, part2, part3)
-        if not analysis:
-            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Failed to analyse speaking test")
-        
-        duration = (test.end_time - test.start_time) if (test.start_time and test.end_time) else timedelta(0)
-        
-        speaking_analyse = await SpeakingAnalyse.create(
-            speaking_id=test.id,
-            feedback=analysis.get("feedback"),
-            overall_band_score=analysis.get("overall_band_score"),
-            fluency_and_coherence_score=analysis.get("fluency_and_coherence_score"),
-            fluency_and_coherence_feedback=analysis.get("fluency_and_coherence_feedback"),
-            lexical_resource_score=analysis.get("lexical_resource_score"),
-            lexical_resource_feedback=analysis.get("lexical_resource_feedback"),
-            grammatical_range_and_accuracy_score=analysis.get("grammatical_range_and_accuracy_score"),
-            grammatical_range_and_accuracy_feedback=analysis.get("grammatical_range_and_accuracy_feedback"),
-            pronunciation_score=analysis.get("pronunciation_score"),
-            pronunciation_feedback=analysis.get("pronunciation_feedback"),
-            duration=duration,
-        )
-        
-        return analyse_to_dict(speaking_analyse)
+
+        # Add 0 and feedback for missing parts
+        if len(answers) < 3:
+            if len(answers) < 1:
+                analysis["part1_score"] = 0
+                analysis["part1_feedback"] = t["no_answer_feedback"]
+            if len(answers) < 2:
+                analysis["part2_score"] = 0
+                analysis["part2_feedback"] = t["no_answer_feedback"]
+            if len(answers) < 3:
+                analysis["part3_score"] = 0
+                analysis["part3_feedback"] = t["no_answer_feedback"]
+
+        duration = (test.end_time - test.start_time).total_seconds() if (test.start_time and test.end_time) else None
+        analysis["timing"] = duration
+        return analysis
+
+    @staticmethod
+    async def analyse_partial(test_id: int, answers: dict, t: dict) -> dict:
+        parts = ["part1", "part2", "part3"]
+        answer_objs = []
+        for part in parts:
+            answer_objs.append(answers.get(part))
+
+        chatgpt = ChatGPTSpeakingIntegration()
+
+        if not any(answer_objs):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, t["not_all_audio_uploaded"])
+
+        fake_answer = type("FakeAnswer", (), {"question": type("Q", (), {"title": "", "content": ""})(), "text_answer": ""})
+        part1 = answer_objs[0] or fake_answer
+        part2 = answer_objs[1] or fake_answer
+        part3 = answer_objs[2] or fake_answer
+
+        analysis = await chatgpt.generate_ielts_speaking_analyse(part1, part2, part3)
+
+        for idx, part in enumerate(parts, 1):
+            if not answer_objs[idx-1]:
+                analysis[f"{part}_score"] = 0
+                analysis[f"{part}_feedback"] = t.get("no_answer_feedback", "")
+
+        # duration
+        test = await Speaking.get(id=test_id)
+        duration = (test.end_time - test.start_time).total_seconds() if (test.start_time and test.end_time) else None
+        analysis["timing"] = duration
+        return analysis

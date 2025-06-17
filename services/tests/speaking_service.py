@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status, UploadFile
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from tortoise.transactions import in_transaction
 from datetime import datetime, timezone
 import json
@@ -96,11 +96,17 @@ class SpeakingService:
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         detail=t["question_parsing_failed"]
                     )
+                content = q["question"]
+                if isinstance(content, str):
+                    try:
+                        content = json.loads(content)
+                    except Exception:
+                        content = [content]
                 await SpeakingQuestion.create(
                     speaking=session,
                     part=PART_MAP[part_key],
                     title=q["title"],
-                    content=q["question"],
+                    content=content,
                 )
 
         return await SpeakingService.get_session(session.id, user.id, t)
@@ -145,7 +151,7 @@ class SpeakingService:
 
     @staticmethod
     async def submit_answers(
-        session_id: int, user_id: int, audio_files: Dict[str, UploadFile], t: dict
+        session_id: int, user_id: int, audio_files: Dict[str, Optional[UploadFile]], t: dict
     ) -> Dict[str, Any]:
         """
         Submit user's audio answers, transcribe them, and perform analysis.
@@ -175,6 +181,11 @@ class SpeakingService:
 
         async with in_transaction():
             answers = {}
+            if not audio_files.get("part1"):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=t.get("part1_audio_required", "Part 1 audio is required.")
+                )
             for part_key in ["part1", "part2", "part3"]:
                 audio = audio_files.get(part_key)
                 if not audio:
@@ -194,18 +205,11 @@ class SpeakingService:
                 )
                 answers[part_key] = answer
 
-            if len(answers) != 3:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=t["not_all_audio_uploaded"]
-                )
-
             session.status = SpeakingStatus.COMPLETED.value
             session.end_time = datetime.now(timezone.utc)
             await session.save(update_fields=["status", "end_time"])
 
-            # Get analysis and return it
-            analyse = await SpeakingAnalyseService.analyse(session.id)
+            analyse = await SpeakingAnalyseService.analyse_partial(session.id, answers, t)
             if not analyse:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -214,19 +218,7 @@ class SpeakingService:
 
         return {
             "message": t["answers_submitted"],
-            "analysis": {
-                "feedback": analyse["feedback"],
-                "overall_band_score": analyse["overall_band_score"],
-                "fluency_and_coherence_score": analyse["fluency_and_coherence_score"],
-                "fluency_and_coherence_feedback": analyse["fluency_and_coherence_feedback"],
-                "lexical_resource_score": analyse["lexical_resource_score"],
-                "lexical_resource_feedback": analyse["lexical_resource_feedback"],
-                "grammatical_range_and_accuracy_score": analyse["grammatical_range_and_accuracy_score"],
-                "grammatical_range_and_accuracy_feedback": analyse["grammatical_range_and_accuracy_feedback"],
-                "pronunciation_score": analyse["pronunciation_score"],
-                "pronunciation_feedback": analyse["pronunciation_feedback"],
-                "timing": analyse["timing"],
-            },
+            "analysis": analyse,
         }
 
     @staticmethod
