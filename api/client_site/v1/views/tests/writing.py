@@ -51,6 +51,23 @@ async def get_writing_session(
 
 
 @router.post(
+    "/session/{session_id}/cancel/",
+    status_code=status.HTTP_200_OK,
+    summary="Cancel a writing session"
+)
+async def cancel_writing_session(
+    session_id: int,
+    user=Depends(active_user),
+    t: Dict[str, str] = Depends(get_translation),
+):
+    """
+    Cancel a writing session.
+    """
+    result = await WritingService.cancel_session(session_id, user.id, t)
+    return result
+
+
+@router.post(
     "/session/{session_id}/submit/",
     status_code=status.HTTP_201_CREATED,
     summary="Submit answers for a writing session"

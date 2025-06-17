@@ -173,6 +173,23 @@ class WritingService:
         }
 
     @staticmethod
+    async def cancel_session(session_id: int, user_id: int, t: dict) -> dict:
+        writing = await Writing.get_or_none(id=session_id, user_id=user_id)
+        if not writing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=t["session_not_found"]
+            )
+        if writing.status in [WritingStatus.COMPLETED.value, WritingStatus.CANCELLED.value]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=t["cannot_cancel_session"]
+            )
+        writing.status = WritingStatus.CANCELLED.value
+        await writing.save(update_fields=["status"])
+        return {"message": t["session_cancelled"]}
+
+    @staticmethod
     async def get_analysis(session_id: int, user_id: int, t: dict) -> Dict[str, Any]:
         """
         Get or create analysis for a completed writing session.
