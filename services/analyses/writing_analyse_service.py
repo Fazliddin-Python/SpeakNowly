@@ -26,6 +26,11 @@ class WritingAnalyseService:
         if not analysis:
             raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Failed to analyse writing test")
 
+        if isinstance(analysis, list):
+            analysis = analysis[0] if analysis else {}
+        if not isinstance(analysis, dict):
+            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Invalid analysis format")
+
         duration = (test.end_time - test.start_time) if (test.start_time and test.end_time) else timedelta(0)
 
         def get_criteria(part, *keys, default=""):
