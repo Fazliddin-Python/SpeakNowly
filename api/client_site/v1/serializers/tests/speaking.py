@@ -68,8 +68,6 @@ class SpeakingSerializer(BaseModel):
     id: int = Field(..., description="ID of the speaking test")
     start_time: Optional[datetime] = Field(None, description="Start time")
     end_time: Optional[datetime] = Field(None, description="End time")
-    created_at: datetime = Field(..., description="Created at")
-    updated_at: datetime = Field(..., description="Updated at")
     status: str = Field(..., description="Status")
     questions: QuestionsSerializer = Field(..., description="Questions for all parts")
     analyse: Optional[AnalyseSerializer] = Field(None, description="Analysis result")
@@ -84,8 +82,6 @@ class SpeakingSerializer(BaseModel):
             id=obj.id,
             start_time=obj.start_time,
             end_time=obj.end_time,
-            created_at=obj.created_at,
-            updated_at=obj.updated_at,
             status=obj.status,
             questions=questions,
             analyse=analyse,

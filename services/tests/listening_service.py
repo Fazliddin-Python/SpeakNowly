@@ -120,7 +120,6 @@ class ListeningService:
                 section = await ListeningSection.get(id=question.section_id)
                 q_type = section.question_type
 
-                # Логика проверки по типу
                 if q_type in ["cloze_test", "form_completion", "sentence_completion"]:
                     if isinstance(question.correct_answer, list) and isinstance(user_answer, list):
                         is_correct = all(
@@ -176,7 +175,7 @@ class ListeningService:
                         session_id=session_id,
                         user_id=user_id,
                         question_id=question.id,
-                        user_answer=[],  # пустой массив JSON
+                        user_answer=[],
                         is_correct=False,
                         score=0,
                     )
@@ -216,8 +215,32 @@ class ListeningService:
 
         session.status = ListeningSessionStatus.CANCELLED.value
         await session.save(update_fields=["status"])
-
         return {"message": t["session_cancelled"]}
+
+    @staticmethod
+    async def restart_session(session_id: int, user_id: int, t: dict) -> Dict[str, Any]:
+        """
+        Restart a listening session.
+        """
+        session = await ListeningSession.get_or_none(id=session_id, user_id=user_id)
+        if not session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=t["session_not_found"]
+            )
+
+        if session.status not in [ListeningSessionStatus.COMPLETED.value, ListeningSessionStatus.CANCELLED.value]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=t["cannot_restart_session"]
+            )
+
+        await ListeningAnswer.filter(session_id=session_id, user_id=user_id).delete()
+        session.status = ListeningSessionStatus.STARTED.value
+        session.start_time = datetime.now(timezone.utc)
+        session.end_time = None
+        await session.save(update_fields=["status", "start_time", "end_time"])
+        return {"message": t["session_restarted"]}
 
     @staticmethod
     async def get_analysis(session_id: int, user_id: int, t: dict, request: Request = None) -> Dict[str, Any]:

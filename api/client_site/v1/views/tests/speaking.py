@@ -78,6 +78,40 @@ async def submit_speaking_answers(
     return result
 
 
+@router.post(
+    "/{session_id}/cancel/",
+    status_code=status.HTTP_200_OK,
+    summary="Cancel a speaking session"
+)
+async def cancel_speaking_session(
+    session_id: int,
+    user=Depends(active_user),
+    t: Dict[str, str] = Depends(get_translation),
+):
+    """
+    Cancel a speaking session.
+    """
+    result = await SpeakingService.cancel_session(session_id, user.id, t)
+    return result
+
+
+@router.post(
+    "/{session_id}/restart/",
+    status_code=status.HTTP_200_OK,
+    summary="Restart a speaking session"
+)
+async def restart_speaking_session(
+    session_id: int,
+    user=Depends(active_user),
+    t: Dict[str, str] = Depends(get_translation),
+):
+    """
+    Restart a speaking session.
+    """
+    result = await SpeakingService.restart_session(session_id, user.id, t)
+    return result
+
+
 @router.get(
     "/{session_id}/analysis/",
     response_model=Dict[str, Any],

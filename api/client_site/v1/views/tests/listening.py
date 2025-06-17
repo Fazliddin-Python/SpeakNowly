@@ -125,8 +125,25 @@ async def cancel_listening_session(
     return result
 
 
+@router.post(
+    "/session/{session_id}/restart/",
+    status_code=status.HTTP_200_OK,
+    summary="Restart a listening session"
+)
+async def restart_listening_session(
+    session_id: int,
+    user=Depends(active_user),
+    t: Dict[str, str] = Depends(get_translation),
+):
+    """
+    Restart a listening session.
+    """
+    result = await ListeningService.restart_session(session_id, user.id, t)
+    return result
+
+
 @router.get(
-    "/session/{session_id}/analyse/",
+    "/session/{session_id}/analysis/",
     response_model=ListeningAnalyseResponseSerializer,
     status_code=status.HTTP_200_OK,
     summary="Get analysis for a completed listening session"

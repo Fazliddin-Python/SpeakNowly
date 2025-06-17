@@ -122,8 +122,6 @@ class SpeakingService:
             "id": session.id,
             "start_time": session.start_time,
             "end_time": session.end_time,
-            "created_at": session.created_at,
-            "updated_at": session.updated_at,
             "status": session.status,
             "questions": {
                 "part1": {
@@ -232,6 +230,47 @@ class SpeakingService:
         }
 
     @staticmethod
+    async def cancel_session(session_id: int, user_id: int, t: dict) -> dict:
+        session = await Speaking.get_or_none(id=session_id, user_id=user_id)
+        if not session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=t["session_not_found"]
+            )
+
+        if session.status in [SpeakingStatus.COMPLETED.value, SpeakingStatus.CANCELLED.value]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=t["cannot_cancel_session"]
+            )
+
+        session.status = SpeakingStatus.CANCELLED.value
+        await session.save(update_fields=["status"])
+        return {"message": t["session_cancelled"]}
+
+    @staticmethod
+    async def restart_session(session_id: int, user_id: int, t: dict) -> dict:
+        session = await Speaking.get_or_none(id=session_id, user_id=user_id)
+        if not session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=t["session_not_found"]
+            )
+
+        if session.status not in [SpeakingStatus.COMPLETED.value, SpeakingStatus.CANCELLED.value]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=t["cannot_restart_session"]
+            )
+
+        await SpeakingAnswer.filter(question__speaking=session).delete()
+        session.status = SpeakingStatus.STARTED.value
+        session.start_time = datetime.now(timezone.utc)
+        session.end_time = None
+        await session.save(update_fields=["status", "start_time", "end_time"])
+        return {"message": t["session_restarted"]}
+    
+    @staticmethod
     async def get_analysis(session_id: int, user_id: int, t: dict) -> Dict[str, Any]:
         """
         Get or create analysis for a completed speaking session.
@@ -263,3 +302,4 @@ class SpeakingService:
                 "timing": analyse["timing"],
             }
         }
+

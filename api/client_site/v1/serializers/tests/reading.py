@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
+from datetime import datetime
 
 class VariantSerializer(BaseModel):
     id: int = Field(..., description="ID of the variant")
@@ -109,3 +110,26 @@ class ReadingAnalysisFullResponseSerializer(BaseModel):
     correct: str = Field(..., description="Correct answers out of total, e.g. 36/40")
     time: float = Field(..., description="Total time spent (minutes)")
     passages: List[PassageAnalysisFullSerializer] = Field(..., description="Detailed analysis for each passage")
+
+class ReadingSessionSerializer(BaseModel):
+    id: int
+    user_id: int
+    status: str
+    score: float
+    start_time: datetime
+    end_time: Optional[datetime]
+    passages: List[PassageSerializer]
+
+    @classmethod
+    async def from_orm(cls, obj) -> "ReadingSessionSerializer":
+        passages = await obj.passages.all().prefetch_related("questions__variants")
+        passages_serialized = [await PassageSerializer.from_orm(p) for p in passages]
+        return cls(
+            id=obj.id,
+            user_id=obj.user_id,
+            status=obj.status,
+            score=obj.score,
+            start_time=obj.start_time,
+            end_time=obj.end_time,
+            passages=passages_serialized
+        )

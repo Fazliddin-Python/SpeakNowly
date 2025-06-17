@@ -180,14 +180,46 @@ class WritingService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=t["session_not_found"]
             )
+
         if writing.status in [WritingStatus.COMPLETED.value, WritingStatus.CANCELLED.value]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=t["cannot_cancel_session"]
             )
+
         writing.status = WritingStatus.CANCELLED.value
         await writing.save(update_fields=["status"])
         return {"message": t["session_cancelled"]}
+
+    @staticmethod
+    async def restart_session(session_id: int, user_id: int, t: dict) -> dict:
+        writing = await Writing.get_or_none(id=session_id, user_id=user_id)
+        if not writing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=t["session_not_found"]
+            )
+
+        if writing.status not in [WritingStatus.COMPLETED.value, WritingStatus.CANCELLED.value, WritingStatus.EXPIRED.value]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=t["cannot_restart_session"]
+            )
+
+        part1 = await WritingPart1.get_or_none(writing=writing)
+        part2 = await WritingPart2.get_or_none(writing=writing)
+        if part1:
+            part1.answer = ""
+            await part1.save(update_fields=["answer"])
+        if part2:
+            part2.answer = ""
+            await part2.save(update_fields=["answer"])
+
+        writing.status = WritingStatus.STARTED.value
+        writing.start_time = datetime.now(timezone.utc)
+        writing.end_time = None
+        await writing.save(update_fields=["status", "start_time", "end_time"])
+        return {"message": t["session_restarted"]}
 
     @staticmethod
     async def get_analysis(session_id: int, user_id: int, t: dict) -> Dict[str, Any]:

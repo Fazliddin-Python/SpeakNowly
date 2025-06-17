@@ -19,7 +19,6 @@ CORS_ALLOW_HEADERS = [
     "accept-language",
     "authorization",
     "content-type",
-    
 ]
 
 # === Database (Tortoise ORM) ===

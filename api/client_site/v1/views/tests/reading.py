@@ -1,30 +1,26 @@
-from fastapi import APIRouter, Depends, status, Request
+from fastapi import APIRouter, Depends, status, Request, HTTPException
 from typing import Dict, Any
 
 from models.transactions import TransactionType
 from ...serializers.tests.reading import (
-    StartReadingSerializer,
+    ReadingSessionSerializer,
     PassageSerializer,
     SubmitPassageAnswerSerializer,
-    QuestionAnalysisSerializer,
 )
 from services.tests import ReadingService
-from models.tests import TestTypeEnum
 from utils.auth import active_user
 from utils import get_translation, check_user_tokens
 from utils.arq_pool import get_arq_redis
 
 router = APIRouter()
 
-
 @router.post(
     "/start/",
-    response_model=Dict[str, Any],
+    response_model=ReadingSessionSerializer,
     status_code=status.HTTP_201_CREATED,
     summary="Start a new reading session"
 )
 async def start_reading_test(
-    payload: StartReadingSerializer,
     user=Depends(active_user),
     t: Dict[str, str] = Depends(get_translation),
     request: Request = None,
@@ -33,17 +29,16 @@ async def start_reading_test(
     Start a new reading test session.
     """
     await check_user_tokens(user, TransactionType.TEST_READING, request, t)
-    session_data = await ReadingService.start_session(user.id, t, level=payload.level)
-    full_session = await ReadingService.get_session(session_data["id"], user.id, t)
-    full_session["passages"] = [
-        await PassageSerializer.from_orm(p) for p in full_session["passages"]
-    ]
-    return full_session
-
+    session_data = await ReadingService.start_session(user.id, t)
+    from models.tests import Reading
+    session = await Reading.get_or_none(id=session_data["id"], user_id=user.id)
+    if not session:
+        raise HTTPException(status_code=404, detail=t["session_not_found"])
+    return await ReadingSessionSerializer.from_orm(session)
 
 @router.get(
     "/{session_id}/",
-    response_model=Dict[str, Any],
+    response_model=ReadingSessionSerializer,
     status_code=status.HTTP_200_OK,
     summary="Get reading session details"
 )
@@ -55,12 +50,11 @@ async def get_reading_session(
     """
     Get details of a reading session.
     """
-    session = await ReadingService.get_session(session_id, user.id, t)
-    session["passages"] = [
-        await PassageSerializer.from_orm(p) for p in session["passages"]
-    ]
-    return session
-
+    from models.tests import Reading
+    session = await Reading.get_or_none(id=session_id, user_id=user.id)
+    if not session:
+        raise HTTPException(status_code=404, detail=t["session_not_found"])
+    return await ReadingSessionSerializer.from_orm(session)
 
 @router.post(
     "/{session_id}/submit/",
@@ -86,7 +80,6 @@ async def submit_passage_answers(
     )
     return {"message": t["answers_submitted"]}
 
-
 @router.post(
     "/{session_id}/finish/",
     response_model=Dict[str, Any],
@@ -104,7 +97,6 @@ async def finish_reading(
     result = await ReadingService.finish_session(session_id, user.id, t)
     return result
 
-
 @router.post(
     "/{session_id}/cancel/",
     response_model=Dict[str, Any],
@@ -119,9 +111,7 @@ async def cancel_reading(
     """
     Cancel a reading session.
     """
-    await ReadingService.cancel_session(session_id, user.id, t)
-    return {"message": t["session_cancelled"]}
-
+    return await ReadingService.cancel_session(session_id, user.id, t)
 
 @router.post(
     "/{session_id}/restart/",
@@ -137,9 +127,7 @@ async def restart_reading(
     """
     Restart a reading session.
     """
-    result = await ReadingService.restart_session(session_id, user.id, t)
-    return result
-
+    return await ReadingService.restart_session(session_id, user.id, t)
 
 @router.get(
     "/{session_id}/analysis/",

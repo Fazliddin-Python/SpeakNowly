@@ -51,23 +51,6 @@ async def get_writing_session(
 
 
 @router.post(
-    "/session/{session_id}/cancel/",
-    status_code=status.HTTP_200_OK,
-    summary="Cancel a writing session"
-)
-async def cancel_writing_session(
-    session_id: int,
-    user=Depends(active_user),
-    t: Dict[str, str] = Depends(get_translation),
-):
-    """
-    Cancel a writing session.
-    """
-    result = await WritingService.cancel_session(session_id, user.id, t)
-    return result
-
-
-@router.post(
     "/session/{session_id}/submit/",
     status_code=status.HTTP_201_CREATED,
     summary="Submit answers for a writing session"
@@ -90,8 +73,39 @@ async def submit_writing_answers(
     return result
 
 
+@router.post(
+    "/session/{session_id}/cancel/",
+    status_code=status.HTTP_200_OK,
+    summary="Cancel a writing session"
+)
+async def cancel_writing_session(
+    session_id: int,
+    user=Depends(active_user),
+    t: Dict[str, str] = Depends(get_translation),
+):
+    """
+    Cancel a writing session.
+    """
+    result = await WritingService.cancel_session(session_id, user.id, t)
+    return result
+
+
+@router.post(
+    "/session/{session_id}/restart/",
+    status_code=status.HTTP_200_OK,
+    summary="Restart a writing session"
+)
+async def restart_writing_session(
+    session_id: int,
+    user=Depends(active_user),
+    t: Dict[str, str] = Depends(get_translation),
+):
+    result = await WritingService.restart_session(session_id, user.id, t)
+    return result
+
+
 @router.get(
-    "/{session_id}/analysis/",
+    "/session/{session_id}/analysis/",
     response_model=Dict[str, Any],
     status_code=status.HTTP_200_OK,
     summary="Get analysis for a completed writing session"

@@ -1,19 +1,16 @@
+from decouple import config
 import httpx
 from typing import Dict, Any
 
-# Atmos test data
-ATMOS_API_URL = "https://api-sandbox.atmos.uz/api/v1/invoice/create"
-ATMOS_STATUS_URL = "https://api-sandbox.atmos.uz/api/v1/invoice/status"
-ATMOS_MERCHANT_ID = "8157"  # store_id
-ATMOS_CONSUMER_KEY = "USQoUyCLfe2kHfc9tJs97amTRoEa"
-ATMOS_CONSUMER_SECRET = "EtWplLvZpfvDMStf5PstH2hn4qQa"
+ATMOS_API_URL = config("ATMOS_API_URL")
+ATMOS_STATUS_URL = config("ATMOS_STATUS_URL")
+ATMOS_MERCHANT_ID = config("ATMOS_MERCHANT_ID")
+ATMOS_CONSUMER_KEY = config("ATMOS_CONSUMER_KEY")
+ATMOS_CONSUMER_SECRET = config("ATMOS_CONSUMER_SECRET")
 
 class AtmosService:
     @staticmethod
     async def create_invoice(amount: int, order_id: str, return_url: str, description: str, phone: str) -> Dict[str, Any]:
-        """
-        Create an invoice in the Atmos system.
-        """
         payload = {
             "merchant_id": ATMOS_MERCHANT_ID,
             "amount": amount,
@@ -36,9 +33,6 @@ class AtmosService:
 
     @staticmethod
     async def get_invoice_status(order_id: str) -> Dict[str, Any]:
-        """
-        Check the status of an invoice in the Atmos system.
-        """
         payload = {
             "merchant_id": ATMOS_MERCHANT_ID,
             "order_id": order_id,
