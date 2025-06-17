@@ -114,7 +114,7 @@ class WritingService:
 
     @staticmethod
     async def submit_answers(
-        session_id: int, user_id: int, part1_answer: str, part2_answer: str, lang_code: str, t: dict
+        session_id: int, user_id: int, part1_answer: str, part2_answer: str, t: dict
     ) -> Dict[str, Any]:
         """
         Submit user's answers for both writing parts, perform analysis via WritingAnalyseService, and save results.

@@ -3,7 +3,7 @@ from typing import Dict, Any, Optional
 
 from models.transactions import TransactionType
 
-from ...serializers.tests.writing import WritingSerializer
+from ...serializers.tests.writing import WritingSerializer, WritingSubmitRequest
 from services.tests import WritingService
 from models.tests import TestTypeEnum
 from utils.auth import active_user
@@ -51,16 +51,13 @@ async def get_writing_session(
 
 
 @router.post(
-    "/{session_id}/submit/",
-    response_model=Dict[str, Any],
+    "/session/{session_id}/submit/",
     status_code=status.HTTP_201_CREATED,
     summary="Submit answers for a writing session"
 )
 async def submit_writing_answers(
     session_id: int,
-    part1_answer: Optional[str] = None,
-    part2_answer: Optional[str] = None,
-    lang_code: str = "en",
+    payload: WritingSubmitRequest,
     user=Depends(active_user),
     t: Dict[str, str] = Depends(get_translation),
     redis=Depends(get_arq_redis),
@@ -68,9 +65,8 @@ async def submit_writing_answers(
     result = await WritingService.submit_answers(
         session_id=session_id,
         user_id=user.id,
-        part1_answer=part1_answer,
-        part2_answer=part2_answer,
-        lang_code=lang_code,
+        part1_answer=payload.part1_answer,
+        part2_answer=payload.part2_answer,
         t=t
     )
     await redis.enqueue_job("analyse_writing", test_id=session_id)

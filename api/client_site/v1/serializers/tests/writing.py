@@ -14,10 +14,8 @@ class WritingPart1Serializer(BaseModel):
 
     @classmethod
     async def from_orm(cls, obj) -> "WritingPart1Serializer":
-        # Convert diagram path to URL
         diagram_url = None
         if obj.diagram:
-            # If your static files are served via /media/, then:
             diagram_url = f"/media/{obj.diagram.lstrip('/')}"
         return cls(
             id=obj.id,
@@ -71,3 +69,8 @@ class WritingSerializer(BaseModel):
             part1=part1,
             part2=part2,
         )
+
+
+class WritingSubmitRequest(BaseModel):
+    part1_answer: Optional[str] = None
+    part2_answer: Optional[str] = None
