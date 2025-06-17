@@ -207,7 +207,6 @@ Return ONLY a valid JSON object. Do not include any explanations, markdown, or t
             prompt=prompt_with_lang,
             user_content=json.dumps(data, ensure_ascii=False)
         )
-        print("GPT RAW RESPONSE:", repr(response))
         match = re.search(r'```(?:json)?\s*([\s\S]+?)\s*```', response)
         if match:
             json_str = match.group(1)

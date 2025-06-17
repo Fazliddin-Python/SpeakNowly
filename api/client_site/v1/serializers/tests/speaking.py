@@ -6,7 +6,7 @@ class QuestionPartSerializer(BaseModel):
     """Serializer for a single speaking question part."""
     id: int = Field(..., description="ID of the question")
     title: str = Field(..., description="Title of the question")
-    content: str = Field(..., description="Content of the question")
+    content: list = Field(..., description="Content of the question")
 
     @classmethod
     async def from_orm(cls, obj) -> "QuestionPartSerializer":

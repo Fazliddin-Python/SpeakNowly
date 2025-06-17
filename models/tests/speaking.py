@@ -1,6 +1,8 @@
 from tortoise import fields
+from tortoise.contrib.pydantic import pydantic_model_creator
 from enum import Enum
 from ..base import BaseModel
+import json
 
 
 class SpeakingStatus(str, Enum):
@@ -40,7 +42,7 @@ class SpeakingQuestion(BaseModel):
     speaking = fields.ForeignKeyField("models.Speaking", related_name="questions", on_delete=fields.CASCADE, description="Related speaking test")
     part = fields.CharEnumField(SpeakingPart, null=True, description="Part of the speaking test")
     title = fields.TextField(null=True, blank=True, description="Title of the question")
-    content = fields.TextField(description="Content of the question")
+    content = fields.JSONField(description="Content of the question")
 
     class Meta:
         table = "speaking_questions"
@@ -48,7 +50,7 @@ class SpeakingQuestion(BaseModel):
         verbose_name_plural = "Speaking Questions"
 
     def __str__(self):
-        snippet = (self.content or "")[:50]
+        snippet = (json.dumps(self.content) or "")[:50]
         return f"{self.part} for Speaking {self.speaking_id}: {snippet}"
 
 

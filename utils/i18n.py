@@ -39,6 +39,9 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
 
         # --- Common Errors / Other ---
         "internal_error": "Internal server error",
+        "no_answer_feedback": "No answer",
+        "writing_parts_not_found": "Writing parts not found",
+        "unknown_chart_type": "Unknown chart type",
 
         # --- Tests / Listening ---
         "no_listening_tests": "No listening tests available",
@@ -139,6 +142,9 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
 
         # --- Common Errors / Other ---
         "internal_error": "Внутренняя ошибка сервера",
+        "no_answer_feedback": "Нет ответа",
+        "writing_parts_not_found": "Части письма не найдены",
+        "unknown_chart_type": "Неизвестный тип диаграммы",
 
         # --- Tests / Listening ---
         "no_listening_tests": "Нет доступных тестов прослушивания",
@@ -239,6 +245,9 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
 
         # --- Common Errors / Other ---
         "internal_error": "Ichki server xatosi",
+        "no_answer_feedback": "Javob yo'q",
+        "writing_parts_not_found": "Yozish qismlari topilmadi",
+        "unknown_chart_type": "Noma'lum diagramma turi",
 
         # --- Tests / Listening ---
         "no_listening_tests": "Tinglash testlari mavjud emas",

@@ -91,7 +91,6 @@ class ChatGPTReadingIntegration(BaseChatGPTIntegration):
             cleaned = extract_json_array(cleaned)
             return json.loads(cleaned)
         except Exception as e:
-            print("RAW ChatGPT response:", response)
             raise HTTPException(status_code=502, detail=f"Failed to parse ChatGPT response: {e}")
 
     async def _generate_response(self, prompt: str, **kwargs) -> str:
