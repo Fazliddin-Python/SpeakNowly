@@ -47,7 +47,7 @@ Skimming questions: “What is the primary purpose of the passage?”
 Detail-based questions: “Which year is mentioned as a turning point for the subject discussed?”
 Inference questions: “What can be inferred about the author’s perspective on the topic?”
 Response Format
-Return the generated passage in the following JSON structure exactly 13 questions:
+Return the generated passage in the following JSON structure:
 
 json```
 [
@@ -77,3 +77,4 @@ json```
   },
 ]
 ```
+IMPORTANT: You MUST generate exactly 14 questions for this passage. If you generate more or fewer, the test will be rejected.
