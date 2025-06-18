@@ -194,12 +194,6 @@ class SpeakingService:
                 )
                 answers[part_key] = answer
 
-            if len(answers) != 3:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=t["not_all_audio_uploaded"]
-                )
-
             session.status = SpeakingStatus.COMPLETED.value
             session.end_time = datetime.now(timezone.utc)
             await session.save(update_fields=["status", "end_time"])

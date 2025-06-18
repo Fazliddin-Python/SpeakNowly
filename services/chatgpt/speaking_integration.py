@@ -30,11 +30,17 @@ Fluency and Coherence: Assess the flow of speech, logical structuring, and absen
 Lexical Resource: Evaluate the variety and appropriateness of vocabulary used.
 Grammatical Range and Accuracy: Consider the grammatical structures used and their accuracy.
 Pronunciation: Assess the clarity of pronunciation, stress, and intonation.
+
+IMPORTANT:
+- There may be less than three answers (some parts may be missing or empty).
+- If a part is missing or empty, you MUST assign a score of 0 for all criteria for that part and provide feedback: "No answer".
+- The overall band score must be the average of the available parts (including zeros for missing parts), as in the official IELTS scoring.
+
 Please provide:
 
 Individual scores (Band 1 to Band 9) for each criterion.
 A detailed analysis explaining the strengths and weaknesses for each criterion.
-A final overall band score (Band 1 to Band 9) based on the average of the individual scores.
+A final overall band score (Band 1 to Band 9) based on the average of the individual scores (including zeros for missing parts).
 
 Return ONLY a valid JSON object. Do not include any explanations, markdown, or text outside the JSON. If you understand, reply only with the JSON object.
 
@@ -48,7 +54,13 @@ Return ONLY a valid JSON object. Do not include any explanations, markdown, or t
   "pronunciation_score": ...,
   "pronunciation_feedback": "...",
   "overall_band_score": ...,
-  "feedback": "..."
+  "feedback": "...",
+  "part1_score": ...,
+  "part1_feedback": "...",
+  "part2_score": ...,
+  "part2_feedback": "...",
+  "part3_score": ...,
+  "part3_feedback": "..."
 }
 """
 

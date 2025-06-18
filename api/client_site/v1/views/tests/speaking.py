@@ -58,7 +58,7 @@ async def get_speaking_session(
 )
 async def submit_speaking_answers(
     session_id: int,
-    part1_audio: Optional[UploadFile] = File(None),
+    part1_audio: UploadFile = File(...),
     part2_audio: Optional[UploadFile] = File(None),
     part3_audio: Optional[UploadFile] = File(None),
     is_finished: bool = Form(True),
@@ -67,7 +67,14 @@ async def submit_speaking_answers(
     t: Dict[str, str] = Depends(get_translation),
     redis=Depends(get_arq_redis),
 ):
-    audio_files = {"part1": part1_audio, "part2": part2_audio, "part3": part3_audio}
+    """
+    Submit audio answers for a speaking session.
+    """
+    audio_files = {
+        "part1": part1_audio,
+        "part2": part2_audio if isinstance(part2_audio, UploadFile) else None,
+        "part3": part3_audio if isinstance(part3_audio, UploadFile) else None,
+    }
     result = await SpeakingService.submit_answers(
         session_id=session_id,
         user_id=user.id,

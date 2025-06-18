@@ -23,30 +23,52 @@ def analyse_to_dict(analyse: SpeakingAnalyse) -> dict:
 class SpeakingAnalyseService:
     @staticmethod
     async def analyse(test_id: int) -> dict:
+        t = {
+            "no_answer_feedback": "No answer",
+            "not_all_audio_uploaded": "Not all audio uploaded"
+        }
         test = await Speaking.get_or_none(id=test_id)
         if not test:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Speaking test not found")
-        
         if test.status != SpeakingStatus.COMPLETED.value:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Speaking test is not completed")
-        
         existing = await SpeakingAnalyse.get_or_none(speaking_id=test.id)
         if existing:
             return analyse_to_dict(existing)
-        
+
         answers = await SpeakingAnswer.filter(question__speaking_id=test_id).order_by("question__part").prefetch_related("question")
-        if len(answers) < 3:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not all answers found for this test")
-        
-        part1, part2, part3 = answers[0], answers[1], answers[2]
-        
+        # Always prepare part1, part2, part3 (use fake if missing)
+        fake_answer = type("FakeAnswer", (), {"question": type("Q", (), {"title": "", "content": ""})(), "text_answer": ""})
+        part1 = answers[0] if len(answers) > 0 else fake_answer
+        part2 = answers[1] if len(answers) > 1 else fake_answer
+        part3 = answers[2] if len(answers) > 2 else fake_answer
+
         chatgpt = ChatGPTSpeakingIntegration()
         analysis = await chatgpt.generate_ielts_speaking_analyse(part1, part2, part3)
-        if not analysis:
-            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Failed to analyse speaking test")
-        
-        duration = (test.end_time - test.start_time) if (test.start_time and test.end_time) else timedelta(0)
-        
+
+        # For missing parts, set 0 and feedback
+        if not getattr(part1, "text_answer", None):
+            analysis["part1_score"] = 0
+            analysis["part1_feedback"] = t["no_answer_feedback"]
+        if not getattr(part2, "text_answer", None):
+            analysis["part2_score"] = 0
+            analysis["part2_feedback"] = t["no_answer_feedback"]
+        if not getattr(part3, "text_answer", None):
+            analysis["part3_score"] = 0
+            analysis["part3_feedback"] = t["no_answer_feedback"]
+
+        # Calculate overall_band_score as average of all three (including zeros)
+        scores = [
+            analysis.get("part1_score", 0),
+            analysis.get("part2_score", 0),
+            analysis.get("part3_score", 0),
+        ]
+        analysis["overall_band_score"] = round(sum(scores) / 3, 1)
+
+        duration = (test.end_time - test.start_time).total_seconds() if (test.start_time and test.end_time) else None
+        analysis["timing"] = duration
+
+        # Save analysis to DB if not exists
         speaking_analyse = await SpeakingAnalyse.create(
             speaking_id=test.id,
             feedback=analysis.get("feedback"),
@@ -59,7 +81,7 @@ class SpeakingAnalyseService:
             grammatical_range_and_accuracy_feedback=analysis.get("grammatical_range_and_accuracy_feedback"),
             pronunciation_score=analysis.get("pronunciation_score"),
             pronunciation_feedback=analysis.get("pronunciation_feedback"),
-            duration=duration,
+            duration=timedelta(seconds=analysis["timing"]) if analysis["timing"] is not None else None,
         )
-        
+
         return analyse_to_dict(speaking_analyse)
