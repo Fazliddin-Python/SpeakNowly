@@ -7,7 +7,7 @@ Analyze the user's answers for each passage and question. For every question, co
 - user_answer (as provided)
 - correct_answer (the correct answer text or id)
 - explanation (short reason if incorrect, empty if correct)
-- is_correct (true or false, always present for every question, never null)
+- is_correct (true or false, always present for every question, never null, never missing. You MUST always return is_correct as true or false for every question.)
 
 For each passage, return:
 - passage_id
@@ -23,17 +23,17 @@ Example:
       "passage_id": 123,
       "analysis": [
         {
-          "question_id": 801,
-          "user_answer": "To reduce greenhouse gas emissions",
-          "correct_answer": "To reduce greenhouse gas emissions",
+          "question_id": 841,
+          "user_answer": "To ensure a sustainable energy supply while minimizing environmental impact",
+          "correct_answer": "To ensure a sustainable energy supply while minimizing environmental impact",
           "explanation": "",
           "is_correct": true
         },
         {
-          "question_id": 802,
-          "user_answer": "sdsd",
-          "correct_answer": "To increase economic growth and create jobs",
-          "explanation": "The answer does not mention economic growth or jobs.",
+          "question_id": 842,
+          "user_answer": "wrong answer",
+          "correct_answer": "Correct answer text",
+          "explanation": "The answer does not match the correct answer.",
           "is_correct": false
         }
       ]
