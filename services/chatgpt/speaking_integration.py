@@ -108,14 +108,13 @@ class ChatGPTSpeakingIntegration(BaseChatGPTIntegration):
         )
         raw = response.choices[0].message.content
         if not raw or not raw.strip():
-            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "OpenAI вернул пустой ответ для анализа.")
+            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "OpenAI returned an empty response for analysis.")
 
-        # Удаляем markdown и ищем JSON
         match = re.search(r'\{.*\}', raw, re.DOTALL)
         if not match:
             raise HTTPException(
                 status.HTTP_500_INTERNAL_SERVER_ERROR,
-                f"OpenAI вернул невалидный JSON:\n{raw}"
+                f"OpenAI returned invalid JSON:\n{raw}"
             )
         json_str = match.group(0)
         try:
@@ -123,7 +122,7 @@ class ChatGPTSpeakingIntegration(BaseChatGPTIntegration):
         except Exception as e:
             raise HTTPException(
                 status.HTTP_500_INTERNAL_SERVER_ERROR,
-                f"Ошибка парсинга ответа OpenAI: {e}\nRAW: {json_str}"
+                f"Error parsing OpenAI response: {e}\nRAW: {json_str}"
             )
 
     async def transcribe_audio_file_async(self, audio: UploadFile, lang="en") -> str:

@@ -31,7 +31,10 @@ class ChatGPTReadingIntegration(BaseChatGPTIntegration):
         prompt_13 = prompt_13.replace("(level)", level)
         prompt_14 = prompt_14.replace("(level)", level)
 
-        # Параллельные запросы
+        # Увеличиваем max_tokens для генерации больших текстов
+        kwargs.setdefault("max_tokens", 6000)
+        kwargs.setdefault("temperature", 1.0)
+
         resp_13, resp_14 = await asyncio.gather(
             self._generate_response(prompt_13, **kwargs),
             self._generate_response(prompt_14, **kwargs)
@@ -42,13 +45,13 @@ class ChatGPTReadingIntegration(BaseChatGPTIntegration):
         p1 = next((p for p in passages_13 if p.get("number") == 1), None)
         p3 = next((p for p in passages_13 if p.get("number") == 3), None)
         if not (p1 and p3):
-            raise HTTPException(status_code=500, detail="Не удалось получить passages 1 и 3")
+            raise HTTPException(status_code=500, detail="Failed to get passages 1 and 3")
 
         cleaned_14 = extract_json_array(resp_14.replace("```json", "").replace("```", "").strip())
         passages_14 = json.loads(cleaned_14)
         p2 = next((p for p in passages_14 if p.get("number") == 2), None)
         if not p2:
-            raise HTTPException(status_code=500, detail="Не удалось получить passage 2")
+            raise HTTPException(status_code=500, detail="Failed to get passage 2")
 
         all_passages = [p1, p2, p3]
         return json.dumps(all_passages, ensure_ascii=False)
@@ -59,6 +62,8 @@ class ChatGPTReadingIntegration(BaseChatGPTIntegration):
         """
         prompt = await _load_prompt("reading.txt")
         prompt = prompt.replace("(level)", level)
+        kwargs.setdefault("max_tokens", 6000)
+        kwargs.setdefault("temperature", 0.8)
         response = await self._generate_response(prompt, **kwargs)
         return response, prompt
 
@@ -85,6 +90,8 @@ class ChatGPTReadingIntegration(BaseChatGPTIntegration):
             ]
         }]
         prompt = prompt_template.replace("(data)", json.dumps(data, ensure_ascii=False))
+        kwargs.setdefault("max_tokens", 3000)
+        kwargs.setdefault("temperature", 0.2)
         response = await self._generate_response(prompt, **kwargs)
         try:
             cleaned = response.replace("```json", "").replace("```", "").strip()

@@ -1,34 +1,48 @@
 PROMPT_TEMPLATE = """
-You are evaluating a reading comprehension test. Analyze the given passages, questions, and user answers.
-For each question, compare the user's answer to the correct ones and determine:
-- Whether the answer is correct.
-- The correct answer (either the ID of the correct multiple-choice option or the full text for text-based questions).
-- A short explanation (if the answer is incorrect).
-- A boolean flag indicating correctness.
-- No add comments return only json
-- send overall score in 0 to 9 band (hard check all tests)
+You are an IELTS Reading answer evaluator.
 
-Return ONLY valid JSON array, no markdown, no comments, no explanations.
-Return a structured JSON response with the following format:
+Analyze the user's answers for each passage and question. For every question, compare the user's answer to the correct answer and return:
+
+- question_id (must match the input)
+- user_answer (as provided)
+- correct_answer (the correct answer text or id)
+- explanation (short reason if incorrect, empty if correct)
+- is_correct (true or false, always present for every question, never null)
+
+For each passage, return:
+- passage_id
+- analysis: an array of objects as described above (one per question)
+- stats: total_correct (int), total_questions (int), accuracy (percentage, int), overall_score (IELTS band 0-9, int)
+
+Return ONLY a valid JSON array, no markdown, no comments, no explanations.
+
+Example:
 [
   {
     "passages": {
-      "passage_id": <id>,
+      "passage_id": 123,
       "analysis": [
         {
-          "question_id": <id>,
-          "user_answer": "<user's answer>",
-          "correct_answer": "<id> or <text>",
-          "explanation": "<reason>",
-          "is_correct": <true/false>
+          "question_id": 801,
+          "user_answer": "To reduce greenhouse gas emissions",
+          "correct_answer": "To reduce greenhouse gas emissions",
+          "explanation": "",
+          "is_correct": true
+        },
+        {
+          "question_id": 802,
+          "user_answer": "sdsd",
+          "correct_answer": "To increase economic growth and create jobs",
+          "explanation": "The answer does not mention economic growth or jobs.",
+          "is_correct": false
         }
       ]
     },
     "stats": {
-      "total_correct": <int>,
-      "total_questions": <int>,
-      "accuracy": <percentage>,
-      "overall_score": <int>
+      "total_correct": 1,
+      "total_questions": 2,
+      "accuracy": 50,
+      "overall_score": 4
     }
   }
 ]
