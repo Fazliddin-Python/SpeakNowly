@@ -244,11 +244,12 @@ class ReadingService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=t["session_not_found"]
             )
-        if session.status in [Constants.ReadingStatus.COMPLETED.value, Constants.ReadingStatus.CANCELLED.value]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=t["session_already_completed_or_cancelled"]
-            )
+
+        # if session.status in [Constants.ReadingStatus.COMPLETED.value, Constants.ReadingStatus.CANCELLED.value]:
+        #     raise HTTPException(
+        #         status_code=status.HTTP_400_BAD_REQUEST,
+        #         detail=t["session_already_completed_or_cancelled"]
+        #     )
 
         session.status = Constants.ReadingStatus.COMPLETED.value
         session.end_time = datetime.now(timezone.utc)
@@ -317,75 +318,77 @@ class ReadingService:
 
     @staticmethod
     async def _full_analysis_response(session, user_id) -> Dict[str, Any]:
+        # Load passages and questions
         passages = await session.passages.all().prefetch_related("questions__variants")
         passage_ids = [p.id for p in passages]
-        questions = []
-        for passage in passages:
-            questions.extend(passage.questions)
-        question_ids = [q.id for q in questions]
 
-        answers = await ReadingAnswer.filter(
-            user_id=user_id, reading_id=session.id, question_id__in=question_ids
-        )
-        answers_by_qid = {a.question_id: a for a in answers}
-
+        # Load existing analyses and answers
         analyses = await ReadingAnalyseService.get_all_analyses(session.id, user_id)
         analyses_by_pid = {a.passage_id: a for a in analyses}
+        answers = await ReadingAnswer.filter(
+            user_id=user_id,
+            reading_id=session.id,
+            question_id__in=[q.id for p in passages for q in p.questions]
+        ).prefetch_related("question")
+        answers_by_qid = {a.question_id: a for a in answers}
 
         passage_results = []
-        total_correct = 0
-        total_questions = 0
+        total_correct = total_questions = 0
 
         for passage in passages:
+            analyse = analyses_by_pid.get(passage.id)
+            if not analyse:
+                # Skip passages without submitted answers
+                continue
+
             question_results = []
             for question in passage.questions:
-                variants = question.variants
-                answer_obj = answers_by_qid.get(question.id)
-                user_answer = answer_obj.text if answer_obj else None
-                is_correct = answer_obj.is_correct if answer_obj else None
-                correct_answer = next((v.text for v in variants if v.is_correct), None)
+                ans = answers_by_qid.get(question.id)
+                # Default values
+                user_ans = ans.text or ""
+                is_corr = bool(ans.is_correct) if ans else False
+                corr_ans = ans.correct_answer or ""
+                expl = ans.explanation or ""
                 question_results.append({
                     "id": question.id,
                     "text": question.text,
                     "type": question.type,
-                    "answers": [{"id": v.id, "text": v.text, "is_correct": v.is_correct} for v in variants],
-                    "user_answer": user_answer,
-                    "correct_answer": correct_answer,
-                    "is_correct": is_correct,
+                    "answers": [
+                        {"id": v.id, "text": v.text, "is_correct": v.is_correct}
+                        for v in question.variants
+                    ],
+                    "user_answer": user_ans,
+                    "correct_answer": corr_ans,
+                    "explanation": expl,
+                    "is_correct": is_corr,
                 })
                 total_questions += 1
-                if is_correct:
+                if is_corr:
                     total_correct += 1
 
-            passage_analysis = analyses_by_pid.get(passage.id)
             passage_results.append({
                 "id": passage.id,
                 "title": passage.title,
                 "text": passage.text,
                 "questions": question_results,
-                "overall_score": float(passage_analysis.overall_score) if passage_analysis else None,
-                "timing": passage_analysis.duration.total_seconds() if passage_analysis and passage_analysis.duration else None,
+                "overall_score": float(analyse.overall_score),
+                "timing": analyse.duration.total_seconds() if analyse.duration else 0,
             })
 
+        # Compute overall IELTS band
         if analyses:
-            raw_score = float(sum(float(a.overall_score or 0) for a in analyses)) / len(analyses)
-            int_part = int(raw_score)
-            frac = raw_score - int_part
-            if frac < 0.25:
-                ielts_score = float(int_part)
-            elif frac < 0.75:
-                ielts_score = float(int_part) + 0.5
-            else:
-                ielts_score = float(int_part + 1)
+            avg = sum(a.overall_score for a in analyses) / len(analyses)
+            # Round to nearest half
+            band = round(avg * 2) / 2
         else:
-            ielts_score = 0.0
+            band = 0.0
 
-        elapsed_time = (session.end_time - session.start_time).total_seconds() / 60
+        elapsed = (session.end_time - session.start_time).total_seconds() / 60
 
         return {
-            "score": round(ielts_score, 2),
+            "score": round(band, 2),
             "correct": f"{total_correct}/{total_questions}",
-            "time": round(elapsed_time, 2),
+            "time": round(elapsed, 2),
             "start_time": session.start_time,
             "end_time": session.end_time,
             "passages": passage_results,

@@ -1,18 +1,20 @@
 PROMPT_TEMPLATE = """
 You are an IELTS Reading answer evaluator.
 
-Analyze the user's answers for each passage and question. For every question, compare the user's answer to the correct answer and return:
+For each passage, you will receive:
+- passage_id (from the database)
+- a list of questions, each with question_id (from the database), question text, type, and user_answer.
 
-- question_id (must match the input)
-- user_answer (as provided)
-- correct_answer (the correct answer text or id)
-- explanation (short reason if incorrect, empty if correct)
-- is_correct (true or false, always present for every question, never null, never missing. You MUST always return is_correct as true or false for every question.)
-
-For each passage, return:
-- passage_id
-- analysis: an array of objects as described above (one per question)
-- stats: total_correct (int), total_questions (int), accuracy (percentage, int), overall_score (IELTS band 0-9, int)
+Your task:
+- For each passage, return an object with:
+  - passage_id (must match the input)
+  - analysis: an array of objects, one per question, each with:
+    - question_id (must match the input question_id)
+    - user_answer (as provided)
+    - correct_answer (the correct answer text or id)
+    - explanation (short reason if incorrect, empty if correct)
+    - is_correct (true or false, always present for every question, never null, never missing)
+  - stats: total_correct (int), total_questions (int), accuracy (percentage, int), overall_score (IELTS band 0-9, int)
 
 Return ONLY a valid JSON array, no markdown, no comments, no explanations.
 

@@ -88,4 +88,6 @@ class ReadingAnalyse(BaseModel):
         verbose_name_plural = "Reading Analyses"
 
     def __str__(self):
-        return f"Analysis for {self.passage.title} by {self.user.email}"
+        passage_title = getattr(self.passage, "title", self.passage_id)
+        user_email = getattr(self.user, "email", self.user_id)
+        return f"Analysis for {passage_title} by {user_email}"
