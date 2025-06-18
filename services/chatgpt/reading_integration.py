@@ -31,9 +31,8 @@ class ChatGPTReadingIntegration(BaseChatGPTIntegration):
         prompt_13 = prompt_13.replace("(level)", level)
         prompt_14 = prompt_14.replace("(level)", level)
 
-        # Увеличиваем max_tokens для генерации больших текстов (GPT-4o поддерживает до 128000, но оптимально 32000)
-        kwargs.setdefault("max_tokens", 32000)
-        kwargs.setdefault("temperature", 1.0)
+        kwargs.setdefault("max_tokens", 128000)
+        kwargs.setdefault("temperature", 0.2)
 
         resp_13, resp_14 = await asyncio.gather(
             self._generate_response(prompt_13, **kwargs),
@@ -62,8 +61,8 @@ class ChatGPTReadingIntegration(BaseChatGPTIntegration):
         """
         prompt = await _load_prompt("reading.txt")
         prompt = prompt.replace("(level)", level)
-        kwargs.setdefault("max_tokens", 32000)
-        kwargs.setdefault("temperature", 0.8)
+        kwargs.setdefault("max_tokens", 128000)
+        kwargs.setdefault("temperature", 0.2)
         response = await self._generate_response(prompt, **kwargs)
         return response, prompt
 
@@ -90,7 +89,7 @@ class ChatGPTReadingIntegration(BaseChatGPTIntegration):
             ]
         }]
         prompt = prompt_template.replace("(data)", json.dumps(data, ensure_ascii=False))
-        kwargs.setdefault("max_tokens", 32000)
+        kwargs.setdefault("max_tokens", 128000)
         kwargs.setdefault("temperature", 0.2)
         response = await self._generate_response(prompt, **kwargs)
         try:
@@ -105,7 +104,7 @@ class ChatGPTReadingIntegration(BaseChatGPTIntegration):
         Helper method to generate a response from OpenAI's chat completions.
         """
         try:
-            kwargs.setdefault("max_tokens", 32000)
+            kwargs.setdefault("max_tokens", 128000)
             kwargs.setdefault("temperature", 0.2)
             response = await self.async_client.chat.completions.create(
                 model="gpt-4o",

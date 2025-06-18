@@ -58,7 +58,7 @@ class ListeningQuestionSerializer(BaseModel):
     id: int = Field(..., description="ID of the question")
     section_id: int = Field(..., description="ID of the section")
     index: int = Field(..., description="Index of the question in section")
-    options: Optional[Union[List[str], Dict[str, str]]] = Field(None, description="Options for the question")
+    options: Optional[Union[List[str], Dict[str, str], List[Dict[str, str]]]] = Field(None, description="Options for the question")
     correct_answer: Any = Field(..., description="Correct answer for the question")
     question_text: Optional[str] = Field(None, description="Text of the question")
 
@@ -81,7 +81,7 @@ class ListeningSectionSerializer(BaseModel):
     end_index: int = Field(..., description="End index of questions")
     question_type: str = Field(..., description="Type of questions in section")
     question_text: Optional[str] = Field(None, description="Text for the section")
-    options: Optional[Union[List[str], Dict[str, str]]] = Field(None, description="Options for the section")
+    options: Optional[Union[List[str], Dict[str, str], List[Dict[str, str]]]] = Field(None, description="Options for the section")
     questions: List[ListeningQuestionSerializer] = Field(..., description="List of questions in this section")
 
     @classmethod

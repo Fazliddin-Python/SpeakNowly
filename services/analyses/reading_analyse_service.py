@@ -16,7 +16,7 @@ class ReadingAnalyseService:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Reading session is not completed")
 
         passages = await reading.passages.all()
-        answers = await ReadingAnswer.filter(reading_id=reading_id, user_id=user_id).prefetch_related("question")
+        answers = await ReadingAnswer.filter(reading_id=reading_id, user_id=user_id).select_related("question")
         answers_by_passage = {}
         for ans in answers:
             answers_by_passage.setdefault(ans.question.passage_id, []).append(ans)
