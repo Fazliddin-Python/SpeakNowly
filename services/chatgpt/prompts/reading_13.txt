@@ -85,4 +85,4 @@ json```
   }
 ]
 ```
-IMPORTANT: You MUST generate exactly 14 questions for this passage. If you generate more or fewer, the test will be rejected.
+IMPORTANT: You MUST generate exactly 13 questions for each passage. If you generate more or fewer, the test will be rejected.
