@@ -13,6 +13,9 @@ class ReadingAnalyseService:
         if not reading:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reading session not found")
 
+        if reading.status != Reading.Status.COMPLETED:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Reading session is not completed")
+        
         # Collect answers grouped by passage
         answers = await ReadingAnswer.filter(reading_id=reading_id, user_id=user_id).select_related("question")
         answers_by_passage = {}
