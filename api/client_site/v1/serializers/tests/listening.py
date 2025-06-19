@@ -88,6 +88,10 @@ class ListeningSectionSerializer(BaseModel):
     async def from_orm(cls, obj) -> "ListeningSectionSerializer":
         questions_qs = await obj.questions.order_by("index").all()
         questions = [await ListeningQuestionSerializer.from_orm(q) for q in questions_qs]
+        options = obj.options
+        if isinstance(options, list):
+            if options and isinstance(options[0], dict) and "left" in options[0]:
+                options = [str(opt.get("left", "")) for opt in options]
         return cls(
             id=obj.id,
             section_number=obj.section_number,
@@ -95,7 +99,7 @@ class ListeningSectionSerializer(BaseModel):
             end_index=obj.end_index,
             question_type=obj.question_type,
             question_text=obj.question_text,
-            options=obj.options,
+            options=options,
             questions=questions,
         )
 
