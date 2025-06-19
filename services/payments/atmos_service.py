@@ -1,50 +1,80 @@
 from decouple import config
+import time
 import httpx
 from typing import Dict, Any
+from pydantic import BaseModel, Field
 
-ATMOS_API_URL = config("ATMOS_API_URL")
-ATMOS_STATUS_URL = config("ATMOS_STATUS_URL")
-ATMOS_MERCHANT_ID = config("ATMOS_MERCHANT_ID")
-ATMOS_CONSUMER_KEY = config("ATMOS_CONSUMER_KEY")
-ATMOS_CONSUMER_SECRET = config("ATMOS_CONSUMER_SECRET")
+class AtmosAuthResponse(BaseModel):
+    access_token: str
+    expires_in: int
+
+class AtmosCreateResponse(BaseModel):
+    code: str = Field(..., alias="result.code")
+    description: str = Field(..., alias="result.description")
+    transaction_id: int
+    store_transaction: Dict[str, Any]
 
 class AtmosService:
-    @staticmethod
-    async def create_invoice(amount: int, order_id: str, return_url: str, description: str, phone: str) -> Dict[str, Any]:
-        payload = {
-            "merchant_id": ATMOS_MERCHANT_ID,
-            "amount": amount,
-            "order_id": order_id,
-            "return_url": return_url,
-            "description": description,
-            "phone": phone,
-        }
-        headers = {
-            "Authorization": f"Bearer {ATMOS_CONSUMER_SECRET}",
-            "Content-Type": "application/json"
-        }
-        async with httpx.AsyncClient() as client:
-            try:
-                resp = await client.post(ATMOS_API_URL, json=payload, headers=headers, timeout=30)
-                resp.raise_for_status()
-                return resp.json()
-            except httpx.HTTPStatusError as e:
-                raise Exception(f"Failed to create invoice: {e.response.text}")
+    """
+    Simple Atmos client for merchant pay/create and pay/status.
+    """
+    def __init__(self):
+        # Base URL for ATMOS merchant endpoints is hardcoded as per docs
+        self._client = httpx.AsyncClient(
+            base_url="https://partner.atmos.uz/merchant", timeout=10
+        )
+        # Store identifier provided by ATMOS
+        self.store_id = config('ATMOS_MERCHANT_ID')
+        # OAuth2 client credentials
+        self.key = config('ATMOS_CONSUMER_KEY')
+        self.secret = config('ATMOS_CONSUMER_SECRET')
+        self._token = None
+        self._token_expiry = 0
 
-    @staticmethod
-    async def get_invoice_status(order_id: str) -> Dict[str, Any]:
+    async def _ensure_token(self):
+        now = time.time()
+        if self._token and now < self._token_expiry:
+            return
+        # Token endpoint: POST /oauth/token
+        resp = await self._client.post(
+            '/oauth/token',
+            data={'grant_type': 'client_credentials'},
+            auth=(self.key, self.secret),
+            headers={'Content-Type': 'application/x-www-form-urlencoded'}
+        )
+        resp.raise_for_status()
+        auth = AtmosAuthResponse(**resp.json())
+        self._token = auth.access_token
+        self._token_expiry = now + auth.expires_in - 5
+
+    async def create_payment(self, amount: int, account: str, lang: str = 'ru') -> AtmosCreateResponse:
+        await self._ensure_token()
         payload = {
-            "merchant_id": ATMOS_MERCHANT_ID,
-            "order_id": order_id,
+            'amount': amount,
+            'account': account,
+            'store_id': self.store_id,
+            'lang': lang
         }
-        headers = {
-            "Authorization": f"Bearer {ATMOS_CONSUMER_SECRET}",
-            "Content-Type": "application/json"
+        headers = {'Authorization': f'Bearer {self._token}', 'Content-Type': 'application/json'}
+        # Endpoint: POST /pay/create
+        resp = await self._client.post('/pay/create', json=payload, headers=headers)
+        resp.raise_for_status()
+        return AtmosCreateResponse.parse_obj(resp.json())
+
+    async def get_status(self, transaction_id: int) -> Dict[str, Any]:
+        await self._ensure_token()
+        payload = {
+            'transaction_id': transaction_id,
+            'store_id': self.store_id
         }
-        async with httpx.AsyncClient() as client:
-            try:
-                resp = await client.post(ATMOS_STATUS_URL, json=payload, headers=headers, timeout=30)
-                resp.raise_for_status()
-                return resp.json()
-            except httpx.HTTPStatusError as e:
-                raise Exception(f"Failed to get invoice status: {e.response.text}")
+        headers = {'Authorization': f'Bearer {self._token}', 'Content-Type': 'application/json'}
+        # Endpoint: POST /pay/status
+        resp = await self._client.post('/pay/status', json=payload, headers=headers)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def close(self):
+        await self._client.aclose()
+
+# Singleton instance
+atm = AtmosService()
