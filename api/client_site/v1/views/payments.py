@@ -10,7 +10,7 @@ from models import Payment, Tariff, TokenTransaction, TransactionType
 from utils.auth import get_current_user
 from utils.i18n import get_translation
 
-router = APIRouter(prefix="/payments", tags=["payments"])
+router = APIRouter()
 
 @router.post("/checkout/", response_model=PaymentSerializer, status_code=status.HTTP_201_CREATED)
 async def checkout(data: PaymentCreateSerializer, user=Depends(get_current_user), t=Depends(get_translation)):
