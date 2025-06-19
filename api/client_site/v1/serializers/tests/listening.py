@@ -99,12 +99,27 @@ class ListeningSectionSerializer(BaseModel):
 
     @classmethod
     async def from_orm(cls, obj) -> "ListeningSectionSerializer":
+        # подтягиваем и сериализуем вопросы
         questions_qs = await obj.questions.order_by("index").all()
         questions = [await ListeningQuestionSerializer.from_orm(q) for q in questions_qs]
-        options = obj.options
-        if isinstance(options, list):
-            if options and isinstance(options[0], dict) and "left" in options[0]:
-                options = [str(opt.get("left", "")) for opt in options]
+
+        # нормализуем options в простой список строк
+        raw_opts = obj.options or []
+        if isinstance(raw_opts, list):
+            opts: List[str] = []
+            for item in raw_opts:
+                if isinstance(item, dict):
+                    # если dict, берём поле value (или label, если нужно)
+                    opts.append(str(item.get("value", "") or ""))
+                elif isinstance(item, str):
+                    opts.append(item)
+                else:
+                    opts.append("")
+            options = opts
+        else:
+            # если не список, оставляем как есть
+            options = raw_opts
+
         return cls(
             id=obj.id,
             section_number=obj.section_number,
