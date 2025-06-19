@@ -1,9 +1,11 @@
+# services/payments/atmos_service.py
+
 import base64
 import time
-from types import SimpleNamespace
 import httpx
 from decouple import config
-from pydantic import BaseModel, Field
+from typing import Any, Dict
+from pydantic import BaseModel
 
 class AtmosAuthResponse(BaseModel):
     access_token: str
@@ -11,87 +13,91 @@ class AtmosAuthResponse(BaseModel):
     expires_in: int
 
 class AtmosCreateResponse(BaseModel):
-    result: dict
-    transaction_id: int = Field(..., alias='transactionId')
-    store_transaction: dict = Field(..., alias='storeTransaction')
+    """Matches Atmos /merchant/pay/create response."""
+    result: Dict[str, Any]
+    transaction_id: int
+    store_transaction: Dict[str, Any]
 
 class AtmosService:
-    """Atmos API client: handles token retrieval, payment creation, and status checks
-
-    Environment variables required:
-      - ATMOS_MERCHANT_ID: your Atmos merchant (store) ID
-      - ATMOS_CONSUMER_KEY: your Atmos OAuth client key
-      - ATMOS_CONSUMER_SECRET: your Atmos OAuth client secret
+    """
+    Atmos API client:
+    - Fetch OAuth token
+    - Create a draft transaction via /merchant/pay/create
+    - Build front‑end redirect URL
     """
     def __init__(self):
-        self.token_url = "https://partner.atmos.uz/token"
-        self.api_url = "https://partner.atmos.uz/merchant"
+        self.base_url = "https://partner.atmos.uz"
+        self.api_url = f"{self.base_url}/merchant"
+        self.token_url = f"{self.base_url}/token"
+
         self.store_id = config("ATMOS_MERCHANT_ID")
         self.key = config("ATMOS_CONSUMER_KEY")
         self.secret = config("ATMOS_CONSUMER_SECRET")
-        self._token = None
-        self._token_expiry = 0
+
+        self._token: str | None = None
+        self._expiry: float = 0.0
         self._client = httpx.AsyncClient(timeout=10)
 
     async def _ensure_token(self):
-        """Retrieve and cache OAuth token until expiry"""
         now = time.time()
-        if self._token and now < self._token_expiry:
+        if self._token and now < self._expiry:
             return
 
-        credentials = f"{self.key}:{self.secret}".encode()
-        basic_auth = base64.b64encode(credentials).decode()
+        creds = f"{self.key}:{self.secret}".encode()
+        basic = base64.b64encode(creds).decode()
         headers = {
-            "Authorization": f"Basic {basic_auth}",
+            "Authorization": f"Basic {basic}",
             "Content-Type": "application/x-www-form-urlencoded"
         }
         data = {"grant_type": "client_credentials"}
 
-        response = await self._client.post(self.token_url, data=data, headers=headers)
-        response.raise_for_status()
+        r = await self._client.post(self.token_url, data=data, headers=headers)
+        r.raise_for_status()
+        auth = AtmosAuthResponse(**r.json())
+        self._token = auth.access_token
+        self._expiry = now + auth.expires_in - 5
 
-        auth_data = AtmosAuthResponse(**response.json())
-        self._token = auth_data.access_token
-        # expire slightly before actual expiry to avoid edge cases
-        self._token_expiry = now + auth_data.expires_in - 5
-
-    async def create_payment(self, amount: int, account: str, lang: str = "ru") -> AtmosCreateResponse:
-        """Create a payment transaction and return the API response model"""
+    async def create_invoice(self, amount: int, account: str, lang: str = "ru") -> Dict[str, Any]:
+        """
+        1) Create a draft transaction (amount in tiyin)
+        2) Return dict with:
+           - result (code/description)
+           - transaction_id
+           - store_transaction
+           - payment_url for front redirect
+        """
         await self._ensure_token()
-        headers = {"Authorization": f"Bearer {self._token}", "Content-Type": "application/json"}
-        payload = {"amount": amount, "account": account, "store_id": self.store_id, "lang": lang}
 
-        response = await self._client.post(
-            f"{self.api_url}/pay/create", json=payload, headers=headers
+        headers = {
+            "Authorization": f"Bearer {self._token}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "amount": amount,
+            "account": account,
+            "store_id": self.store_id,
+            "lang": lang
+        }
+
+        r = await self._client.post(f"{self.api_url}/pay/create", json=payload, headers=headers)
+        r.raise_for_status()
+        data = AtmosCreateResponse(**r.json())
+
+        tx = data.transaction_id
+        form_url = (
+            f"{self.base_url}/pay/form?"
+            f"storeId={self.store_id}"
+            f"&transactionId={tx}"
         )
-        response.raise_for_status()
-        return AtmosCreateResponse(**response.json())
 
-    async def get_status(self, transaction_id: int) -> dict:
-        """Fetch the current status of a payment transaction"""
-        await self._ensure_token()
-        headers = {"Authorization": f"Bearer {self._token}", "Content-Type": "application/json"}
-        payload = {"transaction_id": transaction_id, "store_id": self.store_id}
-
-        response = await self._client.post(
-            f"{self.api_url}/pay/status", json=payload, headers=headers
-        )
-        response.raise_for_status()
-        return response.json()
-
-    async def create_invoice(self, amount: int, account: str, redirect_link: str | None = None, lang: str = "ru"):
-        """Generate an invoice and return a namespace with payment_id and redirect URL"""
-        payment_resp = await self.create_payment(amount, account, lang)
-        tx_id = payment_resp.transaction_id
-        base_url = "https://checkout.pays.uz/invoice/get"
-        redirect_url = f"{base_url}?storeId={self.store_id}&transactionId={tx_id}"
-        if redirect_link:
-            redirect_url += f"&redirectLink={redirect_link}"
-        return SimpleNamespace(payment_id=tx_id, url=redirect_url)
+        return {
+            "result": data.result,
+            "transaction_id": tx,
+            "store_transaction": data.store_transaction,
+            "payment_url": form_url
+        }
 
     async def close(self):
-        """Close the underlying HTTP client"""
         await self._client.aclose()
 
-# Singleton instance for reuse
 atm = AtmosService()
