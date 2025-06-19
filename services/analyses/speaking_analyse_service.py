@@ -30,8 +30,10 @@ class SpeakingAnalyseService:
         test = await Speaking.get_or_none(id=test_id)
         if not test:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Speaking test not found")
+   
         if test.status != SpeakingStatus.COMPLETED.value:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Speaking test is not completed")
+
         existing = await SpeakingAnalyse.get_or_none(speaking_id=test.id)
         if existing:
             return analyse_to_dict(existing)
