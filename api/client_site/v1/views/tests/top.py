@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, status
 from typing import List, Optional
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 from tortoise.expressions import Q
 import random
 
@@ -39,7 +39,7 @@ async def get_top_users_ielts(
     test_type: Optional[str] = Query(None, description="Test type (READING_ENG, etc.)"),
 ):
     """
-    Get top 100 users by IELTS score for a given period and test type.
+    Get top 100 users by IELTS score for a given period and test type,
     """
     now = datetime.utcnow()
     if period == "week":
@@ -59,24 +59,26 @@ async def get_top_users_ielts(
     user_ids = set(t.user_id for t in transactions)
     users = await User.filter(id__in=user_ids)
 
-    user_scores = {}
-    for user in users:
-        user_scores[user] = await IELTSScoreCalculator.calculate(user)
-
+    user_scores = {user: await IELTSScoreCalculator.calculate(user) for user in users}
     sorted_users = sorted(user_scores.items(), key=lambda item: item[1], reverse=True)
 
     top_users = []
-    for index, (user, score) in enumerate(sorted_users[:100], start=1):
+    for user, score in sorted_users[:100]:
+        reg_date = None
+        if hasattr(user, "created_at") and user.created_at:
+            reg_date = user.created_at.strftime("%d.%m.%Y")
         top_users.append(
             TopUserIELTSSerializer(
                 first_name=user.first_name,
                 last_name=user.last_name,
                 ielts_score=score,
+                data=reg_date,
                 image=getattr(user, "photo", None) if hasattr(user, "photo") else None,
             )
         )
 
     return top_users
+
 
 
 @router.get(
