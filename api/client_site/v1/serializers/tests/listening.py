@@ -64,11 +64,24 @@ class ListeningQuestionSerializer(BaseModel):
 
     @classmethod
     async def from_orm(cls, obj) -> "ListeningQuestionSerializer":
+        cleaned_options = None
+        if obj.options:
+            if isinstance(obj.options, list):
+                tmp_list = []
+                for item in obj.options:
+                    if isinstance(item, dict) or isinstance(item, str):
+                        tmp_list.append(item or "")
+                    else:
+                        tmp_list.append("")
+                cleaned_options = tmp_list
+            else:
+                cleaned_options = obj.options
+
         return cls(
             id=obj.id,
             section_id=obj.section_id,
             index=obj.index,
-            options=obj.options,
+            options=cleaned_options,
             correct_answer=obj.correct_answer,
             question_text=obj.question_text,
         )
