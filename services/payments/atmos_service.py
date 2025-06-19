@@ -65,7 +65,7 @@ class AtmosService:
             "success_url": "https://speaknowly.com/payment/success"
         }
 
-        resp = await self._client.post(f"{self.base_url}/checkout/invoice/create", json=payload, headers=headers)
+        resp = await self._client.post(f"{self.base_url}/merchant/pay/create", json=payload, headers=headers)
         resp.raise_for_status()
 
         return AtmosInvoiceResponse(**resp.json())
