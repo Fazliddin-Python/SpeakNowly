@@ -1,8 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Request
-from typing import List
 from uuid import uuid4
 from datetime import datetime, timezone, timedelta
-
 from tortoise.exceptions import DoesNotExist
 
 from ..serializers.payments import (
@@ -14,7 +12,7 @@ from models import Payment, Tariff, TokenTransaction, TransactionType
 from utils.auth import get_current_user
 from utils.i18n import get_translation
 
-router = APIRouter(prefix="/payments", tags=["payments"])
+router = APIRouter()
 
 @router.post("/checkout/", response_model=PaymentSerializer, status_code=status.HTTP_201_CREATED)
 async def create_payment(
@@ -45,11 +43,12 @@ async def create_payment(
         await payment.delete()
         raise HTTPException(502, t.get("atm_error", str(e)))
 
-    # Save Atmos fields
+    code = resp.result.get("code")
+
     await payment.update_from_dict({
         "atmos_order_id": order_id,
         "atmos_invoice_id": str(resp.transaction_id),
-        "atmos_status": resp.code,
+        "atmos_status": code,
         "atmos_response": resp.store_transaction
     }).save()
 
@@ -62,8 +61,8 @@ async def create_payment(
         end_date=payment.end_date,
         status=payment.status,
         atmos_invoice_id=str(resp.transaction_id),
-        atmos_status=resp.code,
-        payment_url=resp.store_transaction.get("form_url")
+        atmos_status=code,
+        payment_url=resp.store_transaction.get("ofd_url")
     )
 
 @router.post("/callback/", status_code=200)

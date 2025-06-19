@@ -2,7 +2,7 @@ import base64
 import time
 import httpx
 from decouple import config
-from typing import Dict, Any
+from typing import Dict, Any, List
 from pydantic import BaseModel, Field
 
 class AtmosAuthResponse(BaseModel):
@@ -15,13 +15,21 @@ class AtmosCreateResponse(BaseModel):
     transaction_id: int
     store_transaction: Dict[str, Any]
 
+class AtmosConfirmResponse(BaseModel):
+    result: Dict[str, Any]
+    store_transaction: Dict[str, Any]
+    ofd_url: str = None
+
+class OFDItem(BaseModel):
+    ofdCode: str
+    amount: int
+
 class AtmosService:
     """
-    Atmos API client (token, create, status).
+    Atmos API client for token handling, creating and confirming payments.
     """
     def __init__(self):
-        self.token_url = "https://partner.atmos.uz/token"
-        self.api_url = "https://partner.atmos.uz/merchant"
+        self.base_url = "https://partner.atmos.uz"
         self.store_id = config("ATMOS_MERCHANT_ID")
         self.key = config("ATMOS_CONSUMER_KEY")
         self.secret = config("ATMOS_CONSUMER_SECRET")
@@ -44,7 +52,7 @@ class AtmosService:
 
         data = {"grant_type": "client_credentials"}
 
-        resp = await self._client.post(self.token_url, data=data, headers=headers)
+        resp = await self._client.post(f"{self.base_url}/token", data=data, headers=headers)
         resp.raise_for_status()
 
         auth = AtmosAuthResponse(**resp.json())
@@ -66,11 +74,49 @@ class AtmosService:
             "lang": lang
         }
 
-        # ✅ Правильный путь: /merchant/pay/create
-        resp = await self._client.post(f"{self.api_url}/pay/create", json=payload, headers=headers)
+        resp = await self._client.post(f"{self.base_url}/merchant/pay/create", json=payload, headers=headers)
         resp.raise_for_status()
 
         return AtmosCreateResponse(**resp.json())
+
+    async def confirm_with_ofd(self, transaction_id: int, ofd_items: List[OFDItem], otp: str = "111111") -> AtmosConfirmResponse:
+        await self._ensure_token()
+
+        headers = {
+            "Authorization": f"Bearer {self._token}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "transaction_id": transaction_id,
+            "store_id": self.store_id,
+            "otp": otp,
+            "ofd_items": [item.dict() for item in ofd_items]
+        }
+
+        resp = await self._client.post(f"{self.base_url}/merchant/pay/confirm-with-ofd-list", json=payload, headers=headers)
+        resp.raise_for_status()
+
+        return AtmosConfirmResponse(**resp.json())
+
+    async def apply_ofd(self, transaction_id: int, otp: str = "111111") -> AtmosConfirmResponse:
+        await self._ensure_token()
+
+        headers = {
+            "Authorization": f"Bearer {self._token}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "transaction_id": transaction_id,
+            "store_id": self.store_id,
+            "otp": otp
+        }
+
+        resp = await self._client.post(f"{self.base_url}/merchant/pay/apply-ofd", json=payload, headers=headers)
+        resp.raise_for_status()
+
+        return AtmosConfirmResponse(**resp.json())
 
     async def get_status(self, transaction_id: int) -> Dict[str, Any]:
         await self._ensure_token()
@@ -85,14 +131,12 @@ class AtmosService:
             "store_id": self.store_id
         }
 
-        # ✅ Правильный путь: /merchant/pay/status
-        resp = await self._client.post(f"{self.api_url}/pay/status", json=payload, headers=headers)
+        resp = await self._client.post(f"{self.base_url}/merchant/pay/status", json=payload, headers=headers)
         resp.raise_for_status()
-
         return resp.json()
 
     async def close(self):
         await self._client.aclose()
 
-# Singleton
+# Singleton instance
 atm = AtmosService()
