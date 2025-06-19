@@ -1,6 +1,7 @@
 from fastapi import HTTPException, status
 from datetime import timedelta
 import asyncio
+from models.tests.constants import Constants
 from services.chatgpt import ChatGPTReadingIntegration
 from models.analyses import ReadingAnalyse
 from models.tests import Reading, ReadingAnswer
@@ -8,111 +9,107 @@ from models.tests import Reading, ReadingAnswer
 class ReadingAnalyseService:
     @staticmethod
     async def analyse(reading_id: int, user_id: int) -> list[ReadingAnalyse]:
-        # Fetch reading session and validate
         reading = await Reading.get_or_none(id=reading_id).prefetch_related("passages")
         if not reading:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reading session not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail="Reading session not found")
+        if reading.status != Constants.ReadingStatus.COMPLETED.value:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="Reading session not completed")
 
-        if reading.status != Reading.Status.COMPLETED:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Reading session is not completed")
-        
-        # Collect answers grouped by passage
-        answers = await ReadingAnswer.filter(reading_id=reading_id, user_id=user_id).select_related("question")
+        all_answers = await ReadingAnswer.filter(
+            reading_id=reading_id, user_id=user_id
+        ).select_related("question")
         answers_by_passage = {}
-        for ans in answers:
-            if ans.status == ReadingAnswer.ANSWERED:
-                answers_by_passage.setdefault(ans.question.passage_id, []).append(ans)
+        for a in all_answers:
+            if a.status == ReadingAnswer.ANSWERED:
+                answers_by_passage.setdefault(a.question.passage_id, []).append(a)
 
         chatgpt = ChatGPTReadingIntegration()
 
-        async def analyse_passage(passage_id, passage_text):
-            # Skip if analysis already exists
-            existing = await ReadingAnalyse.get_or_none(passage_id=passage_id, user_id=user_id)
-            if existing:
-                return existing
-
-            passage_answers = answers_by_passage.get(passage_id, [])
-            # If no submitted answers for this passage, skip
-            if not passage_answers:
+        async def analyse_passage(passage_id: int, passage_text: str):
+            if await ReadingAnalyse.get_or_none(passage_id=passage_id, user_id=user_id):
                 return None
 
-            # Compute duration between first and last answer
-            times = [a.updated_at for a in passage_answers if a.updated_at]
+            submitted = answers_by_passage.get(passage_id, [])
+            if not submitted:
+                return None
+
+            non_empty = [a for a in submitted if (a.text or "").strip()]
+            empty_qs  = [a for a in submitted if not (a.text or "").strip()]
+
+            if not non_empty:
+                obj = await ReadingAnalyse.create(
+                    passage_id=passage_id, user_id=user_id,
+                    correct_answers=0, overall_score=0.0,
+                    duration=timedelta(0)
+                )
+                for a in submitted:
+                    await ReadingAnswer.filter(
+                        reading_id=reading_id, user_id=user_id,
+                        question_id=a.question.id
+                    ).update(is_correct=False, correct_answer="", explanation="")
+                return obj
+
+            times = [a.updated_at for a in non_empty if a.updated_at]
             duration = (max(times) - min(times)) if times else timedelta(0)
 
-            # Prepare payload for ChatGPT
             questions_payload = [
                 {
-                    "question_id": ans.question.id,
-                    "question": ans.question.text,
-                    "type": ans.question.type,
-                    "user_answer": ans.text or ""
-                } for ans in passage_answers
+                    "question_id": a.question.id,
+                    "question": a.question.text,
+                    "type": a.question.type,
+                    "user_answer": a.text or ""
+                } for a in non_empty
             ]
 
-            # Call ChatGPT for analysis
-            try:
-                analysis_list = await chatgpt.check_passage_answers(
-                    text=passage_text,
-                    questions=questions_payload,
-                    passage_id=passage_id
-                )
-            except Exception as e:
-                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"ChatGPT analysis failed: {e}")
+            result = await chatgpt.check_passage_answers(
+                text=passage_text,
+                questions=questions_payload,
+                passage_id=passage_id
+            )
+            analysis_items = result["analysis"]
+            stats = result["stats"]
 
-            # Extract stats
-            stats_item = next((item.get("stats") for item in analysis_list if isinstance(item, dict) and "stats" in item), None)
-            if not stats_item:
-                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="No stats in ChatGPT response")
-
-            # Compute IELTS score rounding to nearest half-band
-            raw_score = stats_item.get("overall_score", 0.0)
-            frac = raw_score - int(raw_score)
+            raw = stats.get("overall_score", 0.0)
+            frac = raw - int(raw)
             if frac < 0.25:
-                band = float(int(raw_score))
+                band = float(int(raw))
             elif frac < 0.75:
-                band = float(int(raw_score)) + 0.5
+                band = float(int(raw)) + 0.5
             else:
-                band = float(int(raw_score)) + 1.0
+                band = float(int(raw)) + 1.0
 
-            # Persist ReadingAnalyse record
-            analyse_obj = await ReadingAnalyse.create(
-                passage_id=passage_id,
-                user_id=user_id,
-                correct_answers=stats_item.get("total_correct", 0),
-                overall_score=band,
-                duration=duration
+            obj = await ReadingAnalyse.create(
+                passage_id=passage_id, user_id=user_id,
+                correct_answers=stats.get("total_correct", 0),
+                overall_score=band, duration=duration
             )
 
-            # Update ReadingAnswer records with correctness and correct answer text
-            for item in analysis_list:
-                # Each item should be a question analysis dict
-                if not isinstance(item, dict) or "question_id" not in item:
-                    continue
-                qid = item.get("question_id")
-                is_corr = bool(item.get("is_correct", False))
-                corr_ans = item.get("correct_answer", "")
+            for a in empty_qs:
                 await ReadingAnswer.filter(
-                    reading_id=reading_id,
-                    user_id=user_id,
+                    reading_id=reading_id, user_id=user_id,
+                    question_id=a.question.id
+                ).update(is_correct=False, correct_answer="", explanation="")
+
+            for qi in analysis_items:
+                qid = qi["question_id"]
+                await ReadingAnswer.filter(
+                    reading_id=reading_id, user_id=user_id,
                     question_id=qid
                 ).update(
-                    is_correct=is_corr,
-                    correct_answer=corr_ans
+                    is_correct=bool(qi.get("is_correct", False)),
+                    correct_answer=qi.get("correct_answer", ""),
+                    explanation=qi.get("explanation", "")
                 )
 
-            return analyse_obj
+            return obj
 
-        # Only analyse passages with submitted answers
-        # Build map of passage_id to text
         passages = await reading.passages.all()
-        passage_map = {p.id: p.text for p in passages}
-        to_analyse = [(pid, passage_map.get(pid)) for pid in answers_by_passage.keys() if pid in passage_map]
-
-        # Run analysis for submitted passages concurrently
-        results = await asyncio.gather(*(analyse_passage(pid, text) for pid, text in to_analyse))
-        # Filter out None
-        return [res for res in results if res]
+        text_map = {p.id: p.text for p in passages}
+        tasks = [analyse_passage(pid, text_map[pid]) for pid in answers_by_passage]
+        results = await asyncio.gather(*tasks)
+        return [r for r in results if r]
 
     @staticmethod
     async def get_passage_analysis(passage_id: int, user_id: int):
