@@ -50,7 +50,7 @@ class AtmosService:
         self._token = auth.access_token
         self._token_expiry = now + auth.expires_in - 5
 
-    async def create_payment(self, amount: int, account: str, lang: str = 'ru') -> AtmosCreateResponse:
+    async def create_payment(self, amount: int, account: str, lang: str = "ru") -> AtmosCreateResponse:
         await self._ensure_token()
 
         headers = {
