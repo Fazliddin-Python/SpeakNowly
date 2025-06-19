@@ -104,6 +104,12 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "payment_confirmed": "Payment confirmed and tokens added",
         "payment_failed": "Payment failed",
         "test_type_not_found": "Test type not found",
+
+        # --- Payments / New ---
+        "tariff_not_found": "Tariff not found",
+        "payment_exists": "Active payment already exists",
+        "atm_error": "Payment service error: {error}",
+        "invalid_callback": "Invalid callback data",
     },
     "ru": {
         # --- Users / Auth ---
@@ -207,6 +213,12 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "payment_confirmed": "Платеж подтверждён и токены добавлены",
         "payment_failed": "Платеж не прошел",
         "test_type_not_found": "Тип теста не найден",
+
+        # --- Payments / New ---
+        "tariff_not_found": "Тариф не найден",
+        "payment_exists": "Активная подписка уже существует",
+        "atm_error": "Ошибка платёжного сервиса: {error}",
+        "invalid_callback": "Некорректные данные обратного вызова",
     },
     "uz": {
         # --- Users / Auth ---
@@ -310,6 +322,12 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "payment_confirmed": "To'lov tasdiqlandi va tokenlar qo'shildi",
         "payment_failed": "To'lov amalga oshmadi",
         "test_type_not_found": "Test turi topilmadi",
+
+        # --- Payments / New ---
+        "tariff_not_found": "Tarif topilmadi",
+        "payment_exists": "Faol to'lov allaqachon mavjud",
+        "atm_error": "To'lov xizmati xatosi: {error}",
+        "invalid_callback": "Callback ma'lumotlari noto'g'ri",
     },
 }
 

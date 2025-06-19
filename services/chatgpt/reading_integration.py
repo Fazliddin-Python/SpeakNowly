@@ -111,7 +111,6 @@ class ChatGPTReadingIntegration(BaseChatGPTIntegration):
         except OpenAIError as e:
             raise HTTPException(status_code=502, detail=f"OpenAI API error: {e}")
 
-        # Удалим markdown
         raw = raw.replace("```json", "").replace("```", "").strip()
 
         arr_text = extract_json_array(raw)
@@ -132,6 +131,8 @@ class ChatGPTReadingIntegration(BaseChatGPTIntegration):
 
         passages = target["passages"]
         stats = target.get("stats", {})
+
+        print(f"Passage {passage_id} analysis: {json.dumps(passages, ensure_ascii=False, indent=2)}")
 
         return {
             "passage_id": passages.get("passage_id"),

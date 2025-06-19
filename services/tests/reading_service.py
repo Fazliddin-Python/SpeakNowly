@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 from tortoise.transactions import in_transaction
 from datetime import datetime, timedelta, timezone
 import json
+import random
 
 from models.tests import (
     ReadingPassage, ReadingQuestion, ReadingVariant,
@@ -76,38 +77,60 @@ class ReadingService:
                 detail=t["insufficient_tokens"]
             )
 
-        chatgpt = ChatGPTReadingIntegration()
-        try:
-            generated_test = await chatgpt.generate_reading_test(level=level)
-        except Exception:
-            raise HTTPException(status_code=500, detail=t["test_generation_failed"])
+        # --- NEW LOGIC: pick passages from DB ---
+        # Get all passage ids in the allowed range
+        passage_ids = [p.id for p in await ReadingPassage.filter(id__gte=20, id__lte=102)]
+        if len(passage_ids) < 3:
+            raise HTTPException(status_code=400, detail="Not enough passages in DB")
 
-        # Flexible JSON parsing
-        if not generated_test or not str(generated_test).strip():
-            raise HTTPException(status_code=500, detail=t["test_generation_failed"])
-        try:
-            data = str(generated_test).strip()
-            if data.startswith("```json"):
-                data = data[7:]
-            if data.startswith("```"):
-                data = data[3:]
-            if data.endswith("```"):
-                data = data[:-3]
-            data = data.strip()
-            test_data = json.loads(data)
-        except Exception as e:
-            print("ChatGPT error:", e)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=t["test_generation_failed"]
-            )
+        # Pick 3 consecutive passages (for example, starting from a random index)
+        start_idx = random.randint(0, len(passage_ids) - 3)
+        selected_ids = passage_ids[start_idx:start_idx+3]
+        passages = await ReadingPassage.filter(id__in=selected_ids).prefetch_related("questions__variants")
 
-        passages = test_data if isinstance(test_data, list) else test_data.get("passages", [])
-        if not isinstance(passages, list) or len(passages) < 3:
-            raise HTTPException(status_code=400, detail=t["not_enough_passages"])
-        total_questions = sum(len(p.get("questions", [])) for p in passages)
-        if total_questions != 40:
-            raise HTTPException(status_code=400, detail=f"Generated test contains {total_questions} questions, expected 40")
+        # --- OLD LOGIC: dynamically generate passages via ChatGPT ---
+        # try:
+        #     chatgpt = ChatGPTReadingIntegration()
+        #     response = await chatgpt.generate_reading_test(level)
+        #     passages_data = json.loads(response)
+        #     
+        #     # Create passages in DB
+        #     passages = []
+        #     for idx, passage_data in enumerate(passages_data, 1):
+        #         # Create passage
+        #         passage = await ReadingPassage.create(
+        #             title=passage_data.get("title", f"Reading {idx}"),
+        #             text=passage_data.get("text", ""),
+        #             level=level,
+        #             number=idx,
+        #             skills=passage_data.get("skills", "")
+        #         )
+        #         
+        #         # Create questions for the passage
+        #         for q_idx, q_data in enumerate(passage_data.get("questions", []), 1):
+        #             question = await ReadingQuestion.create(
+        #                 passage=passage,
+        #                 text=q_data.get("question", ""),
+        #                 type=q_data.get("type", "MULTIPLE_CHOICE"),
+        #                 score=1
+        #             )
+        #             
+        #             # Create variants for multiple choice questions
+        #             if question.type == "MULTIPLE_CHOICE":
+        #                 for option in q_data.get("options", []):
+        #                     await ReadingVariant.create(
+        #                         question=question,
+        #                         text=option,
+        #                         is_correct=(option == q_data.get("answer", ""))
+        #                     )
+        #         
+        #         passages.append(passage)
+        #     
+        # except Exception as e:
+        #     raise HTTPException(
+        #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        #         detail=t["test_generation_failed"]
+        #     )
 
         async with in_transaction():
             user.tokens -= price
@@ -119,8 +142,6 @@ class ReadingService:
                 balance_after_transaction=user.tokens,
                 description=t["transaction_description"].format(price=price),
             )
-            start_time = datetime.now(timezone.utc)
-            end_time = start_time + timedelta(minutes=60)
             session = await Reading.create(
                 user_id=user.id,
                 start_time=datetime.now(timezone.utc),
@@ -129,35 +150,8 @@ class ReadingService:
                 score=0.0,
                 level=level,
             )
-            for passage_data in passages:
-                passage = await ReadingPassage.create(
-                    title=passage_data.get("title"),
-                    text=passage_data.get("text") or passage_data.get("passage"),
-                    skills=passage_data.get("skills") or passage_data.get("skill", ""),
-                    level=level,
-                )
+            for passage in passages:
                 await session.passages.add(passage)
-                for q in passage_data.get("questions", []):
-                    q_type = q.get("type")
-                    if not q_type:
-                        if isinstance(q.get("answers", None), list) and len(q["answers"]) == 0 and q.get("text"):
-                            q_type = "TEXT"
-                        elif isinstance(q.get("answers", None), list) and len(q["answers"]) > 0:
-                            q_type = "MULTIPLE_CHOICE"
-                        else:
-                            raise HTTPException(status_code=500, detail=f"Incorrect question: could not determine type: {q}")
-                    question = await ReadingQuestion.create(
-                        passage=passage,
-                        text=q["text"],
-                        type=q_type,
-                        score=q.get("score", 1),
-                    )
-                    for v in q.get("answers", []):
-                        await ReadingVariant.create(
-                            question=question,
-                            text=v["text"],
-                            is_correct=v.get("is_correct", False),
-                        )
             await ReadingService._create_blank_answers(session)
         return await ReadingService._format_session_data(session)
 
