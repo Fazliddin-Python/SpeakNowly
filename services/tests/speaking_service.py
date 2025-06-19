@@ -209,7 +209,7 @@ class SpeakingService:
             session.end_time = datetime.now(timezone.utc)
             await session.save(update_fields=["status", "end_time"])
 
-            analyse = await SpeakingAnalyseService.analyse_partial(session.id, answers, t)
+            analyse = await SpeakingAnalyseService.analyse(session.id)
             if not analyse:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

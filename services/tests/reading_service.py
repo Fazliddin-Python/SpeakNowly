@@ -245,11 +245,11 @@ class ReadingService:
                 detail=t["session_not_found"]
             )
 
-        # if session.status in [Constants.ReadingStatus.COMPLETED.value, Constants.ReadingStatus.CANCELLED.value]:
-        #     raise HTTPException(
-        #         status_code=status.HTTP_400_BAD_REQUEST,
-        #         detail=t["session_already_completed_or_cancelled"]
-        #     )
+        if session.status in [Constants.ReadingStatus.COMPLETED.value, Constants.ReadingStatus.CANCELLED.value]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=t["session_already_completed_or_cancelled"]
+            )
 
         session.status = Constants.ReadingStatus.COMPLETED.value
         session.end_time = datetime.now(timezone.utc)
