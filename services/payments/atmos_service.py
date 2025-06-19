@@ -93,7 +93,7 @@ class AtmosService:
 
         # build the hosted payment page URL
         payment_url = (
-            f"https://checkout.pays.uz/invoice/get?"
+            f"https://test-checkout.pays.uz/invoice/get?"
             f"storeId={self.store_id}"
             f"&transactionId={tx}"
             f"&redirectLink=https://speaknowly.com/payment/success"
