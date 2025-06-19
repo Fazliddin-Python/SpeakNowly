@@ -2,31 +2,21 @@ import base64
 import time
 import httpx
 from decouple import config
-from typing import Dict, Any, List
-from pydantic import BaseModel, Field
+from typing import Dict, Any
+from pydantic import BaseModel
 
 class AtmosAuthResponse(BaseModel):
     access_token: str
     token_type: str
     expires_in: int
 
-class AtmosCreateResponse(BaseModel):
-    result: Dict[str, Any]
-    transaction_id: int
-    store_transaction: Dict[str, Any]
-
-class AtmosConfirmResponse(BaseModel):
-    result: Dict[str, Any]
-    store_transaction: Dict[str, Any]
-    ofd_url: str = None
-
-class OFDItem(BaseModel):
-    ofdCode: str
-    amount: int
+class AtmosInvoiceResponse(BaseModel):
+    payment_id: int
+    url: str
 
 class AtmosService:
     """
-    Atmos API client for token handling, creating and confirming payments.
+    Atmos API client for authentication and invoice creation.
     """
     def __init__(self):
         self.base_url = "https://partner.atmos.uz"
@@ -59,7 +49,7 @@ class AtmosService:
         self._token = auth.access_token
         self._token_expiry = now + auth.expires_in - 5
 
-    async def create_payment(self, amount: int, account: str, lang: str = "ru") -> AtmosCreateResponse:
+    async def create_invoice(self, client_id: int, amount: int, transaction_id: int) -> AtmosInvoiceResponse:
         await self._ensure_token()
 
         headers = {
@@ -68,72 +58,17 @@ class AtmosService:
         }
 
         payload = {
-            "amount": amount,
-            "account": account,
+            "request_id": transaction_id,
             "store_id": self.store_id,
-            "lang": lang
+            "account": transaction_id,
+            "amount": amount * 100,
+            "success_url": "https://speaknowly.com/payment/success"
         }
 
-        resp = await self._client.post(f"{self.base_url}/merchant/pay/create", json=payload, headers=headers)
+        resp = await self._client.post(f"{self.base_url}/checkout/invoice/create", json=payload, headers=headers)
         resp.raise_for_status()
 
-        return AtmosCreateResponse(**resp.json())
-
-    async def confirm_with_ofd(self, transaction_id: int, ofd_items: List[OFDItem], otp: str = "111111") -> AtmosConfirmResponse:
-        await self._ensure_token()
-
-        headers = {
-            "Authorization": f"Bearer {self._token}",
-            "Content-Type": "application/json"
-        }
-
-        payload = {
-            "transaction_id": transaction_id,
-            "store_id": self.store_id,
-            "otp": otp,
-            "ofd_items": [item.dict() for item in ofd_items]
-        }
-
-        resp = await self._client.post(f"{self.base_url}/merchant/pay/confirm-with-ofd-list", json=payload, headers=headers)
-        resp.raise_for_status()
-
-        return AtmosConfirmResponse(**resp.json())
-
-    async def apply_ofd(self, transaction_id: int, otp: str = "111111") -> AtmosConfirmResponse:
-        await self._ensure_token()
-
-        headers = {
-            "Authorization": f"Bearer {self._token}",
-            "Content-Type": "application/json"
-        }
-
-        payload = {
-            "transaction_id": transaction_id,
-            "store_id": self.store_id,
-            "otp": otp
-        }
-
-        resp = await self._client.post(f"{self.base_url}/merchant/pay/apply-ofd", json=payload, headers=headers)
-        resp.raise_for_status()
-
-        return AtmosConfirmResponse(**resp.json())
-
-    async def get_status(self, transaction_id: int) -> Dict[str, Any]:
-        await self._ensure_token()
-
-        headers = {
-            "Authorization": f"Bearer {self._token}",
-            "Content-Type": "application/json"
-        }
-
-        payload = {
-            "transaction_id": transaction_id,
-            "store_id": self.store_id
-        }
-
-        resp = await self._client.post(f"{self.base_url}/merchant/pay/status", json=payload, headers=headers)
-        resp.raise_for_status()
-        return resp.json()
+        return AtmosInvoiceResponse(**resp.json())
 
     async def close(self):
         await self._client.aclose()

@@ -3,7 +3,10 @@ from uuid import uuid4
 from datetime import datetime, timezone, timedelta
 from tortoise.exceptions import DoesNotExist
 
-from ..serializers.payments import PaymentSerializer, PaymentCreateSerializer
+from ..serializers.payments import (
+    PaymentSerializer,
+    PaymentCreateSerializer,
+)
 from services.payments.atmos_service import atm
 from models import Payment, Tariff, TokenTransaction, TransactionType
 from utils.auth import get_current_user
@@ -24,11 +27,10 @@ async def create_payment(
 
     now = datetime.now(timezone.utc)
 
-    # Проверка: есть ли активная оплаченная подписка
-    if await Payment.filter(user_id=user.id, tariff_id=tariff.id, end_date__gte=now, status="paid").first():
+    active = await Payment.filter(user_id=user.id, tariff_id=tariff.id, end_date__gte=now, status="paid").first()
+    if active:
         raise HTTPException(400, t.get("payment_exists", "Active payment exists"))
 
-    # Есть ли незавершённый pending платёж
     existing = await Payment.filter(user_id=user.id, tariff_id=tariff.id, status="pending").first()
 
     if existing:
@@ -41,33 +43,16 @@ async def create_payment(
             amount=tariff.price, start_date=start, end_date=end, status="pending"
         )
 
-    order_id = str(payment.uuid)
-
-    # Создаём черновик транзакции
     try:
-        resp = await atm.create_payment(amount=tariff.price * 100, account=order_id)
+        invoice = await atm.create_invoice(client_id=user.id, amount=tariff.price, transaction_id=payment.id)
     except Exception as e:
         raise HTTPException(502, t.get("atm_error", str(e)))
 
     await payment.update_from_dict({
-        "atmos_order_id": order_id,
-        "atmos_invoice_id": str(resp.transaction_id),
-        "atmos_status": resp.result.get("code"),
-        "atmos_response": resp.store_transaction
+        "atmos_invoice_id": str(invoice.payment_id),
+        "atmos_status": "created",
+        "atmos_response": {"url": invoice.url}
     }).save()
-
-    # Подтверждаем транзакцию через apply-ofd, чтобы получить URL на фискальный чек
-    payment_url = ""
-    if resp.result.get("code") == "OK":
-        try:
-            confirm = await atm.apply_ofd(transaction_id=resp.transaction_id)
-            await payment.update_from_dict({
-                "atmos_status": confirm.result.get("code"),
-                "atmos_response": confirm.store_transaction
-            }).save()
-            payment_url = confirm.ofd_url or ""
-        except Exception as e:
-            raise HTTPException(502, f"Failed to confirm: {e}")
 
     return PaymentSerializer(
         uuid=payment.uuid,
@@ -77,11 +62,10 @@ async def create_payment(
         start_date=payment.start_date,
         end_date=payment.end_date,
         status=payment.status,
-        atmos_invoice_id=str(resp.transaction_id),
-        atmos_status=payment.atmos_status,
-        payment_url=payment_url
+        atmos_invoice_id=str(invoice.payment_id),
+        atmos_status="created",
+        payment_url=invoice.url
     )
-
 
 @router.post("/callback/", status_code=200)
 async def atmos_callback(
@@ -89,31 +73,29 @@ async def atmos_callback(
     t=Depends(get_translation)
 ):
     payload = await req.json()
-    txn = payload.get("transaction_id")
-    status_at = payload.get("result", {}).get("code")
-    if not txn or not status_at:
+    txn = payload.get("invoice")
+    if not txn:
         raise HTTPException(400, t.get("invalid_callback", "Invalid callback"))
     try:
         payment = await Payment.get(atmos_invoice_id=str(txn)).prefetch_related("tariff", "user")
     except DoesNotExist:
         raise HTTPException(404, "Payment not found")
 
-    payment.atmos_status = status_at
-    if status_at == "OK" and payment.status != "paid":
-        payment.status = "paid"
-        await payment.save()
-        tokens = payment.tariff.tokens
-        last = await TokenTransaction.filter(user_id=payment.user_id).order_by("-created_at").first()
-        bal = last.balance_after_transaction if last else 0
-        await TokenTransaction.create(
-            user=payment.user,
-            transaction_type=TransactionType.CUSTOM_ADDITION,
-            amount=tokens,
-            balance_after_transaction=bal + tokens,
-            description=f"Tokens for tariff {payment.tariff.name}"
-        )
-    else:
-        payment.status = "failed"
-        await payment.save()
+    if payment.status == "paid":
+        return {"status": "ok"}
+
+    payment.status = "paid"
+    await payment.save()
+
+    tokens = payment.tariff.tokens
+    last = await TokenTransaction.filter(user_id=payment.user_id).order_by("-created_at").first()
+    bal = last.balance_after_transaction if last else 0
+    await TokenTransaction.create(
+        user=payment.user,
+        transaction_type=TransactionType.CUSTOM_ADDITION,
+        amount=tokens,
+        balance_after_transaction=bal + tokens,
+        description=f"Tokens for tariff {payment.tariff.name}"
+    )
 
     return {"status": "ok"}
