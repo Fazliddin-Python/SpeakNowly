@@ -1,5 +1,3 @@
-# services/payments/atmos_service.py
-
 import base64
 import time
 import httpx
@@ -21,14 +19,14 @@ class AtmosCreateResponse(BaseModel):
 class AtmosService:
     """
     Atmos API client:
-    - Fetch OAuth token
-    - Create a draft transaction via /merchant/pay/create
-    - Build front‑end redirect URL
+    - Fetch OAuth token from /token
+    - Create draft transaction via /merchant/pay/create
+    - Build payment page URL on checkout.pays.uz
     """
     def __init__(self):
-        self.base_url = "https://partner.atmos.uz"
-        self.api_url = f"{self.base_url}/merchant"
-        self.token_url = f"{self.base_url}/token"
+        self.base = "https://partner.atmos.uz"
+        self.api = f"{self.base}/merchant"
+        self.token_url = f"{self.base}/token"
 
         self.store_id = config("ATMOS_MERCHANT_ID")
         self.key = config("ATMOS_CONSUMER_KEY")
@@ -39,6 +37,7 @@ class AtmosService:
         self._client = httpx.AsyncClient(timeout=10)
 
     async def _ensure_token(self):
+        """Obtain and cache a valid OAuth2 bearer token."""
         now = time.time()
         if self._token and now < self._expiry:
             return
@@ -47,57 +46,69 @@ class AtmosService:
         basic = base64.b64encode(creds).decode()
         headers = {
             "Authorization": f"Basic {basic}",
-            "Content-Type": "application/x-www-form-urlencoded"
+            "Content-Type": "application/x-www-form-urlencoded",
         }
         data = {"grant_type": "client_credentials"}
 
         r = await self._client.post(self.token_url, data=data, headers=headers)
         r.raise_for_status()
         auth = AtmosAuthResponse(**r.json())
+
         self._token = auth.access_token
         self._expiry = now + auth.expires_in - 5
 
-    async def create_invoice(self, amount: int, account: str, lang: str = "ru") -> Dict[str, Any]:
+    async def create_invoice(
+        self,
+        request_id: str,
+        amount_tiyin: int,
+        lang: str = "ru"
+    ) -> Dict[str, Any]:
         """
-        1) Create a draft transaction (amount in tiyin)
+        1) Create draft via POST /merchant/pay/create
         2) Return dict with:
-           - result (code/description)
+           - result
            - transaction_id
            - store_transaction
-           - payment_url for front redirect
+           - payment_url (checkout.pays.uz link)
         """
         await self._ensure_token()
 
         headers = {
             "Authorization": f"Bearer {self._token}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
         payload = {
-            "amount": amount,
-            "account": account,
+            "amount": amount_tiyin,
+            "account": request_id,
             "store_id": self.store_id,
-            "lang": lang
+            "lang": lang,
         }
 
-        r = await self._client.post(f"{self.api_url}/pay/create", json=payload, headers=headers)
+        # create a draft transaction
+        r = await self._client.post(f"{self.api}/pay/create", json=payload, headers=headers)
         r.raise_for_status()
         data = AtmosCreateResponse(**r.json())
 
         tx = data.transaction_id
-        form_url = (
-            f"{self.base_url}/pay/form?"
+
+        # build the hosted payment page URL
+        payment_url = (
+            f"https://checkout.pays.uz/invoice/get?"
             f"storeId={self.store_id}"
             f"&transactionId={tx}"
+            f"&redirectLink=https://speaknowly.com/payment/success"
         )
 
         return {
             "result": data.result,
             "transaction_id": tx,
             "store_transaction": data.store_transaction,
-            "payment_url": form_url
+            "payment_url": payment_url,
         }
 
     async def close(self):
+        """Close the HTTP client."""
         await self._client.aclose()
 
+# Singleton
 atm = AtmosService()
