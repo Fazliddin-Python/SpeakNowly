@@ -3,7 +3,7 @@ import time
 import httpx
 from decouple import config
 from typing import Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class AtmosAuthResponse(BaseModel):
     access_token: str
@@ -20,7 +20,8 @@ class AtmosService:
     Atmos API client (token, create, status).
     """
     def __init__(self):
-        self.base_url = "https://partner.atmos.uz"
+        self.token_url = "https://partner.atmos.uz/token"
+        self.api_url = "https://partner.atmos.uz/merchant"
         self.store_id = config("ATMOS_MERCHANT_ID")
         self.key = config("ATMOS_CONSUMER_KEY")
         self.secret = config("ATMOS_CONSUMER_SECRET")
@@ -43,7 +44,7 @@ class AtmosService:
 
         data = {"grant_type": "client_credentials"}
 
-        resp = await self._client.post(f"{self.base_url}/token", data=data, headers=headers)
+        resp = await self._client.post(self.token_url, data=data, headers=headers)
         resp.raise_for_status()
 
         auth = AtmosAuthResponse(**resp.json())
@@ -65,7 +66,8 @@ class AtmosService:
             "lang": lang
         }
 
-        resp = await self._client.post(f"{self.base_url}/pay/create", json=payload, headers=headers)
+        # ✅ Правильный путь: /merchant/pay/create
+        resp = await self._client.post(f"{self.api_url}/pay/create", json=payload, headers=headers)
         resp.raise_for_status()
 
         return AtmosCreateResponse(**resp.json())
@@ -83,12 +85,14 @@ class AtmosService:
             "store_id": self.store_id
         }
 
-        resp = await self._client.post(f"{self.base_url}/pay/status", json=payload, headers=headers)
+        # ✅ Правильный путь: /merchant/pay/status
+        resp = await self._client.post(f"{self.api_url}/pay/status", json=payload, headers=headers)
         resp.raise_for_status()
+
         return resp.json()
 
     async def close(self):
         await self._client.aclose()
 
-# Singleton instance
+# Singleton
 atm = AtmosService()
