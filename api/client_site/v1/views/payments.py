@@ -3,10 +3,7 @@ from uuid import uuid4
 from datetime import datetime, timezone, timedelta
 from tortoise.exceptions import DoesNotExist
 
-from ..serializers.payments import (
-    PaymentSerializer,
-    PaymentCreateSerializer,
-)
+from ..serializers.payments import PaymentSerializer, PaymentCreateSerializer
 from services.payments.atmos_service import atm
 from models import Payment, Tariff, TokenTransaction, TransactionType
 from utils.auth import get_current_user
@@ -27,12 +24,11 @@ async def create_payment(
 
     now = datetime.now(timezone.utc)
 
-    # 👉 Проверка на уже существующий активный платеж (оплаченный)
-    active = await Payment.filter(user_id=user.id, tariff_id=tariff.id, end_date__gte=now, status="paid").first()
-    if active:
+    # Проверка: есть ли активная оплаченная подписка
+    if await Payment.filter(user_id=user.id, tariff_id=tariff.id, end_date__gte=now, status="paid").first():
         raise HTTPException(400, t.get("payment_exists", "Active payment exists"))
 
-    # 👉 Проверка на незавершённый "pending" платеж
+    # Есть ли незавершённый pending платёж
     existing = await Payment.filter(user_id=user.id, tariff_id=tariff.id, status="pending").first()
 
     if existing:
@@ -47,6 +43,7 @@ async def create_payment(
 
     order_id = str(payment.uuid)
 
+    # Создаём черновик транзакции
     try:
         resp = await atm.create_payment(amount=tariff.price * 100, account=order_id)
     except Exception as e:
@@ -59,6 +56,19 @@ async def create_payment(
         "atmos_response": resp.store_transaction
     }).save()
 
+    # Подтверждаем транзакцию через apply-ofd, чтобы получить URL на фискальный чек
+    payment_url = ""
+    if resp.result.get("code") == "OK":
+        try:
+            confirm = await atm.apply_ofd(transaction_id=resp.transaction_id)
+            await payment.update_from_dict({
+                "atmos_status": confirm.result.get("code"),
+                "atmos_response": confirm.store_transaction
+            }).save()
+            payment_url = confirm.ofd_url or ""
+        except Exception as e:
+            raise HTTPException(502, f"Failed to confirm: {e}")
+
     return PaymentSerializer(
         uuid=payment.uuid,
         user_id=user.id,
@@ -68,9 +78,10 @@ async def create_payment(
         end_date=payment.end_date,
         status=payment.status,
         atmos_invoice_id=str(resp.transaction_id),
-        atmos_status=resp.result.get("code"),
-        payment_url=resp.store_transaction.get("ofd_url") or ""
+        atmos_status=payment.atmos_status,
+        payment_url=payment_url
     )
+
 
 @router.post("/callback/", status_code=200)
 async def atmos_callback(
