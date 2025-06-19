@@ -16,18 +16,18 @@ class AtmosCreateResponse(BaseModel):
 
 class AtmosService:
     """
-    Simple Atmos client for merchant pay/create and pay/status.
+    Corrected Atmos client for pay/create and pay/status.
+    Token endpoint is NOT under /merchant.
     """
     def __init__(self):
-        # Base URL for ATMOS merchant endpoints is hardcoded as per docs
-        self._client = httpx.AsyncClient(
-            base_url="https://partner.atmos.uz/merchant", timeout=10
-        )
-        # Store identifier provided by ATMOS
-        self.store_id = config('ATMOS_MERCHANT_ID')
-        # OAuth2 client credentials
-        self.key = config('ATMOS_CONSUMER_KEY')
-        self.secret = config('ATMOS_CONSUMER_SECRET')
+        self.base_url = "https://partner.atmos.uz"
+        self.merchant_url = f"{self.base_url}/merchant"
+        self._client = httpx.AsyncClient(timeout=10)
+
+        self.store_id = config("ATMOS_MERCHANT_ID")
+        self.key = config("ATMOS_CONSUMER_KEY")
+        self.secret = config("ATMOS_CONSUMER_SECRET")
+
         self._token = None
         self._token_expiry = 0
 
@@ -35,41 +35,45 @@ class AtmosService:
         now = time.time()
         if self._token and now < self._token_expiry:
             return
-        # Token endpoint: POST /oauth/token
+        # Correct endpoint: /oauth/token (NOT under /merchant)
         resp = await self._client.post(
-            '/oauth/token',
-            data={'grant_type': 'client_credentials'},
+            f"{self.base_url}/oauth/token",
+            data={"grant_type": "client_credentials"},
             auth=(self.key, self.secret),
-            headers={'Content-Type': 'application/x-www-form-urlencoded'}
+            headers={"Content-Type": "application/x-www-form-urlencoded"}
         )
         resp.raise_for_status()
         auth = AtmosAuthResponse(**resp.json())
         self._token = auth.access_token
         self._token_expiry = now + auth.expires_in - 5
 
-    async def create_payment(self, amount: int, account: str, lang: str = 'ru') -> AtmosCreateResponse:
+    async def create_payment(self, amount: int, account: str, lang: str = "ru") -> AtmosCreateResponse:
         await self._ensure_token()
         payload = {
-            'amount': amount,
-            'account': account,
-            'store_id': self.store_id,
-            'lang': lang
+            "amount": amount,
+            "account": account,
+            "store_id": self.store_id,
+            "lang": lang
         }
-        headers = {'Authorization': f'Bearer {self._token}', 'Content-Type': 'application/json'}
-        # Endpoint: POST /pay/create
-        resp = await self._client.post('/pay/create', json=payload, headers=headers)
+        headers = {
+            "Authorization": f"Bearer {self._token}",
+            "Content-Type": "application/json"
+        }
+        resp = await self._client.post(f"{self.merchant_url}/pay/create", json=payload, headers=headers)
         resp.raise_for_status()
         return AtmosCreateResponse.parse_obj(resp.json())
 
     async def get_status(self, transaction_id: int) -> Dict[str, Any]:
         await self._ensure_token()
         payload = {
-            'transaction_id': transaction_id,
-            'store_id': self.store_id
+            "transaction_id": transaction_id,
+            "store_id": self.store_id
         }
-        headers = {'Authorization': f'Bearer {self._token}', 'Content-Type': 'application/json'}
-        # Endpoint: POST /pay/status
-        resp = await self._client.post('/pay/status', json=payload, headers=headers)
+        headers = {
+            "Authorization": f"Bearer {self._token}",
+            "Content-Type": "application/json"
+        }
+        resp = await self._client.post(f"{self.merchant_url}/pay/status", json=payload, headers=headers)
         resp.raise_for_status()
         return resp.json()
 
