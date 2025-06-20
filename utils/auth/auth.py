@@ -10,7 +10,7 @@ from models.users.users import User
 
 class TokenPayload(TypedDict, total=True):
     """
-    TypedDict for JWT token payload structure.
+    Defines JWT token payload structure.
     """
     sub: str
     email: str
@@ -25,7 +25,7 @@ async def create_access_token(
     expires_delta: Optional[timedelta] = None
 ) -> str:
     """
-    Create a signed JWT access token that expires after a specified time.
+    Creates signed JWT access token.
     """
     if expires_delta is None:
         expires_delta = timedelta(days=1)
@@ -40,7 +40,7 @@ async def create_refresh_token(
     expires_delta: Optional[timedelta] = None
 ) -> str:
     """
-    Create a signed JWT refresh token that expires after a specified time.
+    Creates signed JWT refresh token.
     """
     if expires_delta is None:
         expires_delta = timedelta(days=30)
@@ -55,9 +55,7 @@ async def decode_access_token(
     require_refresh: bool = False
 ) -> TokenPayload:
     """
-    Decode and validate a JWT token.
-    If require_refresh is True, ensure the token is a refresh token.
-    Otherwise, expect an access token.
+    Decodes and validates JWT token.
     """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -85,7 +83,7 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ) -> User:
     """
-    FastAPI dependency: extract the current user from the access token.
+    Extracts current user from access token.
     """
     token_str = credentials.credentials
     payload = await decode_access_token(token_str, require_refresh=False)

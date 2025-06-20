@@ -1,11 +1,11 @@
-# Python
+# === Python files ===
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 *.pyc
 
-# Virtualenv
+# === Environment ===
 .env
 .venv
 env/
@@ -14,18 +14,18 @@ ENV/
 env.bak/
 *.env
 
-# VSCode
+# === Editors ===
 .vscode/
 .history/
 
-# OS files
+# === OS files ===
 .DS_Store
 Thumbs.db
 
-# Logs
+# === Logging ===
 *.log
 
-# Database & migrations
+# === Database ===
 *.sqlite3
 *.db
 *.bak
@@ -37,18 +37,18 @@ media/
 aerich.ini
 aerich.log
 
-# Tortoise ORM generated files
+# === ORM generated files ===
 *.py,cover
 *.pyc,cover
 
-# Celery
+# === Task processing ===
 celerybeat-schedule
 celerybeat.pid
 
-# Pipenv
+# === Dependencies ===
 Pipfile.lock
 
-# Test & coverage
+# === Testing ===
 .coverage
 htmlcov/
 .tox/
@@ -57,23 +57,23 @@ htmlcov/
 pytest_cache/
 coverage.xml
 
-# Jupyter
+# === Jupyter ===
 .ipynb_checkpoints
 
-# Build
+# === Build artifacts ===
 build/
 dist/
 *.egg-info/
 
-# IDEs
+# === IDE files ===
 .idea/
 *.iml
 
-# Node (if frontend present)
+# === Frontend ===
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Custom
+# === Project specific ===
 secrets.json

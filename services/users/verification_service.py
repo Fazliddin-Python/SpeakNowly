@@ -57,7 +57,7 @@ class VerificationService:
         # 5. Generate code
         code = f"{randint(10000, 99999)}"
 
-        # 5. Prepare email content
+        # 6. Prepare email content
         subject = "Your Verification Code"
         body = f"Your verification code is: {code}\n\nThis code is valid for 10 minutes."
         html_body = f"""
@@ -155,7 +155,7 @@ class VerificationService:
 </html>
 """
 
-        # 6. Enqueue email
+        # 7. Enqueue email
         redis_settings = get_redis_settings()
         redis = await create_pool(redis_settings)
         await redis.enqueue_job(
@@ -179,6 +179,7 @@ class VerificationService:
             updated_at=now
         )
 
+        # 9. Return generated code
         return code
 
     @staticmethod
@@ -191,19 +192,20 @@ class VerificationService:
     ) -> User:
         """
         Verify the code and return the User:
-        1. Validate type.
+        1. Validate verification type.
         2. Fetch latest unused/unexpired code.
-        3. Expire if TTL exceeded.
-        4. Match code.
-        5. Mark used.
-        6. Return User instance.
+        3. Check if code has expired based on TTL.
+        4. Validate code matches.
+        5. Mark code as used.
+        6. Retrieve and return user.
         """
+        # 1. Validate verification type
         try:
             otp_type = VerificationType(verification_type)
         except ValueError:
             raise HTTPException(status_code=400, detail=t.get("invalid_verification_type", "Invalid verification type"))
 
-        # Fetch the latest unused code
+        # 2. Fetch the latest unused code
         record = await VerificationCode.filter(
             email=email,
             verification_type=otp_type,
@@ -213,17 +215,21 @@ class VerificationService:
         if not record:
             raise HTTPException(status_code=400, detail=t.get("code_not_found", "Code not found or used"))
 
+        # 3. Check if code has expired based on TTL
         if datetime.now(timezone.utc) - record.updated_at > CODE_TTL:
             record.is_expired = True
             await record.save()
             raise HTTPException(status_code=400, detail=t.get("code_expired", "Verification code expired"))
 
+        # 4. Validate code matches
         if str(record.code) != str(code):
             raise HTTPException(status_code=400, detail=t.get("invalid_code", "Invalid verification code"))
 
+        # 5. Mark code as used
         record.is_used = True
         await record.save()
 
+        # 6. Retrieve and return user
         if otp_type == VerificationType.UPDATE_EMAIL and user_id:
             user = await UserService.get_by_id(user_id)
         else:
@@ -235,12 +241,17 @@ class VerificationService:
     @staticmethod
     async def delete_unused_codes(email: str, verification_type: str) -> None:
         """
-        Delete unused, unexpired codes.
+        Delete unused verification codes:
+        1. Validate verification type.
+        2. Remove all unused and unexpired codes for the email.
         """
+        # 1. Validate verification type
         try:
             otp_type = VerificationType(verification_type)
         except ValueError:
             return
+            
+        # 2. Remove all unused and unexpired codes
         await VerificationCode.filter(
             email=email,
             verification_type=otp_type,

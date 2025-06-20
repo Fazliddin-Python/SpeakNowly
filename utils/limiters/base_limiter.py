@@ -3,8 +3,7 @@ from datetime import timedelta, datetime, timezone
 
 class AsyncLimiter:
     """
-    Universal async rate limiter using Redis as backend.
-    Allows to check, register and reset attempts for any identifier.
+    Implements rate limiting using Redis backend.
     """
 
     def __init__(self, redis_client: redis.Redis, prefix: str, max_attempts: int, period: timedelta):
@@ -15,13 +14,13 @@ class AsyncLimiter:
 
     def get_key(self, identifier: str) -> str:
         """
-        Generate a Redis key based on the prefix and identifier (e.g., email or IP).
+        Generates Redis key from prefix and identifier.
         """
         return f"{self.prefix}:{identifier}"
 
     async def is_blocked(self, identifier: str) -> bool:
         """
-        Returns True if too many attempts have been made for this identifier.
+        Checks if identifier has exceeded attempt limit.
         """
         key = self.get_key(identifier)
         curr = await self.redis.get(key)
@@ -31,7 +30,7 @@ class AsyncLimiter:
 
     async def register_attempt(self, identifier: str) -> None:
         """
-        Record a new attempt for the identifier.
+        Records new attempt for identifier.
         """
         key = self.get_key(identifier)
         curr = await self.redis.get(key)
@@ -43,14 +42,14 @@ class AsyncLimiter:
 
     async def reset(self, identifier: str) -> None:
         """
-        Reset the attempt counter for the identifier.
+        Resets attempt counter for identifier.
         """
         key = self.get_key(identifier)
         await self.redis.delete(key)
 
 class EmailUpdateLimiter:
     """
-    Limiter for email update requests: allows only 1 update per 7 days per email.
+    Limits email update requests to once per period.
     """
     def __init__(self, redis_client: redis.Redis, period: timedelta = timedelta(days=7)):
         self.redis = redis_client
@@ -62,7 +61,7 @@ class EmailUpdateLimiter:
 
     async def is_blocked(self, email: str) -> bool:
         """
-        Returns True if the email was updated less than period ago.
+        Checks if email was updated within blocking period.
         """
         key = self.get_key(email)
         last_update = await self.redis.get(key)
@@ -74,14 +73,14 @@ class EmailUpdateLimiter:
 
     async def register_attempt(self, email: str) -> None:
         """
-        Stores the date of the last email update attempt.
+        Records email update attempt timestamp.
         """
         key = self.get_key(email)
         await self.redis.set(key, datetime.now(timezone.utc).isoformat())
 
     async def reset(self, email: str) -> None:
         """
-        Resets the limiter (e.g., after a successful confirmation).
+        Resets limiter for email.
         """
         key = self.get_key(email)
         await self.redis.delete(key)

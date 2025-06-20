@@ -333,8 +333,7 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
 
 async def get_translation(request: Request) -> Dict[str, str]:
     """
-    Return translation dictionary based on Accept-Language header.
-    Supported languages: en, ru, uz. Defaults to English.
+    Returns translation dictionary based on Accept-Language header.
     """
     raw_lang = request.headers.get("Accept-Language", "en").split(",")[0]
     lang_prefix = raw_lang.split("-")[0].lower()

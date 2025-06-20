@@ -11,7 +11,7 @@ def get_redis_settings() -> RedisSettings:
 
 async def get_arq_redis():
     """
-    FastAPI dependency: returns a ready-to-use Redis pool for ARQ.
+    Creates Redis connection pool for ARQ.
     """
     settings = get_redis_settings()
     return await create_pool(settings)

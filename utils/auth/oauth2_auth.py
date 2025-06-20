@@ -14,7 +14,7 @@ async def oauth2_sign_in(
     client_id: str = None
 ) -> dict:
     """
-    Authenticate user via Google or Apple OAuth2, registering if needed, and return access and refresh tokens.
+    Authenticates user via OAuth2 and returns tokens.
     """
     email = None
 

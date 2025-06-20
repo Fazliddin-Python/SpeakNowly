@@ -14,7 +14,7 @@ from models import User, UserActivityLog, Payment, Tariff, TokenTransaction, Mes
 from tortoise import Tortoise
 
 
-# === Ensure Tortoise ORM is initialized ===
+# === Database Initialization ===
 
 async def ensure_tortoise():
     if not Tortoise._inited:
@@ -37,7 +37,7 @@ async def ensure_tortoise():
         )
 
 
-# === Analyse Tasks ===
+# === Analysis Tasks ===
 
 async def analyse_listening(ctx, session_id: int):
     await ensure_tortoise()
@@ -59,14 +59,14 @@ async def analyse_writing(ctx, test_id: int):
     await WritingAnalyseService.analyse(test_id)
 
 
-# === Email Task ===
+# === Email Tasks ===
 
 async def send_email(ctx, subject: str, recipients: list[str], body: str = None, html_body: str = None):
     await ensure_tortoise()
     await EmailService.send_email(subject, recipients, body, html_body)
 
 
-# === User Activity Logging ===
+# === User Activity Tasks ===
 
 async def log_user_activity(ctx, user_id: int, action: str):
     await ensure_tortoise()
@@ -75,7 +75,7 @@ async def log_user_activity(ctx, user_id: int, action: str):
         await UserActivityLog.create(user=user, action=action)
 
 
-# === Tariff Management ===
+# === Tariff Management Tasks ===
 
 async def check_expired_tariffs(ctx):
     await ensure_tortoise()
@@ -145,7 +145,7 @@ async def give_daily_tariff_bonus(ctx):
         )
 
 
-# === ARQ Worker Settings ===
+# === ARQ Worker Configuration ===
 
 class WorkerSettings:
     redis_settings = RedisSettings(host="localhost", port=6379)
@@ -165,12 +165,12 @@ class WorkerSettings:
         from config import DATABASE_URL, REDIS_URL
 
         try:
-            # Redis init
+            # === Redis initialization ===
             ctx["redis"] = Redis.from_url(REDIS_URL, decode_responses=True)
             await ctx["redis"].ping()
             print("✅ Redis connected")
 
-            # Tortoise init
+            # === Tortoise initialization ===
             await Tortoise.init(
                 db_url=DATABASE_URL,
                 modules={

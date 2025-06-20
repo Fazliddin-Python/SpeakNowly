@@ -8,7 +8,7 @@ TOKEN_AUDIENCE = "https://appleid.apple.com"
 
 async def get_apple_jwk(kid: str) -> dict:
     """
-    Fetch Apple's public JWK matching the given key ID (async version).
+    Fetches Apple's public JWK for given key ID.
     """
     try:
         async with httpx.AsyncClient() as client:
@@ -25,7 +25,7 @@ async def get_apple_jwk(kid: str) -> dict:
 
 async def decode_apple_id_token(id_token: str, client_id: str) -> dict:
     """
-    Decode and validate Apple ID token using JWKS (async version).
+    Decodes and validates Apple ID token using JWKS.
     """
     if not id_token:
         raise HTTPException(status_code=400, detail="Missing id_token parameter")

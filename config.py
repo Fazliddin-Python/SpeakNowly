@@ -21,7 +21,7 @@ CORS_ALLOW_HEADERS = [
     "content-type",
 ]
 
-# === Database (Tortoise ORM) ===
+# === Database settings ===
 DATABASE_URL = config("DATABASE_URL")
 DATABASE_CONFIG = {
     "connections": {"default": DATABASE_URL},
@@ -49,13 +49,13 @@ REDIS_URL = config("REDIS_URL", default="redis://localhost:6379/0")
 EMAIL_BACKEND = config("EMAIL_BACKEND", default="http")  # smtp или http
 EMAIL_FROM = config("EMAIL_FROM", default="no-reply@example.com")
 
-# SMTP backend
+# === SMTP backend ===
 SMTP_HOST = config("SMTP_HOST", default="")
 SMTP_PORT = config("SMTP_PORT", cast=int, default=0)
 SMTP_USER = config("SMTP_USER", default="")
 SMTP_PASSWORD = config("SMTP_PASSWORD", default="")
 
-# HTTP API (fallback)
+# === HTTP API email backend ===
 EMAIL_PROVIDER_URL = config("EMAIL_PROVIDER_URL", default="")
 EMAIL_PROVIDER_APIKEY = config("EMAIL_PROVIDER_APIKEY", default="")
 
@@ -63,7 +63,7 @@ EMAIL_PROVIDER_APIKEY = config("EMAIL_PROVIDER_APIKEY", default="")
 ACCESS_TOKEN_EXPIRE = timedelta(days=5)
 REFRESH_TOKEN_EXPIRE = timedelta(days=90)
 
-# === Api keys ===
+# === API keys ===
 GOOGLE_CLIENT_ID = config("GOOGLE_CLIENT_ID", default="")
 GOOGLE_CLIENT_SECRET = config("GOOGLE_CLIENT_SECRET", default="https://maps.googleapis.com/maps/api/place/autocomplete/json")
 OPENAI_API_KEY = config("OPENAI_API_KEY", default="")

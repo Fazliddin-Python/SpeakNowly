@@ -5,7 +5,7 @@ from utils.i18n import get_translation
 
 def audit_action(action: str):
     """
-    Dependency factory: logs user action and returns the user object.
+    Creates dependency that logs user action.
     """
     async def wrapper(request: Request, user=Depends(get_current_user)):
         return user
@@ -13,7 +13,7 @@ def audit_action(action: str):
 
 async def active_user(user=Depends(get_current_user), t=Depends(get_translation)):
     """
-    Ensures the user is active.
+    Ensures user is active.
     """
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=t["inactive_user"])
@@ -21,7 +21,7 @@ async def active_user(user=Depends(get_current_user), t=Depends(get_translation)
 
 async def admin_required(user=Depends(get_current_user), t=Depends(get_translation)):
     """
-    Ensures the user has admin privileges.
+    Ensures user has admin privileges.
     """
     if not (user.is_staff and user.is_superuser):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=t["permission_denied"])

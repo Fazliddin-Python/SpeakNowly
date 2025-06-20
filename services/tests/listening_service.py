@@ -26,13 +26,15 @@ class ListeningService:
         """
         Start a new listening session for a user by selecting a random test.
         """
+        # Get available tests
         tests = await Listening.all().prefetch_related("parts__sections__questions")
         if not tests:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=t["no_listening_tests"]
+                detail=t.get("no_listening_tests", "No listening tests available")
             )
 
+        # Select random test and create session
         selected_test = random.choice(tests)
         session = await ListeningSession.create(
             user_id=user.id,
@@ -41,6 +43,7 @@ class ListeningService:
             status=ListeningSessionStatus.STARTED.value,
         )
 
+        # Get test parts
         parts = await ListeningPart.filter(listening_id=selected_test.id)
 
         return {
@@ -57,14 +60,18 @@ class ListeningService:
         """
         Get detail of a listening session.
         """
+        # Find session
         session = await ListeningSession.get_or_none(id=session_id, user_id=user_id)
         if not session:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=t["session_not_found"]
+                detail=t.get("session_not_found", "Session not found")
             )
+            
+        # Get test details
         exam = await Listening.get(id=session.exam_id)
         parts = await ListeningPart.filter(listening_id=exam.id)
+        
         return {
             "session_id": session.id,
             "status": session.status,
@@ -79,11 +86,12 @@ class ListeningService:
         """
         Get detail of a listening part.
         """
+        # Find part
         part = await ListeningPart.get_or_none(id=part_id)
         if not part:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=t["listening_part_not_found"]
+                detail=t.get("listening_part_not_found", "Listening part not found")
             )
         return part
 
@@ -91,35 +99,45 @@ class ListeningService:
     async def submit_answers(
         session_id: int, user_id: int, answers: List[Any], t: dict
     ) -> Dict[str, Any]:
+        """
+        Submit answers for a listening session.
+        """
+        # Validate session exists
         session = await ListeningSession.get_or_none(id=session_id, user_id=user_id)
         if not session:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=t["session_not_found"]
+                detail=t.get("session_not_found", "Session not found")
             )
+            
+        # Check if already completed
         if session.status == ListeningSessionStatus.COMPLETED.value:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=t["session_already_completed"]
+                detail=t.get("session_already_completed", "Session already completed")
             )
 
         total_score = 0
         answered_question_ids = [answer.question_id for answer in answers]
 
+        # Process answers in a transaction
         async with in_transaction():
+            # Process submitted answers
             for answer in answers:
                 question = await ListeningQuestion.get_or_none(id=answer.question_id)
                 if not question:
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
-                        detail=t["question_not_found"].format(question_id=answer.question_id)
+                        detail=t.get("question_not_found", "Question {question_id} not found").format(question_id=answer.question_id)
                     )
 
                 user_answer = answer.user_answer
 
+                # Determine question type for checking answer
                 section = await ListeningSection.get(id=question.section_id)
                 q_type = section.question_type
 
+                # Check if answer is correct based on question type
                 if q_type in ["cloze_test", "form_completion", "sentence_completion"]:
                     if isinstance(question.correct_answer, list) and isinstance(user_answer, list):
                         is_correct = all(
@@ -137,8 +155,10 @@ class ListeningService:
                 else:
                     is_correct = str(user_answer) == str(question.correct_answer)
 
+                # Update total score
                 total_score += int(is_correct)
 
+                # Normalize user answer
                 ua = user_answer
                 if isinstance(ua, bool):
                     norm_answer = None
@@ -147,6 +167,7 @@ class ListeningService:
                 else:
                     norm_answer = None
 
+                # Create answer record
                 try:
                     await ListeningAnswer.create(
                         session_id=session_id,
@@ -166,6 +187,7 @@ class ListeningService:
                         score=int(is_correct),
                     )
 
+            # Handle unanswered questions
             all_questions = await ListeningQuestion.filter(section__part__listening_id=session.exam_id)
             unanswered_questions = [q for q in all_questions if q.id not in answered_question_ids]
 
@@ -189,77 +211,98 @@ class ListeningService:
                         score=0,
                     )
 
+            # Mark session as completed
             session.status = ListeningSessionStatus.COMPLETED.value
             session.end_time = datetime.now(timezone.utc)
             await session.save(update_fields=["status", "end_time"])
 
-        return {"message": t["answers_submitted"], "total_score": total_score}
+        return {
+            "message": t.get("answers_submitted", "Answers submitted successfully"),
+            "total_score": total_score
+        }
 
     @staticmethod
     async def cancel_session(session_id: int, user_id: int, t: dict) -> Dict[str, Any]:
         """
         Cancel a listening session.
         """
+        # Find session
         session = await ListeningSession.get_or_none(id=session_id, user_id=user_id)
         if not session:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=t["session_not_found"]
+                detail=t.get("session_not_found", "Session not found")
             )
 
+        # Check if can be cancelled
         if session.status in [ListeningSessionStatus.COMPLETED.value, ListeningSessionStatus.CANCELLED.value]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=t["cannot_cancel_session"]
+                detail=t.get("cannot_cancel_session", "Cannot cancel completed or already cancelled session")
             )
 
+        # Mark as cancelled
         session.status = ListeningSessionStatus.CANCELLED.value
         await session.save(update_fields=["status"])
-        return {"message": t["session_cancelled"]}
+        
+        return {"message": t.get("session_cancelled", "Session cancelled")}
 
     @staticmethod
     async def restart_session(session_id: int, user_id: int, t: dict) -> Dict[str, Any]:
         """
         Restart a listening session.
         """
+        # Find session
         session = await ListeningSession.get_or_none(id=session_id, user_id=user_id)
         if not session:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=t["session_not_found"]
+                detail=t.get("session_not_found", "Session not found")
             )
 
+        # Check if can be restarted
         if session.status not in [ListeningSessionStatus.COMPLETED.value, ListeningSessionStatus.CANCELLED.value]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=t["cannot_restart_session"]
+                detail=t.get("cannot_restart_session", "Cannot restart active session")
             )
 
+        # Delete old answers
         await ListeningAnswer.filter(session_id=session_id, user_id=user_id).delete()
+        
+        # Reset session
         session.status = ListeningSessionStatus.STARTED.value
         session.start_time = datetime.now(timezone.utc)
         session.end_time = None
         await session.save(update_fields=["status", "start_time", "end_time"])
-        return {"message": t["session_restarted"]}
+        
+        return {"message": t.get("session_restarted", "Session restarted")}
 
     @staticmethod
     async def get_analysis(session_id: int, user_id: int, t: dict, request: Request = None) -> Dict[str, Any]:
         """
         Get or create analysis for a completed listening session.
         """
+        # Find session
         session = await ListeningSession.get_or_none(id=session_id, user_id=user_id)
         if not session:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=t["session_not_found"]
+                detail=t.get("session_not_found", "Session not found")
             )
+            
+        # Check session status
         if session.status != ListeningSessionStatus.COMPLETED.value:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=t["session_not_completed"]
+                detail=t.get("session_not_completed", "Session not completed")
             )
+            
+        # Get analysis data
         analyse = await ListeningAnalyseService.analyse(session_id)
         responses = await ListeningAnswer.filter(session_id=session_id).prefetch_related("question")
+        
+        # Format response data
         responses_data = []
         for r in responses:
             responses_data.append({
@@ -270,6 +313,8 @@ class ListeningService:
                 "correct_answer": r.question.correct_answer if r.question else None,
                 "question_index": r.question.index if r.question else None,
             })
+            
+        # Get parts information
         parts = await ListeningPart.filter(listening_id=session.exam_id)
         listening_parts = [
             {
@@ -278,6 +323,7 @@ class ListeningService:
             }
             for part in parts
         ]
+        
         return {
             "session_id": session.id,
             "analysis": {

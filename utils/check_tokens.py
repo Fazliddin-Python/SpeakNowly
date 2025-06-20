@@ -10,9 +10,7 @@ async def check_user_tokens(
     t: dict
 ) -> bool:
     """
-    Check if the user has enough tokens for a given test type.
-    Deduct tokens and record a transaction if sufficient.
-    Raise HTTPException 402 if not enough tokens.
+    Validates and deducts tokens for test operations.
     """
     price = await get_user_actual_test_price(user, test_type.value.lower())
     if price is None:
