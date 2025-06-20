@@ -364,18 +364,30 @@ class ReadingService:
                 "id": passage.id,
                 "title": passage.title,
                 "text": passage.text,
+                "skills": passage.skills,
                 "questions": question_results,
                 "overall_score": float(analyse.overall_score),
                 "timing": analyse.duration.total_seconds() if analyse.duration else 0,
             })
 
         # Compute overall IELTS band
-        if analyses:
-            avg = sum(a.overall_score for a in analyses) / len(analyses)
-            # Round to nearest half
-            band = round(avg * 2) / 2
+        if total_questions > 0:
+            accuracy_percentage = (total_correct / total_questions) * 100
+            # Шкала IELTS
+            if accuracy_percentage >= 90: band = 9.0
+            elif accuracy_percentage >= 80: band = 8.0
+            elif accuracy_percentage >= 70: band = 7.0
+            elif accuracy_percentage >= 60: band = 6.0
+            elif accuracy_percentage >= 50: band = 5.0
+            elif accuracy_percentage >= 40: band = 4.0
+            elif accuracy_percentage >= 30: band = 3.0
+            elif accuracy_percentage >= 20: band = 2.0
+            else: band = 1.0
+            
+            if band < 9 and accuracy_percentage % 10 >= 5:
+                band += 0.5
         else:
-            band = 0.0
+            band = 1.0
 
         elapsed = (session.end_time - session.start_time).total_seconds() / 60
 

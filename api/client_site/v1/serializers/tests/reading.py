@@ -36,6 +36,7 @@ class PassageSerializer(BaseModel):
     id: int = Field(..., description="ID of the passage")
     title: str = Field(..., description="Title of the passage")
     text: str = Field(..., description="Full text content of the passage")
+    skills: Optional[str] = Field(None, description="Skills associated with this passage")  # Добавляем поле
     questions: List[QuestionListSerializer] = Field(..., description="List of questions for this passage")
 
     @classmethod
@@ -46,6 +47,7 @@ class PassageSerializer(BaseModel):
             id=obj.id,
             title=obj.title,
             text=obj.text,
+            skills=obj.skills,
             questions=questions,
         )
 
