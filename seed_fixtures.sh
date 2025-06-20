@@ -1,38 +1,44 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 DB_URL="postgresql://backender:Fazliddin.000@localhost:5432/speaknowly"
 
 for file in fixtures/*.json; do
   table=$(basename "$file" .json)
-  echo "→ Сеем (upsert) данные в таблицу: $table"
+  constraint="${table}_pkey"
+  echo
+  echo "→ Сеем (upsert) данные в таблицу: $table (ON CONFLICT ON CONSTRAINT $constraint)"
 
-  jq -c '.[]' "$file" | while read -r row; do
-    # колонки
-    readarray -td, cols_array < <(echo "$row" | jq -r 'keys_unsorted | @csv' | sed 's/"//g,' )
-    unset 'cols_array[-1]' # убрать пустой элемент из readarray
+  # Для каждого объекта в JSON-массиве
+  jq -c '.[]' "$file" | while IFS= read -r row; do
+    # Получаем списки колонок и значений
+    cols=$(echo "$row" | jq -r 'keys_unsorted | map(.|@sh) | join(", ")')
+    vals=$(echo "$row" | jq -r '[
+               to_entries[] | 
+               if .value == null then
+                 "NULL"
+               elif (.value|type) == "string" then
+                 @sh "\(.value)"
+               else
+                 "\(.value)"
+               end
+             ] | join(", ")')
 
-    # значения
-    vals=$(echo "$row" | jq -r '[.[]] |
-      map(
-        if type=="string" then
-          ("'"'"'" + gsub("'"'"'" ; "''") + "'"'"'")
-        elif . == null then
-          "NULL"
-        else
-          tostring
-        end
-      ) | @csv')
-    vals=${vals//\"/}
+    # Команда INSERT ... ON CONFLICT
+    sql="
+      INSERT INTO public.$table ($cols)
+      VALUES ($vals)
+      ON CONFLICT ON CONSTRAINT $constraint
+      DO UPDATE SET
+        $(echo "$cols" | sed 's/, */ = EXCLUDED./g') = EXCLUDED.$(echo "$cols" | sed 's/, */, EXCLUDED./g');
+    "
 
-    cols=$(IFS=, ; echo "${cols_array[*]}")
-    update_clause=$(printf ", %s = EXCLUDED.%s" "${cols_array[@]:1}" "${cols_array[@]:1}")
-    update_clause=${update_clause:2}
-
-    psql "$DB_URL" -c \
-      "INSERT INTO $table ($cols) VALUES ($vals)
-       ON CONFLICT (id) DO UPDATE SET $update_clause;"
+    # Выполняем, но не обрываем весь скрипт, если вдруг что-то сломалось в одной строке
+    if ! psql "$DB_URL" -v ON_ERROR_STOP=off -q -c "$sql" ; then
+      echo "⚠️  Ошибка при вставке/обновлении в $table: пропускаем эту строку"
+    fi
   done
 done
 
-echo "✅ Все fixtures применены (upsert)."
+echo
+echo "✅ seed_fixtures.sh завершён (upsert по именованному constraint)."
