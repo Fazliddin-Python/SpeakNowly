@@ -110,6 +110,12 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "payment_exists": "Active payment already exists",
         "atm_error": "Payment service error: {error}",
         "invalid_callback": "Invalid callback data",
+        "invalid_callback (no JSON)": "Invalid callback (no JSON)",
+        "payment_not_found": "Payment not found",
+        "tokens_for_tariff": "Tokens for {tariff_name}",
+        "payment_successful": "Payment Successful",
+        "you_bought_tariff": "You bought {tariff_name}.",
+        "tokens_credited": "{tokens} tokens credited.",
     },
     "ru": {
         # --- Users / Auth ---
@@ -219,6 +225,12 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "payment_exists": "Активная подписка уже существует",
         "atm_error": "Ошибка платёжного сервиса: {error}",
         "invalid_callback": "Некорректные данные обратного вызова",
+        "invalid_callback (no JSON)": "Некорректные данные обратного вызова (нет JSON)",
+        "payment_not_found": "Платеж не найден",
+        "tokens_for_tariff": "Токены за {tariff_name}",
+        "payment_successful": "Платеж успешно выполнен",
+        "you_bought_tariff": "Вы купили {tariff_name}.",
+        "tokens_credited": "{tokens} токенов зачислено.",
     },
     "uz": {
         # --- Users / Auth ---
@@ -328,6 +340,12 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "payment_exists": "Faol to'lov allaqachon mavjud",
         "atm_error": "To'lov xizmati xatosi: {error}",
         "invalid_callback": "Callback ma'lumotlari noto'g'ri",
+        "invalid_callback (no JSON)": "Callback ma'lumotlari noto'g'ri (JSON yo'q)",
+        "payment_not_found": "To'lov topilmadi",
+        "tokens_for_tariff": "{tariff_name} uchun tokenlar",
+        "payment_successful": "To'lov muvaffaqiyatli amalga oshirildi",
+        "you_bought_tariff": "Siz {tariff_name} sotib oldingiz.",
+        "tokens_credited": "{tokens} tokenlar qo'shildi.",
     },
 }
 

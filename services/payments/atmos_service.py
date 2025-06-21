@@ -61,7 +61,8 @@ class AtmosService:
         self,
         request_id: str,
         amount_tiyin: int,
-        lang: str = "ru"
+        lang: str = "ru",
+        notify_id: int | None = None
     ) -> Dict[str, Any]:
         """
         1) Create draft via POST /merchant/pay/create
@@ -91,12 +92,17 @@ class AtmosService:
 
         tx = data.transaction_id
 
+        if notify_id:
+            redirect_link = f"https://speaknowly.com/dashboard/notification/{notify_id}"
+        else:
+            redirect_link = "https://speaknowly.com/payment/success"
+
         # build the hosted payment page URL
         payment_url = (
             f"https://checkout.pays.uz/invoice/get?"
             f"storeId={self.store_id}"
             f"&transactionId={tx}"
-            f"&redirectLink=https://speaknowly.com/payment/success"
+            f"&redirectLink={redirect_link}"
         )
 
         return {

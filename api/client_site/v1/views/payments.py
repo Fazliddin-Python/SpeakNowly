@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, status, Depends, Request
 from uuid import uuid4
 from datetime import datetime, timezone, timedelta
 from tortoise.exceptions import DoesNotExist
+from starlette.responses import JSONResponse
 
 from ..serializers.payments import PaymentCreateSerializer, PaymentSerializer
 from services.payments.atmos_service import atm
@@ -9,7 +10,6 @@ from models import Payment, Tariff, TokenTransaction, TransactionType, Message
 from utils.auth import get_current_user
 from utils.i18n import get_translation
 
-# Front‑end URL base for notifications
 FRONT_NOTIFY_BASE = "https://speaknowly.com/dashboard/notification"
 
 router = APIRouter()
@@ -58,7 +58,6 @@ async def checkout(
             status="pending"
         )
 
-    # call Atmos
     try:
         inv = await atm.create_invoice(
             request_id=str(payment.uuid),
@@ -68,7 +67,6 @@ async def checkout(
         msg = t.get("atm_error", "Payment service error: {error}").format(error=str(e))
         raise HTTPException(502, msg)
 
-    # persist Atmos fields
     await payment.update_from_dict({
         "atmos_invoice_id": str(inv["transaction_id"]),
         "atmos_status": inv["result"].get("code"),
@@ -99,7 +97,17 @@ async def callback(req: Request, t=Depends(get_translation)):
     - create a Message
     - return front redirect_url
     """
-    payload = await req.json()
+
+    allowed_ips = {"1.2.3.4", "5.6.7.8"}  # Replace with actual Atmos IPs
+    client_ip = req.client.host
+    if client_ip not in allowed_ips:
+        raise HTTPException(403, t.get("forbidden", "Forbidden"))
+
+    try:
+        payload = await req.json()
+    except Exception:
+        raise HTTPException(400, t.get("invalid_callback", "Invalid callback (no JSON)"))
+
     txn = payload.get("transaction_id")
     code = payload.get("result", {}).get("code")
     if not txn or code != "OK":
@@ -108,33 +116,33 @@ async def callback(req: Request, t=Depends(get_translation)):
     try:
         payment = await Payment.get(atmos_invoice_id=str(txn)).prefetch_related("tariff", "user")
     except DoesNotExist:
-        raise HTTPException(404, "Payment not found")
+        raise HTTPException(404, t.get("payment_not_found", "Payment not found"))
 
-    if payment.status != "paid":
-        payment.status = "paid"
-        await payment.save()
+    if payment.status == "paid":
+        return {"status": "ok"}
 
-        # award tokens
-        tokens = payment.tariff.tokens
-        last = await TokenTransaction.filter(user_id=payment.user_id).order_by("-created_at").first()
-        bal = last.balance_after_transaction if last else 0
-        await TokenTransaction.create(
-            user=payment.user,
-            transaction_type=TransactionType.CUSTOM_ADDITION,
-            amount=tokens,
-            balance_after_transaction=bal + tokens,
-            description=f"Tokens for {payment.tariff.name}"
-        )
+    payment.status = "paid"
+    await payment.save()
 
-        # create notification
-        msg = await Message.create(
-            user=payment.user,
-            type="site",
-            title="Payment Successful",
-            description=f"You bought {payment.tariff.name}.",
-            content=f"{tokens} tokens credited."
-        )
-        redirect_url = f"{FRONT_NOTIFY_BASE}/{msg.id}"
-        return {"status": "ok", "redirect_url": redirect_url}
+    # award tokens
+    tokens = payment.tariff.tokens
+    last = await TokenTransaction.filter(user_id=payment.user_id).order_by("-created_at").first()
+    bal = last.balance_after_transaction if last else 0
+    await TokenTransaction.create(
+        user=payment.user,
+        transaction_type=TransactionType.CUSTOM_ADDITION,
+        amount=tokens,
+        balance_after_transaction=bal + tokens,
+        description=t.get("tokens_for_tariff", "Tokens for {tariff_name}").format(tariff_name=payment.tariff.name)
+    )
 
-    return {"status": "ok"}
+    # create notification
+    msg = await Message.create(
+        user=payment.user,
+        type="site",
+        title=t.get("payment_successful", "Payment Successful"),
+        description=t.get("you_bought_tariff", "You bought {tariff_name}.").format(tariff_name=payment.tariff.name),
+        content=t.get("tokens_credited", "{tokens} tokens credited.").format(tokens=tokens)
+    )
+    redirect_url = f"{FRONT_NOTIFY_BASE}/{msg.id}"
+    return {"status": "ok", "redirect_url": redirect_url}

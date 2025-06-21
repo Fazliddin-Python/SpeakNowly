@@ -16,7 +16,10 @@ async def active_user(user=Depends(get_current_user), t=Depends(get_translation)
     Ensures user is active.
     """
     if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=t["inactive_user"])
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=t.get("inactive_user", "User is inactive")
+        )
     return user
 
 async def admin_required(user=Depends(get_current_user), t=Depends(get_translation)):
@@ -24,5 +27,8 @@ async def admin_required(user=Depends(get_current_user), t=Depends(get_translati
     Ensures user has admin privileges.
     """
     if not (user.is_staff and user.is_superuser):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=t["permission_denied"])
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=t.get("permission_denied", "Permission denied")
+        )
     return user
