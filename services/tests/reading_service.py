@@ -218,10 +218,10 @@ class ReadingService:
             )
 
         # Check if already completed
-        if session.status != Constants.ReadingStatus.COMPLETED.value:
+        if session.status in [Constants.ReadingStatus.COMPLETED.value, Constants.ReadingStatus.CANCELLED.value]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=t.get("session_not_completed", "Session not completed")
+                detail=t.get("session_already_completed_or_cancelled", "Session already completed or cancelled")
             )
 
         # Mark as completed and analyze
