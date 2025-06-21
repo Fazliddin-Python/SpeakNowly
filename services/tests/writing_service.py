@@ -137,10 +137,10 @@ class WritingService:
             )
         
         # Check if already completed
-        if writing.status == WritingStatus.COMPLETED.value:
+        if writing.status in [WritingStatus.COMPLETED.value, WritingStatus.CANCELLED.value]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=t.get("session_already_completed", "Session already completed")
+                detail=t.get("session_already_completed_or_cancelled", "Session already completed or cancelled")
             )
 
         # Get writing parts

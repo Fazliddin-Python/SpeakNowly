@@ -174,10 +174,10 @@ class SpeakingService:
             )
 
         # Check if already completed
-        if session.status == SpeakingStatus.COMPLETED.value:
+        if session.status in [SpeakingStatus.COMPLETED.value, SpeakingStatus.CANCELLED.value]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=t.get("session_already_completed", "Session already completed")
+                detail=t.get("session_already_completed_or_cancelled", "Session already completed or cancelled")
             )
 
         # Validate questions
