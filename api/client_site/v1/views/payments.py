@@ -136,13 +136,25 @@ async def callback(req: Request, t=Depends(get_translation)):
         description=t.get("tokens_for_tariff", "Tokens for {tariff_name}").format(tariff_name=payment.tariff.name)
     )
 
-    # create notification
-    msg = await Message.create(
+    # create a notification message
+    start_date = payment.start_date
+    end_date = payment.end_date
+    tariff = payment.tariff
+
+    await Message.create(
         user=payment.user,
         type="site",
-        title=t.get("payment_successful", "Payment Successful"),
-        description=t.get("you_bought_tariff", "You bought {tariff_name}.").format(tariff_name=payment.tariff.name),
-        content=t.get("tokens_credited", "{tokens} tokens credited.").format(tokens=tokens)
+        title=f"Payment created successfully. Date {start_date:%Y-%m-%d}",
+        description="Payment created successfully. Congratulations!",
+        content=(
+            f"## 🎉 Subscription Activated Successfully!\n\n"
+            f"**Tariff Name:** {tariff.name}  \n"
+            f"**Price:** {tariff.price} STARS  \n"
+            f"**Duration:** {tariff.duration} days  \n\n"
+            f"---\n\n"
+            f"**Start Date:** {start_date.strftime('%Y-%m-%d %H:%M')}  \n"
+            f"**End Date:** {end_date.strftime('%Y-%m-%d %H:%M')}"
+        )
     )
-    redirect_url = f"{FRONT_NOTIFY_BASE}/{msg.id}"
-    return {"status": "ok", "redirect_url": redirect_url}
+
+    return {"status": "ok"}

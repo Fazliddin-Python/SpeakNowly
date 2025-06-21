@@ -92,10 +92,7 @@ class AtmosService:
 
         tx = data.transaction_id
 
-        if notify_id:
-            redirect_link = f"https://speaknowly.com/dashboard/notification/{notify_id}"
-        else:
-            redirect_link = "https://speaknowly.com/payment/success"
+        redirect_link = "https://speaknowly.com/dashboard/notification"
 
         # build the hosted payment page URL
         payment_url = (
