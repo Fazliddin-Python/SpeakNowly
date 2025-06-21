@@ -173,3 +173,61 @@ class ListeningAnalyseResponseSerializer(BaseModel):
     analysis: Dict[str, Any]
     responses: List[ListeningResponseDetailSerializer]
     listening_parts: List[ListeningPartShortSerializer]
+
+# Listening Test Creation Serializers
+class ListeningQuestionCreate(BaseModel):
+    index: int
+    question_text: str
+    options: List[str]
+    correct_answer: List[str]
+
+class ListeningSectionCreate(BaseModel):
+    section_number: int
+    start_index: int
+    end_index: int
+    question_type: str
+    question_text: str
+    options: List[str]
+    questions: List[ListeningQuestionCreate]
+
+class ListeningPartCreate(BaseModel):
+    part_number: int
+    audio_file: str
+    sections: List[ListeningSectionCreate]
+
+class ListeningTestCreate(BaseModel):
+    title: str
+    description: str
+    parts: List[ListeningPartCreate]
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "title": "Test Title",
+                "description": "Test description",
+                "parts": [
+                    {
+                        "part_number": 1,
+                        "audio_file": "audio1.mp3",
+                        "sections": [
+                            {
+                                "section_number": 1,
+                                "start_index": 0,
+                                "end_index": 60,
+                                "question_type": "multiple_answers",
+                                "question_text": "Which 2 apply?",
+                                "options": ["option1", "option2", "option3"],
+                                "questions": [
+                                    {
+                                        "index": 1,
+                                        "question_text": "Which two letters are consonants?",
+                                        "options": ["A", "B", "C", "D"],
+                                        "correct_answer": ["A", "C"]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
