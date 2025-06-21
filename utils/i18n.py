@@ -42,6 +42,7 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "no_answer_feedback": "No answer",
         "writing_parts_not_found": "Writing parts not found",
         "unknown_chart_type": "Unknown chart type",
+        "forbidden": "Forbidden",
 
         # --- Tests / Listening ---
         "no_listening_tests": "No listening tests available",
@@ -157,6 +158,7 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "no_answer_feedback": "Нет ответа",
         "writing_parts_not_found": "Части письма не найдены",
         "unknown_chart_type": "Неизвестный тип диаграммы",
+        "forbidden": "Доступ запрещён",
 
         # --- Tests / Listening ---
         "no_listening_tests": "Нет доступных тестов прослушивания",
@@ -272,6 +274,7 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "no_answer_feedback": "Javob yo'q",
         "writing_parts_not_found": "Yozish qismlari topilmadi",
         "unknown_chart_type": "Noma'lum diagramma turi",
+        "forbidden": "Ruxsat yo'q",
 
         # --- Tests / Listening ---
         "no_listening_tests": "Tinglash testlari mavjud emas",
