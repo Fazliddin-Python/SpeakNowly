@@ -66,6 +66,7 @@ Instructions for Evaluation:
 3. Assign individual band scores (0-9) for each criterion and an overall band score.
 4. Ensure feedback is specific, actionable, and designed to help the candidate improve.
 5. Be especially strict when awarding scores above 7.0—such scores are only for truly outstanding work.
+6. If only one task is answered, the overall band score must not exceed 6.0, regardless of the quality of the answer.
 """
 
 PART1_PROMPT = """

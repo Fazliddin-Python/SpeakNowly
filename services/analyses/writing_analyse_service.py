@@ -87,6 +87,10 @@ class WritingAnalyseService:
             if overall_band_score < 1:
                 overall_band_score = 1
 
+        part2_answer = test.part2.answer if test.part2 else None
+        if not part2_answer or part2_answer.strip().lower() in ["", "string"]:
+            overall_band_score = min(overall_band_score, 6.0)
+
         # Collect overall feedback (can be improved based on your prompt)
         total_feedback = ""
         if "overall_feedback" in analysis:
