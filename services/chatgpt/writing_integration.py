@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 import matplotlib.pyplot as plt
 import re
+import random
 
 from .base_integration import BaseChatGPTIntegration
 
@@ -85,14 +86,24 @@ class ChatGPTWritingIntegration(BaseChatGPTIntegration):
     Async integration with OpenAI for IELTS Writing generation and analysis.
     """
 
-    async def generate_writing_part1_question(self) -> dict:
+    async def generate_writing_part1_question(self, user_id=None) -> dict:
         """
         Generate IELTS Writing Task 1 question and chart data using OpenAI.
         """
+        seed = random.randint(1, 1_000_000)
+        now = datetime.now().isoformat()
+        prompt = (
+            PART1_PROMPT
+            + f"\n\n# Seed: {seed}\n"
+            + f"# User ID: {user_id}\n"
+            + f"# Date: {now}\n"
+            + "Please use the above seed, user ID, and date to make the chart and question unique."
+            + "Please make sure the topic and chart data are different from previous generations, and use the seed, user ID, and date for uniqueness."
+        )
         response = await self.async_client.chat.completions.create(
             model="gpt-4o",
-            messages=[{"role": "system", "content": PART1_PROMPT}],
-            temperature=0.0,
+            messages=[{"role": "system", "content": prompt}],
+            temperature=0.7,
         )
         raw = response.choices[0].message.content
         if not raw or not raw.strip():
@@ -107,14 +118,23 @@ class ChatGPTWritingIntegration(BaseChatGPTIntegration):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to parse Task 1 question: {e}\nRAW: {json_str}")
 
-    async def generate_writing_part2_question(self) -> dict:
+    async def generate_writing_part2_question(self, user_id=None) -> dict:
         """
         Generate IELTS Writing Task 2 question using OpenAI.
         """
+        seed = random.randint(1, 1_000_000)
+        now = datetime.now().isoformat()
+        prompt = (
+            PART2_PROMPT
+            + f"\n\n# Seed: {seed}\n"
+            + f"# User ID: {user_id}\n"
+            + f"# Date: {now}\n"
+            + "Please use the above seed, user ID, and date to make the question unique."
+        )
         response = await self.async_client.chat.completions.create(
             model="gpt-4o",
-            messages=[{"role": "system", "content": PART2_PROMPT}],
-            temperature=0.0,
+            messages=[{"role": "system", "content": prompt}],
+            temperature=0.7,
         )
         raw = response.choices[0].message.content
         if not raw or not raw.strip():

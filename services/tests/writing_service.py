@@ -35,8 +35,8 @@ class WritingService:
 
         # Generate questions using ChatGPT
         chatgpt = ChatGPTWritingIntegration()
-        part1_data = await chatgpt.generate_writing_part1_question()
-        part2_data = await chatgpt.generate_writing_part2_question()
+        part1_data = await chatgpt.generate_writing_part1_question(user_id=user.id)
+        part2_data = await chatgpt.generate_writing_part2_question(user_id=user.id)
 
         # Extract part 1 data
         part1_question = part1_data["question"]
