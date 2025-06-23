@@ -10,9 +10,10 @@ ALGORITHM = config("ALGORITHM", default="HS256")
 DEBUG = config("DEBUG", cast=bool, default=False)
 
 # === Allowed hosts / CORS ===
-ALLOWED_HOSTS = config("ALLOWED_HOSTS", cast=Csv(), default="*")
-if isinstance(ALLOWED_HOSTS, str):
-    ALLOWED_HOSTS = [ALLOWED_HOSTS]
+ALLOWED_HOSTS = [
+    "https://speaknowly.com",
+    "https://www.speaknowly.com"
+]
 
 CORS_ORIGIN_ALLOW_ALL = True
 CORS_ALLOW_HEADERS = [
