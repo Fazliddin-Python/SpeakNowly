@@ -130,9 +130,12 @@ class ReadingService:
         """
         Create blank answers for all questions in the reading session.
         """
-        questions = []
-        for passage in await session.passages.all():
-            questions.extend(await passage.questions.all())
+        passages = await session.passages.all()
+        passage_ids = [p.id for p in passages]
+        if not passage_ids:
+            return
+
+        questions = await ReadingQuestion.filter(passage_id__in=passage_ids)
 
         answers = [
             ReadingAnswer(
@@ -150,7 +153,7 @@ class ReadingService:
         """
         Format reading session data for response.
         """
-        passages = await session.passages.all().order_by("id")
+        passages = await session.passages.all().prefetch_related("questions__variants")
         return {
             "id": session.id,
             "start_time": session.start_time,
@@ -328,7 +331,7 @@ class ReadingService:
             user_id=user_id,
             reading_id=session.id,
             question_id__in=[q.id for p in passages for q in p.questions]
-        ).prefetch_related("question")
+        ).select_related("question")
         answers_by_qid = {a.question_id: a for a in answers}
 
         # Format passage results

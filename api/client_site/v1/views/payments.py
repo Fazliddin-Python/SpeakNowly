@@ -114,7 +114,7 @@ async def callback(req: Request, t=Depends(get_translation)):
         raise HTTPException(400, t.get("invalid_callback", "Invalid callback"))
 
     try:
-        payment = await Payment.get(atmos_invoice_id=str(txn)).prefetch_related("tariff", "user")
+        payment = await Payment.get(atmos_invoice_id=str(txn)).select_related("tariff", "user")
     except DoesNotExist:
         raise HTTPException(404, t.get("payment_not_found", "Payment not found"))
 

@@ -68,7 +68,7 @@ async def get_transaction(
 ):
     """Retrieve a specific token transaction by ID."""
     try:
-        transaction = await TokenTransaction.get(id=transaction_id, user_id=user.id).prefetch_related("user")
+        transaction = await TokenTransaction.get(id=transaction_id, user_id=user.id).select_related("user")
         return {
             "user": {
                 "id": transaction.user.id,

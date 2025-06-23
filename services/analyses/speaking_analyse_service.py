@@ -38,7 +38,7 @@ class SpeakingAnalyseService:
         if existing:
             return analyse_to_dict(existing)
 
-        answers = await SpeakingAnswer.filter(question__speaking_id=test_id).order_by("question__part").prefetch_related("question")
+        answers = await SpeakingAnswer.filter(question__speaking_id=test_id).order_by("question__part").select_related("question")
         # Always prepare part1, part2, part3 (use fake if missing)
         fake_answer = type("FakeAnswer", (), {"question": type("Q", (), {"title": "", "content": ""})(), "text_answer": ""})
         part1 = answers[0] if len(answers) > 0 else fake_answer

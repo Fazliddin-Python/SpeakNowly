@@ -55,7 +55,7 @@ async def get_top_users_ielts(
     if test_type:
         filters &= Q(transaction_type=test_type.upper())
 
-    transactions = await TokenTransaction.filter(filters).prefetch_related("user")
+    transactions = await TokenTransaction.filter(filters).select_related("user")
     user_ids = set(t.user_id for t in transactions)
     users = await User.filter(id__in=user_ids)
 

@@ -9,7 +9,7 @@ router = APIRouter()
 @router.get("/", response_model=List[CommentListSerializer])
 async def list_comments():
     """Return all comments for main page (read-only, no updates)."""
-    comments = await Comment.all().prefetch_related("user").order_by("-id")
+    comments = await Comment.all().select_related("user").order_by("-id")
     return [
         CommentListSerializer(
             id=comment.id,

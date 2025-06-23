@@ -81,7 +81,7 @@ async def check_expired_tariffs(ctx):
     await ensure_tortoise()
     now = datetime.now(timezone.utc)
     default = await Tariff.filter(is_default=True).first()
-    users = await User.all().prefetch_related("tariff")
+    users = await User.all().select_related("tariff")
 
     for user in users:
         payment = await Payment.filter(user_id=user.id).order_by("-end_date").first()
@@ -111,7 +111,7 @@ async def give_daily_tariff_bonus(ctx):
     await ensure_tortoise()
     now = datetime.now(timezone.utc)
     today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    users = await User.filter(tariff_id__not=None).prefetch_related("tariff")
+    users = await User.filter(tariff_id__not=None).select_related("tariff")
 
     for user in users:
         tariff = await Tariff.get_or_none(id=user.tariff_id)

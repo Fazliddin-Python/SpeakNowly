@@ -300,7 +300,7 @@ class ListeningService:
             
         # Get analysis data
         analyse = await ListeningAnalyseService.analyse(session_id)
-        responses = await ListeningAnswer.filter(session_id=session_id).prefetch_related("question")
+        responses = await ListeningAnswer.filter(session_id=session_id).select_related("question")
         
         # Format response data
         responses_data = []
