@@ -285,7 +285,10 @@ class ReadingService:
 
         # Reset session
         session.status = Constants.ReadingStatus.PENDING.value
-        session.end_time = session.end_time + timedelta(minutes=20)
+        if session.end_time is not None:
+            session.end_time = session.end_time + timedelta(minutes=20)
+        else:
+            session.end_time = datetime.now(timezone.utc) + timedelta(minutes=20)
         await session.save()
         
         # Delete answers
@@ -349,10 +352,10 @@ class ReadingService:
             for question in passage.questions:
                 ans = answers_by_qid.get(question.id)
                 # Default values
-                user_ans = ans.text or ""
+                user_ans = ans.text if ans else ""
                 is_corr = bool(ans.is_correct) if ans else False
-                corr_ans = ans.correct_answer or ""
-                expl = ans.explanation or ""
+                corr_ans = ans.correct_answer if ans else ""
+                expl = ans.explanation if ans else ""
                 question_results.append({
                     "id": question.id,
                     "text": question.text,
@@ -381,24 +384,32 @@ class ReadingService:
                 "timing": analyse.duration.total_seconds() if analyse.duration else 0,
             })
 
-        # Compute overall IELTS band
-        if total_questions > 0:
-            accuracy_percentage = (total_correct / total_questions) * 100
-            # IELTS scale mapping
-            if accuracy_percentage >= 90: band = 9.0
-            elif accuracy_percentage >= 80: band = 8.0
-            elif accuracy_percentage >= 70: band = 7.0
-            elif accuracy_percentage >= 60: band = 6.0
-            elif accuracy_percentage >= 50: band = 5.0
-            elif accuracy_percentage >= 40: band = 4.0
-            elif accuracy_percentage >= 30: band = 3.0
-            elif accuracy_percentage >= 20: band = 2.0
-            else: band = 1.0
-            
-            if band < 9 and accuracy_percentage % 10 >= 5:
-                band += 0.5
-        else:
-            band = 1.0
+        # Compute overall IELTS band (use IELTS mapping, not percent)
+        def calculate_ielts_band(correct):
+            mapping = {
+                range(39, 41): 9.0,
+                range(37, 39): 8.5,
+                range(35, 37): 8.0,
+                range(32, 35): 7.5,
+                range(30, 32): 7.0,
+                range(26, 30): 6.5,
+                range(23, 26): 6.0,
+                range(18, 23): 5.5,
+                range(16, 18): 5.0,
+                range(13, 16): 4.5,
+                range(10, 13): 4.0,
+                range(7, 10): 3.5,
+                range(5, 7): 3.0,
+                range(3, 5): 2.5,
+                range(1, 3): 2.0,
+                range(0, 1): 0.0,
+            }
+            for score_range, band in mapping.items():
+                if total_correct in score_range:
+                    return band
+            return 0.0
+
+        band = calculate_ielts_band(total_correct)
 
         # Calculate elapsed time
         elapsed = (session.end_time - session.start_time).total_seconds() / 60

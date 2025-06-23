@@ -23,6 +23,7 @@ class ListeningAnalyseService:
         responses = await ListeningAnswer.filter(session_id=session_id)
         correct_count = sum(1 for r in responses if r.is_correct)
 
+        # IELTS Listening band conversion table (Academic/General Training)
         def calculate_score(correct):
             mapping = {
                 range(39, 41): 9.0,

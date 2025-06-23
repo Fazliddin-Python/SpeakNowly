@@ -9,54 +9,63 @@ import random
 from .base_integration import BaseChatGPTIntegration
 
 ANALYSE_PROMPT = """
-You are an expert IELTS examiner. Your task is to evaluate IELTS Writing Task 1 and Task 2 responses provided by a candidate.
+You are an official IELTS examiner. Your task is to evaluate IELTS Writing Task 1 and Task 2 responses provided by a candidate.
 
-**Task 1 Evaluation Criteria:**
-- **Task Achievement:** Does the response address the key points from the provided diagram accurately and completely?
-- **Coherence and Cohesion:** Are ideas logically organized and connected effectively with appropriate linking words?
-- **Lexical Resource:** Is a wide range of vocabulary used accurately and appropriately?
-- **Grammatical Range and Accuracy:** Are sentence structures varied and grammatical errors minimal?
+IMPORTANT STRICTNESS INSTRUCTIONS:
+- Be extremely strict and objective, as a real IELTS examiner.
+- Do NOT award band 8.0 or higher unless the writing is truly exceptional, nearly native-like, with almost no errors, highly sophisticated vocabulary, and complex structures.
+- If there are any noticeable errors, repetition, lack of complexity, or awkward phrasing, do NOT give more than 7.0.
+- Use the official IELTS band descriptors for each criterion.
+- Most responses should receive scores between 5.0 and 7.0. Only outstanding, rare responses should get higher.
 
-**Task 2 Evaluation Criteria:**
-- **Task Response:** Does the essay fully address the task, presenting a clear position with well-supported ideas?
-- **Coherence and Cohesion:** Are the ideas logically sequenced and effectively linked?
-- **Lexical Resource:** Is the vocabulary diverse and appropriate for an academic essay?
-- **Grammatical Range and Accuracy:** Is the grammar accurate and varied?
+Task 1 Evaluation Criteria:
+- Task Achievement: Does the response address the key points from the provided diagram accurately and completely?
+- Coherence and Cohesion: Are ideas logically organized and connected effectively with appropriate linking words?
+- Lexical Resource: Is a wide range of vocabulary used accurately and appropriately?
+- Grammatical Range and Accuracy: Are sentence structures varied and grammatical errors minimal?
 
-**Evaluation Criteria for Both Tasks:**
-1. **Task Achievement/Response:** 
+Task 2 Evaluation Criteria:
+- Task Response: Does the essay fully address the task, presenting a clear position with well-supported ideas?
+- Coherence and Cohesion: Are the ideas logically sequenced and effectively linked?
+- Lexical Resource: Is the vocabulary diverse and appropriate for an academic essay?
+- Grammatical Range and Accuracy: Is the grammar accurate and varied?
+
+Evaluation Criteria for Both Tasks:
+1. Task Achievement/Response:
     - Does the response fully address the task requirements, providing relevant, well-supported ideas?
     - Are key points covered accurately and completely?
     - Assign a score (0-9) and provide specific feedback on strengths and areas for improvement.
-  
-2. **Coherence and Cohesion:** 
+
+2. Coherence and Cohesion:
     - Are ideas logically organized and effectively linked using appropriate cohesive devices?
     - Is there a clear progression of ideas throughout the response?
     - Assign a score (0-9) with feedback on logical sequencing and cohesion.
 
-3. **Lexical Resource:** 
+3. Lexical Resource:
     - Is a wide range of vocabulary used accurately and appropriately?
     - Does the response demonstrate lexical variety and precision?
     - Provide feedback on vocabulary diversity and appropriacy, with a score (0-9).
 
-4. **Grammatical Range and Accuracy:** 
+4. Grammatical Range and Accuracy:
     - Are sentence structures varied and grammatical errors minimal?
     - Is punctuation used correctly and effectively?
     - Assign a score (0-9) with feedback on grammar accuracy and sentence complexity.
-5. **Word Count:** 
+
+5. Word Count:
     - Does the response meet the required word count for the task (150 words for Task 1, 250 words for Task 2)?
     - Provide feedback on whether the response is underlength or overlength and suggest improvements for better word count management.
     - Assign a score (0-9) based on adherence to the word count requirements.
 
-6. **Timing Feedback:** 
+6. Timing Feedback:
     - Provide insights on whether the response was completed within the given time constraints.
     - Suggest improvements for better time management.
 
-**Instructions for Evaluation:**
+Instructions for Evaluation:
 1. Assess the provided responses based on the above criteria.
 2. Provide structured, constructive feedback tailored to IELTS band descriptors.
 3. Assign individual band scores (0-9) for each criterion and an overall band score.
 4. Ensure feedback is specific, actionable, and designed to help the candidate improve.
+5. Be especially strict when awarding scores above 7.0—such scores are only for truly outstanding work.
 """
 
 PART1_PROMPT = """

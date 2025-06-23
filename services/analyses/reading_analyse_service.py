@@ -236,19 +236,32 @@ class ReadingAnalyseService:
             total_questions = len(multiple_choice_answers) + len(text_answers) + len(empty_qs)
             accuracy = int((total_correct / total_questions) * 100) if total_questions else 0
             
-            # 5. IELTS band calculation
-            def calculate_ielts_band(accuracy):
-                if accuracy >= 90: return 9
-                elif accuracy >= 80: return 8
-                elif accuracy >= 70: return 7
-                elif accuracy >= 60: return 6
-                elif accuracy >= 50: return 5
-                elif accuracy >= 40: return 4
-                elif accuracy >= 30: return 3
-                elif accuracy >= 20: return 2
-                else: return 1
-            
-            overall_score = calculate_ielts_band(accuracy)
+            # 5. IELTS band calculation (official table, rounded to nearest 0.5)
+            def calculate_ielts_band(correct):
+                mapping = {
+                    range(39, 41): 9.0,
+                    range(37, 39): 8.5,
+                    range(35, 37): 8.0,
+                    range(32, 35): 7.5,
+                    range(30, 32): 7.0,
+                    range(26, 30): 6.5,
+                    range(23, 26): 6.0,
+                    range(18, 23): 5.5,
+                    range(16, 18): 5.0,
+                    range(13, 16): 4.5,
+                    range(10, 13): 4.0,
+                    range(7, 10): 3.5,
+                    range(5, 7): 3.0,
+                    range(3, 5): 2.5,
+                    range(1, 3): 2.0,
+                    range(0, 1): 0.0,
+                }
+                for score_range, band in mapping.items():
+                    if correct in score_range:
+                        return band
+                return 0.0
+
+            overall_score = calculate_ielts_band(total_correct)
             
             # 6. Save analysis result
             await ReadingAnalyse.create(

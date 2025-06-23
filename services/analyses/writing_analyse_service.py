@@ -58,24 +58,28 @@ class WritingAnalyseService:
         word_count2 = get_criteria(part2, "WordCount", "Word Count")
         timing2 = get_criteria(part2, "TimingFeedback", "Timing Feedback")
 
-        # Считаем общий балл если не пришёл
+        # IELTS: average of 4 criteria for each task, then average of both tasks, rounded to nearest 0.5
+        def get_score(crit):
+            return crit.get("Score") or crit.get("score") or 0
+
+        scores1 = [get_score(task_achievement), get_score(coherence), get_score(lexical), get_score(grammar)]
+        scores2 = [get_score(task_response), get_score(coherence2), get_score(lexical2), get_score(grammar2)]
+
+        avg1 = sum(scores1) / 4 if all(scores1) else 0
+        avg2 = sum(scores2) / 4 if all(scores2) else 0
+
         overall_band_score = analysis.get("overall_band_score")
         if overall_band_score is None:
-            scores = []
-            for crit in [task_achievement, coherence, lexical, grammar, word_count, task_response, coherence2, lexical2, grammar2, word_count2]:
-                score = crit.get("Score") or crit.get("score")
-                if isinstance(score, (int, float)):
-                    scores.append(score)
-            overall_band_score = round(sum(scores) / len(scores), 1) if scores else 0
-
-        # Собираем общий фидбек (можно доработать под твой prompt)
+            # Round to nearest 0.5 as per IELTS
+            overall_band_score = round(((avg1 + avg2) / 2) * 2) / 2 if (avg1 and avg2) else 0
+            # Collect overall feedback (can be improved based on your prompt)
         total_feedback = ""
         if "overall_feedback" in analysis:
             total_feedback = analysis["overall_feedback"]
         elif "total_feedback" in analysis:
             total_feedback = analysis["total_feedback"]
         else:
-            # Собираем из двух частей
+            # Gather feedback from both parts
             total_feedback = (
                 (task_achievement.get("Feedback") or task_achievement.get("feedback") or "") + "\n" +
                 (task_response.get("Feedback") or task_response.get("feedback") or "")

@@ -33,6 +33,13 @@ Lexical Resource: Evaluate the variety and appropriateness of vocabulary used.
 Grammatical Range and Accuracy: Consider the grammatical structures used and their accuracy.
 Pronunciation: Assess the clarity of pronunciation, stress, and intonation.
 
+STRICTNESS INSTRUCTIONS:
+- Be strict and objective, as a real IELTS examiner.
+- Do NOT award band 8.0 or higher unless the speaking is truly exceptional, nearly native-like, with very few errors, highly sophisticated vocabulary, and complex structures.
+- If there are frequent errors, hesitation, lack of complexity, or awkward phrasing, do NOT give more than 7.0.
+- Use the official IELTS band descriptors for each criterion.
+- Most responses should receive scores between 5.0 and 7.0. Only outstanding, rare responses should get higher.
+
 IMPORTANT:
 - There may be less than three answers (some parts may be missing or empty).
 - If a part is missing or empty, you MUST assign a score of 0 for all criteria for that part and provide feedback: "No answer".
@@ -118,7 +125,8 @@ class ChatGPTSpeakingIntegration(BaseChatGPTIntegration):
                 {"role": "system", "content": ANALYSE_PROMPT},
                 {"role": "user", "content": json.dumps(data, ensure_ascii=False)},
             ],
-            temperature=0.0,
+            temperature=0.3,
+            max_tokens=6000
         )
         raw = response.choices[0].message.content
         if not raw or not raw.strip():

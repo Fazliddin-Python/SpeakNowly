@@ -59,13 +59,14 @@ class SpeakingAnalyseService:
             analysis["part3_score"] = 0
             analysis["part3_feedback"] = t["no_answer_feedback"]
 
-        # Calculate overall_band_score as average of all three (including zeros)
+        # IELTS: average of all three parts, rounded to nearest 0.5
         scores = [
             analysis.get("part1_score", 0),
             analysis.get("part2_score", 0),
             analysis.get("part3_score", 0),
         ]
-        analysis["overall_band_score"] = round(sum(scores) / 3, 1)
+        avg = sum(scores) / 3
+        analysis["overall_band_score"] = round(avg * 2) / 2 if avg else 0
 
         duration = (test.end_time - test.start_time).total_seconds() if (test.start_time and test.end_time) else None
         analysis["timing"] = duration
