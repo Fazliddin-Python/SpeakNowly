@@ -68,7 +68,7 @@ class SpeakingService:
         # Generate questions using ChatGPT
         chatgpt = ChatGPTSpeakingIntegration()
         try:
-            questions_data = await chatgpt.generate_ielts_speaking_questions()
+            questions_data = await chatgpt.generate_ielts_speaking_questions(user_id=user.id)
         except Exception:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

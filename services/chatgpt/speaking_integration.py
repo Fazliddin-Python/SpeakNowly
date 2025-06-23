@@ -4,6 +4,8 @@ import re
 from openai import AuthenticationError, BadRequestError, OpenAIError, RateLimitError
 from .base_integration import BaseChatGPTIntegration
 from io import BytesIO
+import random
+from datetime import datetime
 
 QUESTIONS_PROMPT = """
 Generate a set of IELTS Speaking test questions in 3 parts.
@@ -69,16 +71,28 @@ class ChatGPTSpeakingIntegration(BaseChatGPTIntegration):
     Asynchronous integration with OpenAI for generating and analyzing IELTS Speaking.
     """
 
-    async def generate_ielts_speaking_questions(self) -> dict:
+    async def generate_ielts_speaking_questions(self, user_id=None) -> dict:
         """
         Generate IELTS Speaking questions using OpenAI.
+
+        Args:
+            user_id (int): Unique identifier for the user.
 
         Returns:
             dict: Generated questions in JSON format.
         """
+        seed = random.randint(1, 1_000_000)
+        now = datetime.now().isoformat()
+        prompt = (
+            QUESTIONS_PROMPT
+            + f"\n\n# Seed: {seed}\n"
+            + f"# User ID: {user_id}\n"
+            + f"# Date: {now}\n"
+            + "Please use the above seed, user ID, and date to make the questions unique."
+        )
         response = await self.async_client.chat.completions.create(
             model="gpt-4o",
-            messages=[{"role": "system", "content": QUESTIONS_PROMPT}],
+            messages=[{"role": "system", "content": prompt}],
             temperature=0.3,
         )
         return json.loads(response.choices[0].message.content)
