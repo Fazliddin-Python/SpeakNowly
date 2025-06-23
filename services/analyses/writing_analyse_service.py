@@ -74,9 +74,20 @@ class WritingAnalyseService:
 
         overall_band_score = analysis.get("overall_band_score")
         if overall_band_score is None:
-            # Round to nearest 0.5 as per IELTS
-            overall_band_score = round(((avg1 + avg2) / 2) * 2) / 2 if (avg1 and avg2) else 0
-            # Collect overall feedback (can be improved based on your prompt)
+            # Если оба Task есть
+            if avg1 and avg2:
+                overall_band_score = round(((avg1 + avg2) / 2) * 2) / 2
+            # Если только один Task есть
+            elif avg1:
+                overall_band_score = round(avg1 * 2) / 2
+            elif avg2:
+                overall_band_score = round(avg2 * 2) / 2
+            else:
+                overall_band_score = 1
+            if overall_band_score < 1:
+                overall_band_score = 1
+
+        # Collect overall feedback (can be improved based on your prompt)
         total_feedback = ""
         if "overall_feedback" in analysis:
             total_feedback = analysis["overall_feedback"]
