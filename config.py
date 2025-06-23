@@ -12,8 +12,10 @@ DEBUG = config("DEBUG", cast=bool, default=False)
 # === Allowed hosts / CORS ===
 ALLOWED_HOSTS = [
     "https://speaknowly.com",
-    "https://www.speaknowly.com"
+    "https://api.speaknowly.com",
+    "http://localhost:3001",
 ]
+
 
 CORS_ORIGIN_ALLOW_ALL = True
 CORS_ALLOW_HEADERS = [
