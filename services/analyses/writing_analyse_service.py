@@ -84,9 +84,13 @@ class WritingAnalyseService:
             total_feedback = analysis["total_feedback"]
         else:
             # Gather feedback from both parts
+            def safe_feedback(crit):
+                if isinstance(crit, dict):
+                    return crit.get("Feedback") or crit.get("feedback") or ""
+                return ""
             total_feedback = (
-                (task_achievement.get("Feedback") or task_achievement.get("feedback") or "") + "\n" +
-                (task_response.get("Feedback") or task_response.get("feedback") or "")
+                safe_feedback(task_achievement) + "\n" +
+                safe_feedback(task_response)
             ).strip()
 
         writing_analyse = await WritingAnalyse.create(
