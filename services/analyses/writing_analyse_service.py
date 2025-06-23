@@ -60,7 +60,11 @@ class WritingAnalyseService:
 
         # IELTS: average of 4 criteria for each task, then average of both tasks, rounded to nearest 0.5
         def get_score(crit):
-            return crit.get("Score") or crit.get("score") or 0
+            if isinstance(crit, dict):
+                return crit.get("Score") or crit.get("score") or 0
+            elif isinstance(crit, (int, float)):
+                return crit
+            return 0
 
         scores1 = [get_score(task_achievement), get_score(coherence), get_score(lexical), get_score(grammar)]
         scores2 = [get_score(task_response), get_score(coherence2), get_score(lexical2), get_score(grammar2)]
