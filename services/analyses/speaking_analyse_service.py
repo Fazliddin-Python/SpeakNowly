@@ -59,14 +59,19 @@ class SpeakingAnalyseService:
             analysis["part3_score"] = 0
             analysis["part3_feedback"] = t["no_answer_feedback"]
 
-        # IELTS: average of all three parts, rounded to nearest 0.5
-        scores = [
-            analysis.get("part1_score", 0),
-            analysis.get("part2_score", 0),
-            analysis.get("part3_score", 0),
-        ]
-        avg = sum(scores) / 3
-        analysis["overall_band_score"] = round(avg * 2) / 2 if avg else 0
+        criteria_scores = []
+        for part in ["part1", "part2", "part3"]:
+            for crit in ["fluency_and_coherence_score", "lexical_resource_score", "grammatical_range_and_accuracy_score", "pronunciation_score"]:
+                val = analysis.get(f"{part}_{crit}", None)
+                if val is not None:
+                    criteria_scores.append(float(val))
+
+        if not criteria_scores:
+            overall = 1
+        else:
+            overall = round((sum(criteria_scores) / len(criteria_scores)) * 2) / 2
+
+        analysis["overall_band_score"] = overall
 
         duration = (test.end_time - test.start_time).total_seconds() if (test.start_time and test.end_time) else None
         analysis["timing"] = duration
