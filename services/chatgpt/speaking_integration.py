@@ -26,18 +26,12 @@ Return ONLY a valid JSON object. Do not include explanations, markdown, or text 
 """
 
 ANALYSE_PROMPT = """
-You are an experienced IELTS examiner. Evaluate the following candidate's speaking responses based on the IELTS Speaking criteria.
+You are an experienced IELTS examiner. Evaluate the following candidate's speaking responses based on the IELTS Speaking criteria:
 
-For each provided answer, return an object with:
-- part: the part number (1, 2, or 3)
-- fluency_and_coherence_score (1-9)
-- fluency_and_coherence_feedback
-- lexical_resource_score (1-9)
-- lexical_resource_feedback
-- grammatical_range_and_accuracy_score (1-9)
-- grammatical_range_and_accuracy_feedback
-- pronunciation_score (1-9)
-- pronunciation_feedback
+Fluency and Coherence: Assess the flow of speech, logical structuring, and absence of unnatural pauses.
+Lexical Resource: Evaluate the variety and appropriateness of vocabulary used.
+Grammatical Range and Accuracy: Consider the grammatical structures used and their accuracy.
+Pronunciation: Assess the clarity of pronunciation, stress, and intonation.
 
 STRICTNESS INSTRUCTIONS:
 - Be strict and objective, as a real IELTS examiner.
@@ -48,35 +42,34 @@ STRICTNESS INSTRUCTIONS:
 
 IMPORTANT:
 - There may be less than three answers (some parts may be missing or empty).
-- Only analyse and return results for the parts that are actually provided by the user (do not generate or fill missing parts).
-- The overall band score must be the average of all scores for all provided parts (rounded to the nearest 0.5), as in the official IELTS scoring.
+- If a part is missing or empty, you MUST assign a score of 0 for all criteria for that part and provide feedback: "No answer".
+- The overall band score must be the average of the available parts (including zeros for missing parts), as in the official IELTS scoring.
 
 Please provide:
 
-- "analysis": an array of objects (one per provided answer, in order)
-- "overall_band_score": the average of all scores for all provided parts (rounded to the nearest 0.5)
-- "feedback": a general summary for the candidate
+Individual scores (Band 1 to Band 9) for each criterion.
+A detailed analysis explaining the strengths and weaknesses for each criterion.
+A final overall band score (Band 1 to Band 9) based on the average of the individual scores (including zeros for missing parts).
 
-Return ONLY a valid JSON object. Do not include explanations, markdown, or text outside the JSON.
+Return ONLY a valid JSON object. Do not include any explanations, markdown, or text outside the JSON. If you understand, reply only with the JSON object.
 
-Example:
 {
-  "analysis": [
-    {
-      "part": 1,
-      "fluency_and_coherence_score": 6,
-      "fluency_and_coherence_feedback": "...",
-      "lexical_resource_score": 6,
-      "lexical_resource_feedback": "...",
-      "grammatical_range_and_accuracy_score": 6,
-      "grammatical_range_and_accuracy_feedback": "...",
-      "pronunciation_score": 6,
-      "pronunciation_feedback": "..."
-    }
-    // ...more parts if provided
-  ],
-  "overall_band_score": 6.0,
-  "feedback": "..."
+  "fluency_and_coherence_score": ...,
+  "fluency_and_coherence_feedback": "...",
+  "lexical_resource_score": ...,
+  "lexical_resource_feedback": "...",
+  "grammatical_range_and_accuracy_score": ...,
+  "grammatical_range_and_accuracy_feedback": "...",
+  "pronunciation_score": ...,
+  "pronunciation_feedback": "...",
+  "overall_band_score": ...,
+  "feedback": "...",
+  "part1_score": ...,
+  "part1_feedback": "...",
+  "part2_score": ...,
+  "part2_feedback": "...",
+  "part3_score": ...,
+  "part3_feedback": "..."
 }
 """
 
@@ -111,21 +104,26 @@ class ChatGPTSpeakingIntegration(BaseChatGPTIntegration):
         )
         return json.loads(response.choices[0].message.content)
 
-    async def generate_ielts_speaking_analyse(self, parts: list) -> dict:
+    async def generate_ielts_speaking_analyse(self, part1, part2, part3) -> dict:
         """
         Analyse a completed Speaking test using OpenAI.
 
         Args:
-            parts: list of dicts with keys: part, title, question, user_answer
+            part1, part2, part3: SpeakingAnswers objects with .question.title, .question.content, .text_answer
 
         Returns:
             dict: Analysis result in JSON format.
         """
+        data = [
+            {"title": part1.question.title, "question": part1.question.content, "user_answer": part1.text_answer},
+            {"title": part2.question.title, "question": part2.question.content, "user_answer": part2.text_answer},
+            {"title": part3.question.title, "question": part3.question.content, "user_answer": part3.text_answer},
+        ]
         response = await self.async_client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": ANALYSE_PROMPT},
-                {"role": "user", "content": json.dumps(parts, ensure_ascii=False)},
+                {"role": "user", "content": json.dumps(data, ensure_ascii=False)},
             ],
             temperature=0.3,
             max_tokens=6000

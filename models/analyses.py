@@ -22,40 +22,39 @@ class ListeningAnalyse(BaseModel):
 
 
 class WritingAnalyse(BaseModel):
-    """Stores analysis results for a writing test part (Task 1 or Task 2)."""
-    writing = fields.ForeignKeyField(
-        "models.Writing", related_name="analyses", description="Related writing test"
+    """Stores analysis results for a writing test."""
+    writing = fields.OneToOneField(
+        "models.Writing", related_name="analyse", description="Related writing test"
     )
-    part = fields.IntField(description="Writing part number (1 or 2)")
-    task_achievement_score = fields.DecimalField(max_digits=3, decimal_places=1, null=True, description="Score for task achievement/response")
-    task_achievement_feedback = fields.TextField(null=True, description="Feedback on task achievement/response")
-    lexical_resource_score = fields.DecimalField(max_digits=3, decimal_places=1, null=True, description="Score for lexical resource")
-    lexical_resource_feedback = fields.TextField(null=True, description="Feedback on lexical resource")
-    coherence_and_cohesion_score = fields.DecimalField(max_digits=3, decimal_places=1, null=True, description="Score for coherence and cohesion")
-    coherence_and_cohesion_feedback = fields.TextField(null=True, description="Feedback on coherence and cohesion")
-    grammatical_range_and_accuracy_score = fields.DecimalField(max_digits=3, decimal_places=1, null=True, description="Score for grammar")
-    grammatical_range_and_accuracy_feedback = fields.TextField(null=True, description="Feedback on grammar")
-    word_count_score = fields.DecimalField(max_digits=3, decimal_places=1, null=True, description="Score for word count")
-    word_count_feedback = fields.TextField(null=True, description="Feedback on word count")
-    timing_feedback = fields.TextField(null=True, description="Feedback on timing")
-    duration = fields.TimeDeltaField(null=True, description="Time taken for the test part")
+    task_achievement_feedback = fields.TextField(description="Feedback on task achievement")
+    task_achievement_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Score for task achievement")
+    lexical_resource_feedback = fields.TextField(description="Feedback on lexical resource")
+    lexical_resource_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Score for lexical resource")
+    coherence_and_cohesion_feedback = fields.TextField(description="Feedback on coherence and cohesion")
+    coherence_and_cohesion_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Score for coherence and cohesion")
+    grammatical_range_and_accuracy_feedback = fields.TextField(description="Feedback on grammar")
+    grammatical_range_and_accuracy_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Score for grammar")
+    word_count_feedback = fields.TextField(description="Feedback on word count")
+    word_count_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Score for word count")
+    timing_feedback = fields.TextField(description="Feedback on timing")
+    overall_band_score = fields.DecimalField(max_digits=3, decimal_places=1, description="Overall band score")
+    total_feedback = fields.TextField(description="Overall feedback")
+    duration = fields.TimeDeltaField(null=True, description="Time taken for the test")
 
     class Meta:
         table = "writing_analyses"
         verbose_name = "Writing Analyse"
         verbose_name_plural = "Writing Analyses"
-        unique_together = ("writing", "part")
 
     def __str__(self):
-        return f"Writing Analyse - Part {self.part}"
+        return f"Writing Analyse - Score: {self.overall_band_score}"
 
 
 class SpeakingAnalyse(BaseModel):
-    """Stores analysis results for a speaking test part (1, 2, or 3)."""
-    speaking = fields.ForeignKeyField(
-        "models.Speaking", related_name="analyses", description="Related speaking test"
-    )
-    part = fields.IntField(description="Speaking part number (1, 2, or 3)")
+    """Stores analysis results for a speaking test."""
+    speaking = fields.OneToOneField("models.Speaking", related_name="analyse", on_delete=fields.CASCADE, description="Analysis of the speaking test")
+    feedback = fields.TextField(null=True, description="Feedback for the user")
+    overall_band_score = fields.DecimalField(max_digits=3, decimal_places=1, null=True, description="Overall band score")
     fluency_and_coherence_score = fields.DecimalField(max_digits=3, decimal_places=1, null=True, description="Fluency and coherence score")
     fluency_and_coherence_feedback = fields.TextField(null=True, description="Feedback on fluency and coherence")
     lexical_resource_score = fields.DecimalField(max_digits=3, decimal_places=1, null=True, description="Lexical resource score")
@@ -64,16 +63,15 @@ class SpeakingAnalyse(BaseModel):
     grammatical_range_and_accuracy_feedback = fields.TextField(null=True, description="Feedback on grammatical range and accuracy")
     pronunciation_score = fields.DecimalField(max_digits=3, decimal_places=1, null=True, description="Pronunciation score")
     pronunciation_feedback = fields.TextField(null=True, description="Feedback on pronunciation")
-    duration = fields.TimeDeltaField(null=True, description="Duration of the speaking part")
+    duration = fields.TimeDeltaField(null=True, description="Duration of the speaking test")
 
     class Meta:
         table = "speaking_analyses"
         verbose_name = "Speaking Analyse"
         verbose_name_plural = "Speaking Analyses"
-        unique_together = ("speaking", "part")
 
     def __str__(self):
-        return f"Speaking Analyse - Part {self.part}"
+        return f"Speaking Analyse - Score: {self.overall_band_score}"
 
 
 class ReadingAnalyse(BaseModel):
