@@ -11,7 +11,9 @@ from ...serializers.tests import (
     MainStatsSerializer,
 )
 from services import UserProgressService
-from models.tests import ListeningSession, Reading, Speaking, Writing
+from models.tests import ListeningSession, Reading
+from models.tests.speaking import SpeakingSession
+from models.tests.writing import WritingSession
 from models.analyses import ListeningAnalyse, SpeakingAnalyse, WritingAnalyse
 from utils.auth import active_user
 
@@ -29,8 +31,8 @@ async def get_history(
     """
     reading = await Reading.filter(user_id=user.id).all()
     listening = await ListeningSession.filter(user_id=user.id).all()
-    speaking = await Speaking.filter(user_id=user.id).all()
-    writing = await Writing.filter(user_id=user.id).all()
+    speaking = await SpeakingSession.filter(user_id=user.id).all()
+    writing = await WritingSession.filter(user_id=user.id).all()
 
     queryset = sorted(
         chain(reading, listening, speaking, writing),
@@ -43,9 +45,9 @@ async def get_history(
     elif type == "listening":
         queryset = [item for item in queryset if isinstance(item, ListeningSession)]
     elif type == "speaking":
-        queryset = [item for item in queryset if isinstance(item, Speaking)]
+        queryset = [item for item in queryset if isinstance(item, SpeakingSession)]
     elif type == "writing":
-        queryset = [item for item in queryset if isinstance(item, Writing)]
+        queryset = [item for item in queryset if isinstance(item, WritingSession)]
 
     if show == "last":
         queryset = queryset[:5]
@@ -56,9 +58,9 @@ async def get_history(
             results.append(await ReadingHistorySerializer.from_orm_async(item))
         elif isinstance(item, ListeningSession):
             results.append(await ListeningHistorySerializer.from_orm_async(item))
-        elif isinstance(item, Speaking):
+        elif isinstance(item, SpeakingSession):
             results.append(await SpeakingHistorySerializer.from_orm_async(item))
-        elif isinstance(item, Writing):
+        elif isinstance(item, WritingSession):
             results.append(await WritingHistorySerializer.from_orm_async(item))
 
     return results

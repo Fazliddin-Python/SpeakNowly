@@ -1,95 +1,62 @@
 from fastapi import HTTPException, status
-from tortoise.transactions import in_transaction
 from datetime import timedelta
 from services.chatgpt import ChatGPTSpeakingIntegration
 from models.analyses import SpeakingAnalyse
-from models.tests import Speaking, SpeakingAnswer, SpeakingStatus
-
-def analyse_to_dict(analyse: SpeakingAnalyse) -> dict:
-    return {
-        "feedback": analyse.feedback,
-        "overall_band_score": float(analyse.overall_band_score) if analyse.overall_band_score is not None else None,
-        "fluency_and_coherence_score": float(analyse.fluency_and_coherence_score) if analyse.fluency_and_coherence_score is not None else None,
-        "fluency_and_coherence_feedback": analyse.fluency_and_coherence_feedback,
-        "lexical_resource_score": float(analyse.lexical_resource_score) if analyse.lexical_resource_score is not None else None,
-        "lexical_resource_feedback": analyse.lexical_resource_feedback,
-        "grammatical_range_and_accuracy_score": float(analyse.grammatical_range_and_accuracy_score) if analyse.grammatical_range_and_accuracy_score is not None else None,
-        "grammatical_range_and_accuracy_feedback": analyse.grammatical_range_and_accuracy_feedback,
-        "pronunciation_score": float(analyse.pronunciation_score) if analyse.pronunciation_score is not None else None,
-        "pronunciation_feedback": analyse.pronunciation_feedback,
-        "timing": analyse.duration.total_seconds() if analyse.duration else None,
-    }
+from models.tests.speaking import SpeakingSession, SpeakingAnswer, SpeakingStatus, SpeakingQuestion
+from api.client_site.v1.serializers.tests.speaking import SpeakingAnalysisResponseSerializer
 
 class SpeakingAnalyseService:
     @staticmethod
-    async def analyse(test_id: int) -> dict:
-        t = {
-            "no_answer_feedback": "No answer",
-            "not_all_audio_uploaded": "Not all audio uploaded"
-        }
-        test = await Speaking.get_or_none(id=test_id)
-        if not test:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Speaking test not found")
-   
-        if test.status != SpeakingStatus.COMPLETED.value:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Speaking test is not completed")
+    async def analyse(session_id: int) -> dict:
+        session = await SpeakingSession.get_or_none(id=session_id).prefetch_related("test", "answers__question")
+        if not session:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Speaking session not found")
+        if session.status != SpeakingStatus.COMPLETED.value:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Speaking session is not completed")
 
-        existing = await SpeakingAnalyse.get_or_none(speaking_id=test.id)
-        if existing:
-            return analyse_to_dict(existing)
+        # Собираем только заполненные ответы
+        answers = await SpeakingAnswer.filter(session=session).select_related("question").order_by("question__part")
+        parts = []
+        for ans in answers:
+            if ans.text_answer and ans.text_answer.strip():
+                parts.append({
+                    "part": ans.question.part,
+                    "title": ans.question.title,
+                    "question": ans.question.content,
+                    "user_answer": ans.text_answer,
+                })
 
-        answers = await SpeakingAnswer.filter(question__speaking_id=test_id).order_by("question__part").select_related("question")
-        # Always prepare part1, part2, part3 (use fake if missing)
-        fake_answer = type("FakeAnswer", (), {"question": type("Q", (), {"title": "", "content": ""})(), "text_answer": ""})
-        part1 = answers[0] if len(answers) > 0 else fake_answer
-        part2 = answers[1] if len(answers) > 1 else fake_answer
-        part3 = answers[2] if len(answers) > 2 else fake_answer
+        if not parts:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "No answers provided for analysis.")
 
         chatgpt = ChatGPTSpeakingIntegration()
-        analysis = await chatgpt.generate_ielts_speaking_analyse(part1, part2, part3)
+        analysis = await chatgpt.generate_ielts_speaking_analyse(parts)
 
-        # For missing parts, set 0 and feedback
-        if not getattr(part1, "text_answer", None):
-            analysis["part1_score"] = 0
-            analysis["part1_feedback"] = t["no_answer_feedback"]
-        if not getattr(part2, "text_answer", None):
-            analysis["part2_score"] = 0
-            analysis["part2_feedback"] = t["no_answer_feedback"]
-        if not getattr(part3, "text_answer", None):
-            analysis["part3_score"] = 0
-            analysis["part3_feedback"] = t["no_answer_feedback"]
+        duration = (session.end_time - session.start_time) if (session.start_time and session.end_time) else timedelta(0)
 
-        criteria_scores = []
-        for part in ["part1", "part2", "part3"]:
-            for crit in ["fluency_and_coherence_score", "lexical_resource_score", "grammatical_range_and_accuracy_score", "pronunciation_score"]:
-                val = analysis.get(f"{part}_{crit}", None)
-                if val is not None:
-                    criteria_scores.append(float(val))
+        # Сохраняем анализ для каждого part из analysis["analysis"]
+        analyse_list = []
+        for part_result in analysis.get("analysis", []):
+            idx = part_result.get("part")
+            if not idx:
+                continue
+            analyse_obj = await SpeakingAnalyse.create(
+                speaking=session,
+                part=idx,
+                fluency_and_coherence_score=part_result.get("fluency_and_coherence_score"),
+                fluency_and_coherence_feedback=part_result.get("fluency_and_coherence_feedback"),
+                lexical_resource_score=part_result.get("lexical_resource_score"),
+                lexical_resource_feedback=part_result.get("lexical_resource_feedback"),
+                grammatical_range_and_accuracy_score=part_result.get("grammatical_range_and_accuracy_score"),
+                grammatical_range_and_accuracy_feedback=part_result.get("grammatical_range_and_accuracy_feedback"),
+                pronunciation_score=part_result.get("pronunciation_score"),
+                pronunciation_feedback=part_result.get("pronunciation_feedback"),
+                duration=duration,
+            )
+            analyse_list.append(analyse_obj)
 
-        if not criteria_scores:
-            overall = 1
-        else:
-            overall = round((sum(criteria_scores) / len(criteria_scores)) * 2) / 2
-
-        analysis["overall_band_score"] = overall
-
-        duration = (test.end_time - test.start_time) if (test.start_time and test.end_time) else timedelta(0)
-        analysis["timing"] = duration.total_seconds()
-
-        # Save analysis to DB if not exists
-        speaking_analyse = await SpeakingAnalyse.create(
-            speaking_id=test.id,
-            feedback=analysis.get("feedback"),
-            overall_band_score=analysis.get("overall_band_score"),
-            fluency_and_coherence_score=analysis.get("fluency_and_coherence_score"),
-            fluency_and_coherence_feedback=analysis.get("fluency_and_coherence_feedback"),
-            lexical_resource_score=analysis.get("lexical_resource_score"),
-            lexical_resource_feedback=analysis.get("lexical_resource_feedback"),
-            grammatical_range_and_accuracy_score=analysis.get("grammatical_range_and_accuracy_score"),
-            grammatical_range_and_accuracy_feedback=analysis.get("grammatical_range_and_accuracy_feedback"),
-            pronunciation_score=analysis.get("pronunciation_score"),
-            pronunciation_feedback=analysis.get("pronunciation_feedback"),
-            duration=duration,
+        return await SpeakingAnalysisResponseSerializer.from_orm_async(
+            analyse_list,
+            analysis.get("overall_band_score"),
+            analysis.get("feedback")
         )
-
-        return analyse_to_dict(speaking_analyse)

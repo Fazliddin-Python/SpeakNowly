@@ -2,129 +2,106 @@ from fastapi import HTTPException, status
 from datetime import timedelta
 from services.chatgpt import ChatGPTWritingIntegration
 from models.analyses import WritingAnalyse
-from models.tests import Writing, WritingStatus
+from models.tests.writing import WritingSession, WritingTask, WritingAnswer, WritingStatus
 
 class WritingAnalyseService:
     @staticmethod
-    async def analyse(test_id: int) -> WritingAnalyse:
-        """
-        Analyse a completed Writing test and save the result.
-        """
-        test = await Writing.get_or_none(id=test_id).prefetch_related("part1", "part2")
-        if not test:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Writing test not found")
-        if test.status != WritingStatus.COMPLETED:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Writing test is not completed")
-        existing = await WritingAnalyse.get_or_none(writing_id=test.id)
-        if existing:
-            return existing
-        if not test.part1 or not test.part2:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Test parts are missing")
+    async def analyse(session_id: int) -> dict:
+        session = await WritingSession.get_or_none(id=session_id).prefetch_related("test__tasks", "answers__task")
+        if not session:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Writing session not found")
+        if session.status != WritingStatus.COMPLETED.value:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Writing session is not completed")
+
+        # Get tasks and answers
+        tasks = {task.part: task for task in await WritingTask.filter(test=session.test)}
+        answers = {ans.task.part: ans for ans in await WritingAnswer.filter(session=session).prefetch_related("task")}
+
+        part1_task = tasks.get(1)
+        part2_task = tasks.get(2)
+        part1_answer = answers.get(1)
+        part2_answer = answers.get(2)
+
+        # Only send non-empty parts to GPT
+        part1_data = part1_task if part1_task and part1_answer and part1_answer.answer.strip() else None
+        part2_data = part2_task if part2_task and part2_answer and part2_answer.answer.strip() else None
+
+        if not part1_data and not part2_data:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "No answers provided for analysis.")
 
         chatgpt = ChatGPTWritingIntegration()
-        analysis = await chatgpt.analyse_writing(test.part1, test.part2, lang_code="en")
-        if not analysis:
-            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Failed to analyse writing test")
+        analysis = {}
+        if part1_data and part2_data:
+            analysis = await chatgpt.analyse_writing(part1_data, part2_data, lang_code="en")
+        elif part1_data:
+            fake_part2 = type("FakePart", (), {"content": "", "answer": ""})()
+            analysis = await chatgpt.analyse_writing(part1_data, fake_part2, lang_code="en")
+        elif part2_data:
+            fake_part1 = type("FakePart", (), {"content": "", "answer": ""})()
+            analysis = await chatgpt.analyse_writing(fake_part1, part2_data, lang_code="en")
 
-        if isinstance(analysis, list):
-            analysis = analysis[0] if analysis else {}
-        if not isinstance(analysis, dict):
-            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Invalid analysis format")
+        # Parse analysis for each part
+        part1_analysis = analysis.get("Task1") or analysis.get("part1") or {}
+        part2_analysis = analysis.get("Task2") or analysis.get("part2") or {}
 
-        duration = (test.end_time - test.start_time) if (test.start_time and test.end_time) else timedelta(0)
-
-        def get_criteria(part, *keys, default=""):
+        def get_criteria(part, *keys):
             for key in keys:
                 if key in part:
                     return part[key]
             return {}
 
-        part1 = analysis.get("Task1") or analysis.get("part1") or {}
-        part2 = analysis.get("Task2") or analysis.get("part2") or {}
+        # Task 1
+        task_achievement = get_criteria(part1_analysis, "TaskAchievement", "Task Achievement")
+        coherence = get_criteria(part1_analysis, "CoherenceAndCohesion", "Coherence and Cohesion")
+        lexical = get_criteria(part1_analysis, "LexicalResource", "Lexical Resource")
+        grammar = get_criteria(part1_analysis, "GrammaticalRangeAndAccuracy", "Grammatical Range and Accuracy")
+        word_count = get_criteria(part1_analysis, "WordCount", "Word Count")
+        timing = get_criteria(part1_analysis, "TimingFeedback", "Timing Feedback")
 
-        # Task 1 (part1)
-        task_achievement = get_criteria(part1, "TaskAchievement", "Task Achievement")
-        coherence = get_criteria(part1, "CoherenceAndCohesion", "Coherence and Cohesion")
-        lexical = get_criteria(part1, "LexicalResource", "Lexical Resource")
-        grammar = get_criteria(part1, "GrammaticalRangeAndAccuracy", "Grammatical Range and Accuracy")
-        word_count = get_criteria(part1, "WordCount", "Word Count")
-        timing = get_criteria(part1, "TimingFeedback", "Timing Feedback")
+        # Task 2
+        task_response = get_criteria(part2_analysis, "TaskResponse", "Task Response")
+        coherence2 = get_criteria(part2_analysis, "CoherenceAndCohesion", "Coherence and Cohesion")
+        lexical2 = get_criteria(part2_analysis, "LexicalResource", "Lexical Resource")
+        grammar2 = get_criteria(part2_analysis, "GrammaticalRangeAndAccuracy", "Grammatical Range and Accuracy")
+        word_count2 = get_criteria(part2_analysis, "WordCount", "Word Count")
+        timing2 = get_criteria(part2_analysis, "TimingFeedback", "Timing Feedback")
 
-        # Task 2 (part2)
-        task_response = get_criteria(part2, "TaskResponse", "Task Response")
-        coherence2 = get_criteria(part2, "CoherenceAndCohesion", "Coherence and Cohesion")
-        lexical2 = get_criteria(part2, "LexicalResource", "Lexical Resource")
-        grammar2 = get_criteria(part2, "GrammaticalRangeAndAccuracy", "Grammatical Range and Accuracy")
-        word_count2 = get_criteria(part2, "WordCount", "Word Count")
-        timing2 = get_criteria(part2, "TimingFeedback", "Timing Feedback")
+        duration = (session.end_time - session.start_time) if (session.start_time and session.end_time) else timedelta(0)
 
-        # IELTS: average of 4 criteria for each task, then average of both tasks, rounded to nearest 0.5
-        def get_score(crit):
-            if isinstance(crit, dict):
-                return crit.get("Score") or crit.get("score") or 0
-            elif isinstance(crit, (int, float)):
-                return crit
-            return 0
-
-        scores1 = [get_score(task_achievement), get_score(coherence), get_score(lexical), get_score(grammar)]
-        scores2 = [get_score(task_response), get_score(coherence2), get_score(lexical2), get_score(grammar2)]
-
-        avg1 = sum(scores1) / 4 if all(scores1) else 0
-        avg2 = sum(scores2) / 4 if all(scores2) else 0
-
-        overall_band_score = analysis.get("overall_band_score")
-        if overall_band_score is None:
-            # If both Tasks are present
-            if avg1 and avg2:
-                overall_band_score = round(((avg1 + avg2) / 2) * 2) / 2
-            # If only one Task is present
-            elif avg1:
-                overall_band_score = round(avg1 * 2) / 2
-            elif avg2:
-                overall_band_score = round(avg2 * 2) / 2
-            else:
-                overall_band_score = 1
-            if overall_band_score < 1:
-                overall_band_score = 1
-
-        part2_answer = test.part2.answer if test.part2 else None
-        if not part2_answer or part2_answer.strip().lower() in ["", "string"]:
-            overall_band_score = min(overall_band_score, 6.0)
-
-        # Collect overall feedback (can be improved based on your prompt)
-        total_feedback = ""
-        if "overall_feedback" in analysis:
-            total_feedback = analysis["overall_feedback"]
-        elif "total_feedback" in analysis:
-            total_feedback = analysis["total_feedback"]
-        else:
-            # Gather feedback from both parts
-            def safe_feedback(crit):
-                if isinstance(crit, dict):
-                    return crit.get("Feedback") or crit.get("feedback") or ""
-                return ""
-            total_feedback = (
-                safe_feedback(task_achievement) + "\n" +
-                safe_feedback(task_response)
-            ).strip()
-
-        writing_analyse = await WritingAnalyse.create(
-            writing=test,
-            # Task 1
-            task_achievement_score=task_achievement.get("Score", 0) or task_achievement.get("score", 0),
-            task_achievement_feedback=task_achievement.get("Feedback", "") or task_achievement.get("feedback", ""),
-            lexical_resource_score=lexical.get("Score", 0) or lexical.get("score", 0),
-            lexical_resource_feedback=lexical.get("Feedback", "") or lexical.get("feedback", ""),
-            coherence_and_cohesion_score=coherence.get("Score", 0) or coherence.get("score", 0),
-            coherence_and_cohesion_feedback=coherence.get("Feedback", "") or coherence.get("feedback", ""),
-            grammatical_range_and_accuracy_score=grammar.get("Score", 0) or grammar.get("score", 0),
-            grammatical_range_and_accuracy_feedback=grammar.get("Feedback", "") or grammar.get("feedback", ""),
-            word_count_score=word_count.get("Score", 0) or word_count.get("score", 0),
-            word_count_feedback=word_count.get("Feedback", "") or word_count.get("feedback", ""),
-            timing_feedback=timing.get("Feedback", "") or timing.get("feedback", ""),
-            # Общие
-            overall_band_score=overall_band_score,
-            total_feedback=total_feedback,
-            duration=duration,
-        )
-        return writing_analyse
+        # Save separate analyses for each part if they exist
+        result = {}
+        if part1_data:
+            result["part1"] = await WritingAnalyse.create(
+                writing=session,
+                part=1,
+                task_achievement_score=task_achievement.get("Score", 0) or task_achievement.get("score", 0),
+                task_achievement_feedback=task_achievement.get("Feedback", "") or task_achievement.get("feedback", ""),
+                lexical_resource_score=lexical.get("Score", 0) or lexical.get("score", 0),
+                lexical_resource_feedback=lexical.get("Feedback", "") or lexical.get("feedback", ""),
+                coherence_and_cohesion_score=coherence.get("Score", 0) or coherence.get("score", 0),
+                coherence_and_cohesion_feedback=coherence.get("Feedback", "") or coherence.get("feedback", ""),
+                grammatical_range_and_accuracy_score=grammar.get("Score", 0) or grammar.get("score", 0),
+                grammatical_range_and_accuracy_feedback=grammar.get("Feedback", "") or grammar.get("feedback", ""),
+                word_count_score=word_count.get("Score", 0) or word_count.get("score", 0),
+                word_count_feedback=word_count.get("Feedback", "") or word_count.get("feedback", ""),
+                timing_feedback=timing.get("Feedback", "") or timing.get("feedback", ""),
+                duration=duration,
+            )
+        if part2_data:
+            result["part2"] = await WritingAnalyse.create(
+                writing=session,
+                part=2,
+                task_achievement_score=task_response.get("Score", 0) or task_response.get("score", 0),
+                task_achievement_feedback=task_response.get("Feedback", "") or task_response.get("feedback", ""),
+                lexical_resource_score=lexical2.get("Score", 0) or lexical2.get("score", 0),
+                lexical_resource_feedback=lexical2.get("Feedback", "") or lexical2.get("feedback", ""),
+                coherence_and_cohesion_score=coherence2.get("Score", 0) or coherence2.get("score", 0),
+                coherence_and_cohesion_feedback=coherence2.get("Feedback", "") or coherence2.get("feedback", ""),
+                grammatical_range_and_accuracy_score=grammar2.get("Score", 0) or grammar2.get("score", 0),
+                grammatical_range_and_accuracy_feedback=grammar2.get("Feedback", "") or grammar2.get("feedback", ""),
+                word_count_score=word_count2.get("Score", 0) or word_count2.get("score", 0),
+                word_count_feedback=word_count2.get("Feedback", "") or word_count2.get("feedback", ""),
+                timing_feedback=timing2.get("Feedback", "") or timing2.get("feedback", ""),
+                duration=duration,
+            )
+        return result

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 class QuestionPartSerializer(BaseModel):
@@ -61,6 +61,47 @@ class AnalyseSerializer(BaseModel):
             grammatical_range_and_accuracy_feedback=obj.grammatical_range_and_accuracy_feedback,
             pronunciation_score=obj.pronunciation_score,
             pronunciation_feedback=obj.pronunciation_feedback,
+        )
+
+class PartAnalyseSerializer(BaseModel):
+    part: int
+    fluency_and_coherence_score: float
+    fluency_and_coherence_feedback: str
+    lexical_resource_score: float
+    lexical_resource_feedback: str
+    grammatical_range_and_accuracy_score: float
+    grammatical_range_and_accuracy_feedback: str
+    pronunciation_score: float
+    pronunciation_feedback: str
+    duration: Optional[float] = None
+
+    @classmethod
+    async def from_orm_async(cls, obj):
+        return cls(
+            part=obj.part,
+            fluency_and_coherence_score=obj.fluency_and_coherence_score,
+            fluency_and_coherence_feedback=obj.fluency_and_coherence_feedback,
+            lexical_resource_score=obj.lexical_resource_score,
+            lexical_resource_feedback=obj.lexical_resource_feedback,
+            grammatical_range_and_accuracy_score=obj.grammatical_range_and_accuracy_score,
+            grammatical_range_and_accuracy_feedback=obj.grammatical_range_and_accuracy_feedback,
+            pronunciation_score=obj.pronunciation_score,
+            pronunciation_feedback=obj.pronunciation_feedback,
+            duration=obj.duration.total_seconds() if obj.duration else None,
+        )
+
+class SpeakingAnalysisResponseSerializer(BaseModel):
+    analysis: List[PartAnalyseSerializer]
+    overall_band_score: float
+    feedback: str
+
+    @classmethod
+    async def from_orm_async(cls, analysis_objs, overall_band_score, feedback):
+        analysis = [await PartAnalyseSerializer.from_orm_async(obj) for obj in analysis_objs]
+        return cls(
+            analysis=analysis,
+            overall_band_score=overall_band_score,
+            feedback=feedback
         )
 
 class SpeakingSerializer(BaseModel):

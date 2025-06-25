@@ -55,8 +55,17 @@ class WritingHistorySerializer(BaseModel):
     @classmethod
     async def from_orm_async(cls, obj):
         from models.analyses import WritingAnalyse
-        analyse = await WritingAnalyse.get_or_none(writing_id=obj.id)
-        score = float(analyse.overall_band_score) if analyse else 0
+        analyses = await WritingAnalyse.filter(writing_id=obj.id)
+        if analyses:
+            scores = []
+            for analyse in analyses:
+                for field in ["task_achievement_score", "lexical_resource_score", "coherence_and_cohesion_score", "grammatical_range_and_accuracy_score"]:
+                    val = getattr(analyse, field, None)
+                    if val is not None:
+                        scores.append(float(val))
+            score = round(sum(scores) / len(scores), 1) if scores else 0
+        else:
+            score = 0
         duration = None
         if getattr(obj, "start_time", None) and getattr(obj, "end_time", None):
             duration = int((obj.end_time - obj.start_time).total_seconds())
@@ -77,8 +86,17 @@ class SpeakingHistorySerializer(BaseModel):
     @classmethod
     async def from_orm_async(cls, obj):
         from models.analyses import SpeakingAnalyse
-        analyse = await SpeakingAnalyse.get_or_none(speaking_id=obj.id)
-        score = float(analyse.overall_band_score) if analyse else 0
+        analyses = await SpeakingAnalyse.filter(speaking_id=obj.id)
+        if analyses:
+            scores = []
+            for analyse in analyses:
+                for field in ["fluency_and_coherence_score", "lexical_resource_score", "grammatical_range_and_accuracy_score", "pronunciation_score"]:
+                    val = getattr(analyse, field, None)
+                    if val is not None:
+                        scores.append(float(val))
+            score = round(sum(scores) / len(scores), 1) if scores else 0
+        else:
+            score = 0
         duration = None
         if getattr(obj, "start_time", None) and getattr(obj, "end_time", None):
             duration = int((obj.end_time - obj.start_time).total_seconds())
