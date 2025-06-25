@@ -73,8 +73,8 @@ class SpeakingAnalyseService:
 
         analysis["overall_band_score"] = overall
 
-        duration = (test.end_time - test.start_time).total_seconds() if (test.start_time and test.end_time) else None
-        analysis["timing"] = duration
+        duration = (test.end_time - test.start_time) if (test.start_time and test.end_time) else timedelta(0)
+        analysis["timing"] = duration.total_seconds()
 
         # Save analysis to DB if not exists
         speaking_analyse = await SpeakingAnalyse.create(
@@ -89,7 +89,7 @@ class SpeakingAnalyseService:
             grammatical_range_and_accuracy_feedback=analysis.get("grammatical_range_and_accuracy_feedback"),
             pronunciation_score=analysis.get("pronunciation_score"),
             pronunciation_feedback=analysis.get("pronunciation_feedback"),
-            duration=timedelta(seconds=analysis["timing"]) if analysis["timing"] is not None else None,
+            duration=duration,
         )
 
         return analyse_to_dict(speaking_analyse)

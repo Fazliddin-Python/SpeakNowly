@@ -83,7 +83,7 @@ class ReadingAnalyseService:
                     user_id=user_id,
                     correct_answers=0,
                     overall_score=1,  # Minimum IELTS score
-                    duration=(reading.end_time - reading.start_time) if reading.end_time else None
+                    duration=(reading.end_time - reading.start_time) if (reading.start_time and reading.end_time) else timedelta(0)
                 )
                 
                 # Form response structure for skipped passage
@@ -269,7 +269,7 @@ class ReadingAnalyseService:
                 user_id=user_id,
                 correct_answers=total_correct,
                 overall_score=overall_score,
-                duration=(reading.end_time - reading.start_time) if reading.end_time else None
+                duration=(reading.end_time - reading.start_time) if (reading.start_time and reading.end_time) else timedelta(0)
             )
             
             # 7. Return data in the same format

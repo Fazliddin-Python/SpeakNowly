@@ -74,10 +74,10 @@ class WritingAnalyseService:
 
         overall_band_score = analysis.get("overall_band_score")
         if overall_band_score is None:
-            # Если оба Task есть
+            # If both Tasks are present
             if avg1 and avg2:
                 overall_band_score = round(((avg1 + avg2) / 2) * 2) / 2
-            # Если только один Task есть
+            # If only one Task is present
             elif avg1:
                 overall_band_score = round(avg1 * 2) / 2
             elif avg2:
