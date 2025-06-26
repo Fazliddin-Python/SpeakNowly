@@ -16,7 +16,7 @@ resend_limiter = get_resend_limiter(redis_client)
 @router.post(
     "/resend-otp/",
     response_model=ResendOTPResponseSerializer,
-    status_code=status.HTTP_202_ACCEPTED
+    status_code=status.HTTP_200_OK
 )
 async def resend_otp(
     data: ResendOTPSchema,
