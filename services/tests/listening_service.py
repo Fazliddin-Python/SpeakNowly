@@ -189,12 +189,20 @@ class ListeningService:
             unanswered_questions = [q for q in all_questions if q.id not in answered_question_ids]
 
             for question in unanswered_questions:
+                section = await ListeningSection.get(id=question.section_id)
+                q_type = section.question_type
+                if q_type in ["cloze_test", "form_completion", "sentence_completion", "choice"]:
+                    empty_answer = ""
+                elif q_type in ["multiple_answers", "matching"]:
+                    empty_answer = []
+                else:
+                    empty_answer = None
                 try:
                     await ListeningAnswer.create(
                         session_id=session_id,
                         user_id=user_id,
                         question_id=question.id,
-                        user_answer=[],
+                        user_answer=empty_answer,
                         is_correct=False,
                         score=0,
                     )
