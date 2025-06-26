@@ -41,7 +41,8 @@ async def get_profile(
         age=current_user.age,
         photo=current_user.photo,
         tokens=current_user.tokens,
-        is_premium=current_user.is_premium
+        is_premium=current_user.is_premium,
+        tariff_id=current_user.tariff.id if current_user.tariff else None
     )
 
 @router.put(

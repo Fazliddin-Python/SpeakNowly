@@ -11,6 +11,7 @@ class ProfileSerializer(BaseModel):
     photo: Optional[str] = Field(None, description="User photo URL (/media/ only)")
     tokens: int = Field(..., description="User's token balance")
     is_premium: bool = Field(..., description="Whether the user has a premium tariff")
+    tariff_id: Optional[int] = Field(None, description="User's current tariff id")
 
     @field_validator("photo")
     @classmethod
