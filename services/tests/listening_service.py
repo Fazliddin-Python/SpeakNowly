@@ -162,7 +162,11 @@ class ListeningService:
                 ua = user_answer
                 if isinstance(ua, bool):
                     norm_answer = None
-                elif isinstance(ua, (str, int, float, list, dict)):
+                elif isinstance(ua, (int, float)):
+                    norm_answer = ua
+                elif isinstance(ua, str):
+                    norm_answer = [ua]
+                elif isinstance(ua, (list, dict)):
                     norm_answer = ua
                 else:
                     norm_answer = None

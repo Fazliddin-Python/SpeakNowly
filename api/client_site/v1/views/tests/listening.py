@@ -19,7 +19,6 @@ from ...serializers.tests import (
     ListeningTestCreate,
 )
 from services.tests import ListeningService
-from models.tests import TestTypeEnum
 from utils.auth import active_user, admin_required
 from utils import get_translation, check_user_tokens
 from utils.arq_pool import get_arq_redis
