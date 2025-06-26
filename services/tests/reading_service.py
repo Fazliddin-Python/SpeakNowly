@@ -28,7 +28,7 @@ async def get_user_reading_level(user_id: int) -> str:
     ).order_by("-end_time").limit(3)
 
     if not recent_sessions or len(recent_sessions) < 3:
-        return "easy"  # Beginner or not enough data
+        return "easy" # Beginner or not enough data
 
     # Calculate the average score for the last 3 tests
     avg_score = sum([float(s.score or 0) for s in recent_sessions]) / len(recent_sessions)
@@ -221,11 +221,11 @@ class ReadingService:
             )
 
         # Check if already completed
-        if session.status in [Constants.ReadingStatus.COMPLETED.value, Constants.ReadingStatus.CANCELLED.value]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=t.get("session_already_completed_or_cancelled", "Session already completed or cancelled")
-            )
+        # if session.status in [Constants.ReadingStatus.COMPLETED.value, Constants.ReadingStatus.CANCELLED.value]:
+        #     raise HTTPException(
+        #         status_code=status.HTTP_400_BAD_REQUEST,
+        #         detail=t.get("session_already_completed_or_cancelled", "Session already completed or cancelled")
+        #     )
 
         # Mark as completed and analyze
         session.status = Constants.ReadingStatus.COMPLETED.value
@@ -351,11 +351,18 @@ class ReadingService:
             question_results = []
             for question in passage.questions:
                 ans = answers_by_qid.get(question.id)
-                # Default values
                 user_ans = ans.text if ans else ""
                 is_corr = bool(ans.is_correct) if ans else False
-                corr_ans = ans.correct_answer if ans else ""
-                expl = ans.explanation if ans else ""
+
+                if ans and ans.correct_answer not in (None, "default", ""):
+                    corr_ans = ans.correct_answer
+                elif question.type == "MULTIPLE_CHOICE":
+                    correct_var = next((v for v in question.variants if v.is_correct), None)
+                    corr_ans = correct_var.text if correct_var else ""
+                else:
+                    corr_ans = ""
+
+                expl = ans.explanation if ans and ans.explanation is not None else ""
                 question_results.append({
                     "id": question.id,
                     "text": question.text,

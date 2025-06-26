@@ -18,9 +18,9 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "logout_successful": "Logout successful",
         "password_updated": "Password updated successfully",
         "incorrect_password": "Incorrect password",
-        "verification_failed": "Verification failed",
 
         # --- Users / Verification / OTP ---
+        "verification_failed": "Verification failed",
         "verification_sent": "Verification code has been sent",
         "verification_resent": "Verification code has been resent",
         "otp_resend_failed": "Failed to resend OTP, please try again",
@@ -39,10 +39,9 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
 
         # --- Common Errors / Other ---
         "internal_error": "Internal server error",
-        "no_answer_feedback": "No answer",
-        "writing_parts_not_found": "Writing parts not found",
-        "unknown_chart_type": "Unknown chart type",
         "forbidden": "Forbidden",
+        "no_answer_feedback": "No answer",
+        "unknown_chart_type": "Unknown chart type",
 
         # --- Tests / Listening ---
         "no_listening_tests": "No listening tests available",
@@ -55,12 +54,6 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "parent_section_not_found": "Parent listening section not found",
         "listening_already_completed": "Listening test already completed",
         "cannot_cancel_session": "Cannot cancel this session",
-        "answers_required": "Answers are required",
-        "invalid_answer_format": "Invalid answer format",
-        "question_not_found": "Question not found",
-        "session_expired": "Session expired",
-        "session_in_progress": "Session is still in progress",
-        "session_cancelled": "Session cancelled successfully",
 
         # --- Tests / Reading ---
         "no_reading_tests": "No reading tests available",
@@ -80,22 +73,38 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "session_restarted_successfully": "Reading session restarted successfully",
         "transaction_description": "Tokens deducted for reading test: {price}",
 
-        # --- Tests / Reading Session ---
+        # --- Tests / Writing ---
+        "no_writing_tests": "No writing tests available",
+        "writing_test_not_found": "Writing test not found",
+        "writing_test_not_completed": "Writing test is not completed",
+        "writing_analysis_failed": "Failed to analyse writing test",
+        "writing_analysis_invalid_format": "Invalid analysis format",
+
+        # --- Tests / Session Common ---
         "session_not_found": "Session not found",
         "session_not_completed": "Session is not completed",
         "session_already_completed": "Session already completed",
         "session_already_completed_or_cancelled": "Session already completed or cancelled",
-        "answers_submitted": "Answers submitted successfully",
         "session_cancelled": "Session cancelled successfully",
         "session_already_cancelled": "Session already cancelled",
+        "session_expired": "Session expired",
+        "session_in_progress": "Session is still in progress",
+        "session_restarted": "Session restarted",
+        "cannot_restart_session": "Cannot restart active session",
+
+        # --- Tests / Answers & Questions ---
+        "answers_required": "Answers are required",
+        "invalid_answer_format": "Invalid answer format",
+        "question_not_found": "Question not found",
+        "answers_submitted": "Answers submitted successfully",
         "not_all_audio_uploaded": "Not all audio files uploaded",
-        "invalid_question_count": "Invalid number of questions in session",
-        "analysis_not_found": "Analysis not found",
+        "invalid_question_count": "Invalid question count",
+        "question_parsing_failed": "Failed parsing questions",
         "question_generation_failed": "Failed to generate questions",
-        "question_parsing_failed": "Failed to parse questions",
-        "analysis_started": "Analysis started, please try again later",
+        "part1_audio_required": "Part 1 audio is required",
 
         # --- Analyses ---
+        "analysis_not_found": "Failed to generate analysis",
         "analysis_started": "Analysis started, please try again later",
 
         # --- Payments / Tokens ---
@@ -112,18 +121,10 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "atm_error": "Payment service error: {error}",
         "invalid_callback": "Invalid callback data",
         "invalid_callback (no JSON)": "Invalid callback (no JSON)",
-        "payment_not_found": "Payment not found",
         "tokens_for_tariff": "Tokens for {tariff_name}",
         "payment_successful": "Payment Successful",
         "you_bought_tariff": "You bought {tariff_name}.",
         "tokens_credited": "{tokens} tokens credited.",
-
-        # --- Tests / Writing ---
-        "no_writing_tests": "No writing tests available",
-        "writing_test_not_found": "Writing test not found",
-        "writing_test_not_completed": "Writing test is not completed",
-        "writing_analysis_failed": "Failed to analyse writing test",
-        "writing_analysis_invalid_format": "Invalid analysis format",
     },
     "ru": {
         # --- Users / Auth ---
@@ -141,9 +142,9 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "logout_successful": "Вы успешно вышли из системы",
         "password_updated": "Пароль успешно обновлён",
         "incorrect_password": "Неверный пароль",
-        "verification_failed": "Ошибка подтверждения",
 
         # --- Users / Verification / OTP ---
+        "verification_failed": "Ошибка подтверждения",
         "verification_sent": "Код подтверждения отправлен",
         "verification_resent": "Код подтверждения отправлен повторно",
         "otp_resend_failed": "Не удалось повторно отправить OTP, попробуйте снова",
@@ -162,10 +163,9 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
 
         # --- Common Errors / Other ---
         "internal_error": "Внутренняя ошибка сервера",
-        "no_answer_feedback": "Нет ответа",
-        "writing_parts_not_found": "Части письма не найдены",
-        "unknown_chart_type": "Неизвестный тип диаграммы",
         "forbidden": "Доступ запрещён",
+        "no_answer_feedback": "Нет ответа",
+        "unknown_chart_type": "Неизвестный тип диаграммы",
 
         # --- Tests / Listening ---
         "no_listening_tests": "Нет доступных тестов прослушивания",
@@ -178,12 +178,6 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "parent_section_not_found": "Родительский раздел прослушивания не найден",
         "listening_already_completed": "Тест прослушивания уже завершён",
         "cannot_cancel_session": "Эту сессию нельзя отменить",
-        "answers_required": "Необходимо отправить ответы",
-        "invalid_answer_format": "Неверный формат ответа",
-        "question_not_found": "Вопрос не найден",
-        "session_expired": "Сессия истекла",
-        "session_in_progress": "Сессия ещё не завершена",
-        "session_cancelled": "Сессия успешно отменена",
 
         # --- Tests / Reading ---
         "no_reading_tests": "Нет доступных тестов чтения",
@@ -203,22 +197,38 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "session_restarted_successfully": "Сессия чтения успешно перезапущена",
         "transaction_description": "Списаны токены за тест чтения: {price}",
 
-        # --- Tests / Reading Session ---
+        # --- Tests / Writing ---
+        "no_writing_tests": "Нет доступных тестов по письму",
+        "writing_test_not_found": "Тест по письму не найден",
+        "writing_test_not_completed": "Тест по письму не завершён",
+        "writing_analysis_failed": "Не удалось проанализировать тест по письму",
+        "writing_analysis_invalid_format": "Некорректный формат анализа",
+
+        # --- Tests / Session Common ---
         "session_not_found": "Сессия не найдена",
         "session_not_completed": "Сессия не завершена",
         "session_already_completed": "Сессия уже завершена",
         "session_already_completed_or_cancelled": "Сессия уже завершена или отменена",
-        "answers_submitted": "Ответы успешно отправлены",
         "session_cancelled": "Сессия успешно отменена",
         "session_already_cancelled": "Сессия уже отменена",
+        "session_expired": "Сессия истекла",
+        "session_in_progress": "Сессия ещё не завершена",
+        "session_restarted": "Сессия успешно перезапущена",
+        "cannot_restart_session": "Нельзя перезапустить активную сессию",
+
+        # --- Tests / Answers & Questions ---
+        "answers_required": "Необходимо отправить ответы",
+        "invalid_answer_format": "Неверный формат ответа",
+        "question_not_found": "Вопрос не найден",
+        "answers_submitted": "Ответы успешно отправлены",
         "not_all_audio_uploaded": "Не все аудиофайлы загружены",
-        "invalid_question_count": "Некорректное количество вопросов в сессии",
-        "analysis_not_found": "Анализ не найден",
-        "question_generation_failed": "Не удалось создать вопросы",
-        "question_parsing_failed": "Не удалось обработать вопросы",
-        "analysis_started": "Анализ запущен, попробуйте позже",
+        "invalid_question_count": "Некорректное количество вопросов",
+        "question_parsing_failed": "Ошибка разбора вопросов",
+        "question_generation_failed": "Не удалось сгенерировать вопросы",
+        "part1_audio_required": "Необходимо загрузить аудио для части 1",
 
         # --- Analyses ---
+        "analysis_not_found": "Не удалось сгенерировать анализ",
         "analysis_started": "Анализ запущен, попробуйте позже",
 
         # --- Payments / Tokens ---
@@ -235,18 +245,10 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "atm_error": "Ошибка платёжного сервиса: {error}",
         "invalid_callback": "Некорректные данные обратного вызова",
         "invalid_callback (no JSON)": "Некорректные данные обратного вызова (нет JSON)",
-        "payment_not_found": "Платеж не найден",
         "tokens_for_tariff": "Токены за {tariff_name}",
         "payment_successful": "Платеж успешно выполнен",
         "you_bought_tariff": "Вы купили {tariff_name}.",
         "tokens_credited": "{tokens} токенов зачислено.",
-
-        # --- Tests / Writing ---
-        "no_writing_tests": "Нет доступных тестов по письму",
-        "writing_test_not_found": "Тест по письму не найден",
-        "writing_test_not_completed": "Тест по письму не завершён",
-        "writing_analysis_failed": "Не удалось проанализировать тест по письму",
-        "writing_analysis_invalid_format": "Некорректный формат анализа",
     },
     "uz": {
         # --- Users / Auth ---
@@ -264,9 +266,9 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "logout_successful": "Tizimdan muvaffaqiyatli chiqdingiz",
         "password_updated": "Parol muvaffaqiyatli yangilandi",
         "incorrect_password": "Parol noto'g'ri",
-        "verification_failed": "Tasdiqlashda xato",
 
         # --- Users / Verification / OTP ---
+        "verification_failed": "Tasdiqlashda xato",
         "verification_sent": "Tasdiqlash kodi yuborildi",
         "verification_resent": "Tasdiqlash kodi qayta yuborildi",
         "otp_resend_failed": "OTPni qayta yuborishda xato, iltimos qayta urinib ko'ring",
@@ -285,10 +287,9 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
 
         # --- Common Errors / Other ---
         "internal_error": "Ichki server xatosi",
-        "no_answer_feedback": "Javob yo'q",
-        "writing_parts_not_found": "Yozish qismlari topilmadi",
-        "unknown_chart_type": "Noma'lum diagramma turi",
         "forbidden": "Ruxsat yo'q",
+        "no_answer_feedback": "Javob yo'q",
+        "unknown_chart_type": "Noma'lum diagramma turi",
 
         # --- Tests / Listening ---
         "no_listening_tests": "Tinglash testlari mavjud emas",
@@ -301,12 +302,6 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "parent_section_not_found": "Tinglash bo‘limi topilmadi",
         "listening_already_completed": "Tinglash testi allaqachon yakunlangan",
         "cannot_cancel_session": "Bu sessiyani bekor qilib bo'lmaydi",
-        "answers_required": "Javoblarni yuborish kerak",
-        "invalid_answer_format": "Javob formati noto'g'ri",
-        "question_not_found": "Savol topilmadi",
-        "session_expired": "Sessiya muddati tugadi",
-        "session_in_progress": "Sessiya hali tugamagan",
-        "session_cancelled": "Sessiya muvaffaqiyatli bekor qilindi",
 
         # --- Tests / Reading ---
         "no_reading_tests": "O'qish testlari mavjud emas",
@@ -326,22 +321,38 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "session_restarted_successfully": "O'qish sessiyasi muvaffaqiyatli qayta boshlandi",
         "transaction_description": "O'qish testi uchun tokenlar yechib olindi: {price}",
 
-        # --- Tests / Reading Session ---
+        # --- Tests / Writing ---
+        "no_writing_tests": "Yozish testlari mavjud emas",
+        "writing_test_not_found": "Yozish testi topilmadi",
+        "writing_test_not_completed": "Yozish testi yakunlanmagan",
+        "writing_analysis_failed": "Yozish testini tahlil qilishda xato",
+        "writing_analysis_invalid_format": "Noto'g'ri tahlil formati",
+
+        # --- Tests / Session Common ---
         "session_not_found": "Sessiya topilmadi",
         "session_not_completed": "Sessiya yakunlanmagan",
         "session_already_completed": "Sessiya allaqachon yakunlangan",
         "session_already_completed_or_cancelled": "Sessiya allaqachon yakunlangan yoki bekor qilingan",
-        "answers_submitted": "Javoblar muvaffaqiyatli yuborildi",
         "session_cancelled": "Sessiya muvaffaqiyatli bekor qilindi",
         "session_already_cancelled": "Sessiya allaqachon bekor qilingan",
+        "session_expired": "Sessiya muddati tugadi",
+        "session_in_progress": "Sessiya hali tugamagan",
+        "session_restarted": "Sessiya muvaffaqiyatli qayta boshlandi",
+        "cannot_restart_session": "Faol sessiyani qayta boshlash mumkin emas",
+
+        # --- Tests / Answers & Questions ---
+        "answers_required": "Javoblarni yuborish kerak",
+        "invalid_answer_format": "Javob formati noto'g'ri",
+        "question_not_found": "Savol topilmadi",
+        "answers_submitted": "Javoblar muvaffaqiyatli yuborildi",
         "not_all_audio_uploaded": "Hamma audio fayllar yuklanmagan",
-        "invalid_question_count": "Sessiyada savollar soni noto'g'ri",
-        "analysis_not_found": "Tahlil topilmadi",
-        "question_generation_failed": "Savollarni yaratishda xato",
+        "invalid_question_count": "Savollar soni noto'g'ri",
         "question_parsing_failed": "Savollarni tahlil qilishda xato",
-        "analysis_started": "Tahlil boshlandi, iltimos keyinroq urinib ko‘ring",
+        "question_generation_failed": "Savollarni yaratishda xato",
+        "part1_audio_required": "1-qism uchun audio yuklash kerak",
 
         # --- Analyses ---
+        "analysis_not_found": "Tahlilni yaratib bo'lmadi",
         "analysis_started": "Tahlil boshlandi, iltimos keyinroq urinib ko‘ring",
 
         # --- Payments / Tokens ---
@@ -358,18 +369,10 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "atm_error": "To'lov xizmati xatosi: {error}",
         "invalid_callback": "Callback ma'lumotlari noto'g'ri",
         "invalid_callback (no JSON)": "Callback ma'lumotlari noto'g'ri (JSON yo'q)",
-        "payment_not_found": "To'lov topilmadi",
         "tokens_for_tariff": "{tariff_name} uchun tokenlar",
         "payment_successful": "To'lov muvaffaqiyatli amalga oshirildi",
         "you_bought_tariff": "Siz {tariff_name} sotib oldingiz.",
         "tokens_credited": "{tokens} tokenlar qo'shildi.",
-
-        # --- Tests / Writing ---
-        "no_writing_tests": "Yozish testlari mavjud emas",
-        "writing_test_not_found": "Yozish testi topilmadi",
-        "writing_test_not_completed": "Yozish testi yakunlanmagan",
-        "writing_analysis_failed": "Yozish testini tahlil qilishda xato",
-        "writing_analysis_invalid_format": "Noto'g'ri tahlil formati",
     },
 }
 
