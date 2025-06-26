@@ -28,7 +28,7 @@ async def create_access_token(
     Creates signed JWT access token.
     """
     if expires_delta is None:
-        expires_delta = timedelta(days=1)
+        expires_delta = timedelta(hours=12)
     expire = datetime.now(timezone.utc) + expires_delta
     expire_timestamp = int(expire.timestamp())
     payload = {"sub": subject, "email": email, "exp": expire_timestamp, "type": "access"}
@@ -43,7 +43,7 @@ async def create_refresh_token(
     Creates signed JWT refresh token.
     """
     if expires_delta is None:
-        expires_delta = timedelta(days=30)
+        expires_delta = timedelta(days=7)
     expire = datetime.now(timezone.utc) + expires_delta
     expire_timestamp = int(expire.timestamp())
     payload = {"sub": subject, "email": email, "exp": expire_timestamp, "type": "refresh"}
