@@ -305,13 +305,9 @@ class ListeningService:
         # Format response data
         responses_data = []
         for r in responses:
-            if r.user_answer == "" or r.user_answer == [] or r.user_answer is None:
-                user_answer = None
-            else:
-                user_answer = r.user_answer
             responses_data.append({
                 "id": r.id,
-                "user_answer": user_answer,
+                "user_answer": r.user_answer,
                 "is_correct": r.is_correct,
                 "score": float(r.score) if r.score is not None else None,
                 "correct_answer": r.question.correct_answer if r.question else None,
