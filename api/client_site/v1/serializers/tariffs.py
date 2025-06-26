@@ -20,7 +20,6 @@ class TariffInfo(BaseModel):
     name: str
     old_price: Optional[float]
     price: float
-    price_in_stars: int
     description: str
     tokens: int
     duration: int

@@ -4,7 +4,7 @@ from datetime import datetime
 
 
 class TariffCategory(BaseModel):
-    name = fields.CharField(max_length=255, description="Name")
+    name = fields.CharField(max_length=255, null=False, description="Name")
     name_uz = fields.CharField(max_length=255, null=True, description="Name (Uzbek)")
     name_ru = fields.CharField(max_length=255, null=True, description="Name (Russian)")
     name_en = fields.CharField(max_length=255, null=True, description="Name (English)")
@@ -22,16 +22,18 @@ class TariffCategory(BaseModel):
 
 class Tariff(BaseModel):
     category = fields.ForeignKeyField("models.TariffCategory", related_name="tariffs", null=True, description="Category")
-    name = fields.CharField(max_length=255, description="Name")
-    old_price = fields.IntField(null=True, description="Old Price")
-    price = fields.IntField(description="Price")
-    price_in_stars = fields.IntField(default=0, description="Price in Stars")
-    description = fields.TextField(description="Description")
+    name = fields.CharField(max_length=255, null=False, description="Name")
+    name_uz = fields.CharField(max_length=255, null=True, description="Name (Uzbek)")
+    name_ru = fields.CharField(max_length=255, null=True, description="Name (Russian)")
+    name_en = fields.CharField(max_length=255, null=True, description="Name (English)")
+    description = fields.TextField(null=False, description="Description")
     description_uz = fields.TextField(null=True, description="Description Uz")
     description_ru = fields.TextField(null=True, description="Description Ru")
     description_en = fields.TextField(null=True, description="Description En")
     tokens = fields.IntField(description="Tokens")
     duration = fields.IntField(default=30, description="Duration")
+    old_price = fields.IntField(null=True, description="Old Price")
+    price = fields.IntField(description="Price")
     is_active = fields.BooleanField(default=True, description="Active")
     is_default = fields.BooleanField(default=False, description="Default")
 
@@ -53,8 +55,14 @@ class Tariff(BaseModel):
 
 
 class Feature(BaseModel):
-    name = fields.CharField(max_length=255, unique=True, description="Name")
-    description = fields.TextField(null=True, description="Description")
+    name = fields.CharField(max_length=255, unique=True, null=False, description="Name")
+    name_uz = fields.CharField(max_length=255, null=True, description="Name (Uzbek)")
+    name_ru = fields.CharField(max_length=255, null=True, description="Name (Russian)")
+    name_en = fields.CharField(max_length=255, null=True, description="Name (English)")
+    description = fields.TextField(null=False, description="Description")
+    description_uz = fields.TextField(null=True, description="Description Uz")
+    description_ru = fields.TextField(null=True, description="Description Ru")
+    description_en = fields.TextField(null=True, description="Description En")
 
     class Meta:
         table = "features"
