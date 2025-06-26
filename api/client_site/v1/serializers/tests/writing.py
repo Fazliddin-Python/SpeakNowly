@@ -5,8 +5,6 @@ from datetime import datetime
 
 class WritingPart1Serializer(BaseModel):
     """Serializer for part 1 of a writing test."""
-    id: int = Field(..., description="ID of part 1")
-    writing_id: int = Field(..., description="ID of the writing test")
     content: str = Field(..., description="Task content")
     answer: Optional[str] = Field(None, description="User's answer")
     diagram: Optional[str] = Field(None, description="Diagram image path")
@@ -18,8 +16,6 @@ class WritingPart1Serializer(BaseModel):
         if obj.diagram:
             diagram_url = f"/media/{obj.diagram.lstrip('/')}"
         return cls(
-            id=obj.id,
-            writing_id=obj.writing_id,
             content=obj.content,
             answer=obj.answer,
             diagram=diagram_url,
@@ -29,16 +25,12 @@ class WritingPart1Serializer(BaseModel):
 
 class WritingPart2Serializer(BaseModel):
     """Serializer for part 2 of a writing test."""
-    id: int = Field(..., description="ID of part 2")
-    writing_id: int = Field(..., description="ID of the writing test")
     content: str = Field(..., description="Task content")
     answer: Optional[str] = Field(None, description="User's answer")
 
     @classmethod
     async def from_orm(cls, obj) -> "WritingPart2Serializer":
         return cls(
-            id=obj.id,
-            writing_id=obj.writing_id,
             content=obj.content,
             answer=obj.answer,
         )
@@ -47,7 +39,6 @@ class WritingPart2Serializer(BaseModel):
 class WritingSerializer(BaseModel):
     """Serializer for a writing test with its parts."""
     id: int = Field(..., description="ID of the writing test")
-    user_id: int = Field(..., description="User ID")
     start_time: datetime = Field(..., description="Start time")
     end_time: Optional[datetime] = Field(None, description="End time")
     status: str = Field(..., description="Status")
@@ -62,7 +53,6 @@ class WritingSerializer(BaseModel):
         part2 = await WritingPart2Serializer.from_orm(part2_obj) if part2_obj else None
         return cls(
             id=obj.id,
-            user_id=obj.user_id,
             start_time=obj.start_time,
             end_time=obj.end_time,
             status=obj.status,
@@ -72,5 +62,5 @@ class WritingSerializer(BaseModel):
 
 
 class WritingSubmitRequest(BaseModel):
-    part1_answer: Optional[str] = None
-    part2_answer: Optional[str] = None
+    part1_answer: Optional[str] = Field(None, description="Answer for part 1")
+    part2_answer: Optional[str] = Field(None, description="Answer for part 2")

@@ -123,19 +123,19 @@ class WritingService:
 
     @staticmethod
     async def submit_answers(
-        session_id: int, user_id: int, part1_answer: str, part2_answer: str, t: dict
+        session_id: int, user_id: int, part1_answer: str, part2_answer: str, t: dict, lang_code: str = "en"
     ) -> Dict[str, Any]:
         """
         Submit answers and perform analysis.
         """
         # Validate session exists
-        writing = await Writing.get_or_none(id=session_id, user_id=user_id)
+        writing = await Writing.get_or_none(id=session_id, user_id=user_id).prefetch_related("part1", "part2")
         if not writing:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=t.get("session_not_found", "Session not found")
             )
-        
+
         # Check if already completed
         if writing.status in [WritingStatus.COMPLETED.value, WritingStatus.CANCELLED.value]:
             raise HTTPException(
@@ -143,30 +143,21 @@ class WritingService:
                 detail=t.get("session_already_completed_or_cancelled", "Session already completed or cancelled")
             )
 
-        # Get writing parts
-        part1 = await WritingPart1.get_or_none(writing=writing)
-        part2 = await WritingPart2.get_or_none(writing=writing)
-        if not part1 or not part2:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=t.get("writing_parts_not_found", "Writing parts not found")
-            )
-
         # Save answers and complete session
         async with in_transaction():
             if part1_answer:
-                part1.answer = part1_answer
-                await part1.save()
+                writing.part1.answer = part1_answer
+                await writing.part1.save()
             if part2_answer:
-                part2.answer = part2_answer
-                await part2.save()
+                writing.part2.answer = part2_answer
+                await writing.part2.save()
 
             writing.status = WritingStatus.COMPLETED.value
             writing.end_time = datetime.now(timezone.utc)
             await writing.save(update_fields=["status", "end_time"])
 
-            # Get analysis
-            writing_analyse = await WritingAnalyseService.analyse(writing.id)
+        # Get analysis
+        writing_analyse = await WritingAnalyseService.analyse(writing.id, lang_code=lang_code, t=t)
 
         # Return results
         return {
@@ -258,7 +249,7 @@ class WritingService:
         return {"message": t.get("session_restarted", "Session restarted")}
 
     @staticmethod
-    async def get_analysis(session_id: int, user_id: int, t: dict) -> Dict[str, Any]:
+    async def get_analysis(session_id: int, user_id: int, t: dict, request=None) -> Dict[str, Any]:
         """
         Get analysis for a completed session.
         """
@@ -274,7 +265,10 @@ class WritingService:
                 detail=t.get("session_not_completed", "Session not completed")
             )
         
-        analyse = await WritingAnalyseService.analyse(writing.id)
+        lang_code = "en"
+        if request:
+            lang_code = request.headers.get("Accept-Language", "en").split(",")[0].lower()
+        analyse = await WritingAnalyseService.analyse(writing.id, lang_code=lang_code, t=t)
         
         return {
             "analysis": {

@@ -6,30 +6,33 @@ from models.tests import Writing, WritingStatus
 
 class WritingAnalyseService:
     @staticmethod
-    async def analyse(test_id: int) -> WritingAnalyse:
+    async def analyse(test_id: int, lang_code: str, t: dict) -> WritingAnalyse:
         """
         Analyse a completed Writing test and save the result.
         """
         test = await Writing.get_or_none(id=test_id).prefetch_related("part1", "part2")
         if not test:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Writing test not found")
+            raise HTTPException(status.HTTP_404_NOT_FOUND, t.get("writing_test_not_found", "Writing test not found"))
+        
         if test.status != WritingStatus.COMPLETED:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Writing test is not completed")
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, t.get("writing_test_not_completed", "Writing test is not completed"))
+        
         existing = await WritingAnalyse.get_or_none(writing_id=test.id)
         if existing:
             return existing
+        
         if not test.part1 or not test.part2:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Test parts are missing")
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, t.get("writing_parts_not_found", "Writing parts not found"))
 
         chatgpt = ChatGPTWritingIntegration()
-        analysis = await chatgpt.analyse_writing(test.part1, test.part2, lang_code="en")
+        analysis = await chatgpt.analyse_writing(test.part1, test.part2, lang_code=lang_code)
         if not analysis:
-            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Failed to analyse writing test")
+            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, t.get("writing_analysis_failed", "Failed to analyse writing test"))
 
         if isinstance(analysis, list):
             analysis = analysis[0] if analysis else {}
         if not isinstance(analysis, dict):
-            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Invalid analysis format")
+            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, t.get("writing_analysis_invalid_format", "Invalid analysis format"))
 
         duration = (test.end_time - test.start_time) if (test.start_time and test.end_time) else timedelta(0)
 
@@ -122,7 +125,7 @@ class WritingAnalyseService:
             word_count_score=word_count.get("Score", 0) or word_count.get("score", 0),
             word_count_feedback=word_count.get("Feedback", "") or word_count.get("feedback", ""),
             timing_feedback=timing.get("Feedback", "") or timing.get("feedback", ""),
-            # Общие
+            # General
             overall_band_score=overall_band_score,
             total_feedback=total_feedback,
             duration=duration,

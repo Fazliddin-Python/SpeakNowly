@@ -8,7 +8,6 @@ from services.tests import WritingService
 from models.tests import TestTypeEnum
 from utils.auth import active_user
 from utils import get_translation, check_user_tokens
-from utils.arq_pool import get_arq_redis
 
 router = APIRouter()
 
@@ -60,16 +59,20 @@ async def submit_writing_answers(
     payload: WritingSubmitRequest,
     user=Depends(active_user),
     t: Dict[str, str] = Depends(get_translation),
-    redis=Depends(get_arq_redis),
+    request: Request = None,
 ):
+    lang_code = "en"
+    if request:
+        lang_code = request.headers.get("accept-language", "en").split(",")[0].lower()
+
     result = await WritingService.submit_answers(
         session_id=session_id,
         user_id=user.id,
         part1_answer=payload.part1_answer,
         part2_answer=payload.part2_answer,
-        t=t
+        t=t,
+        lang_code=lang_code,
     )
-    await redis.enqueue_job("analyse_writing", test_id=session_id)
     return result
 
 
@@ -114,9 +117,10 @@ async def get_writing_analysis(
     session_id: int,
     user=Depends(active_user),
     t: Dict[str, str] = Depends(get_translation),
+    request: Request = None,
 ):
     """
     Get analysis for a completed writing session.
     """
-    result = await WritingService.get_analysis(session_id, user.id, t)
+    result = await WritingService.get_analysis(session_id, user.id, t, request)
     return result

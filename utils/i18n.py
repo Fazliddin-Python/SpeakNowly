@@ -117,6 +117,13 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "payment_successful": "Payment Successful",
         "you_bought_tariff": "You bought {tariff_name}.",
         "tokens_credited": "{tokens} tokens credited.",
+
+        # --- Tests / Writing ---
+        "no_writing_tests": "No writing tests available",
+        "writing_test_not_found": "Writing test not found",
+        "writing_test_not_completed": "Writing test is not completed",
+        "writing_analysis_failed": "Failed to analyse writing test",
+        "writing_analysis_invalid_format": "Invalid analysis format",
     },
     "ru": {
         # --- Users / Auth ---
@@ -233,6 +240,13 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "payment_successful": "Платеж успешно выполнен",
         "you_bought_tariff": "Вы купили {tariff_name}.",
         "tokens_credited": "{tokens} токенов зачислено.",
+
+        # --- Tests / Writing ---
+        "no_writing_tests": "Нет доступных тестов по письму",
+        "writing_test_not_found": "Тест по письму не найден",
+        "writing_test_not_completed": "Тест по письму не завершён",
+        "writing_analysis_failed": "Не удалось проанализировать тест по письму",
+        "writing_analysis_invalid_format": "Некорректный формат анализа",
     },
     "uz": {
         # --- Users / Auth ---
@@ -349,6 +363,13 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "payment_successful": "To'lov muvaffaqiyatli amalga oshirildi",
         "you_bought_tariff": "Siz {tariff_name} sotib oldingiz.",
         "tokens_credited": "{tokens} tokenlar qo'shildi.",
+
+        # --- Tests / Writing ---
+        "no_writing_tests": "Yozish testlari mavjud emas",
+        "writing_test_not_found": "Yozish testi topilmadi",
+        "writing_test_not_completed": "Yozish testi yakunlanmagan",
+        "writing_analysis_failed": "Yozish testini tahlil qilishda xato",
+        "writing_analysis_invalid_format": "Noto'g'ri tahlil formati",
     },
 }
 
