@@ -132,8 +132,6 @@ class ChatGPTReadingIntegration(BaseChatGPTIntegration):
         passages = target["passages"]
         stats = target.get("stats", {})
 
-        print(f"Passage {passage_id} analysis: {json.dumps(passages, ensure_ascii=False, indent=2)}")
-
         return {
             "passage_id": passages.get("passage_id"),
             "analysis": passages.get("analysis", []),

@@ -43,8 +43,6 @@ class SpeakingAnalyseService:
         chatgpt = ChatGPTSpeakingIntegration()
         analysis = await chatgpt.generate_ielts_speaking_analyse(part1, part2, part3, lang_code=lang_code)
 
-        print("ANALYSIS FROM CHATGPT:", analysis)
-
         # For missing parts, set 0 and feedback
         if not getattr(part1, "text_answer", None):
             analysis["part1_score"] = 0
