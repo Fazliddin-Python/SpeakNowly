@@ -22,17 +22,12 @@ def analyse_to_dict(analyse: SpeakingAnalyse) -> dict:
 
 class SpeakingAnalyseService:
     @staticmethod
-    async def analyse(test_id: int) -> dict:
-        t = {
-            "no_answer_feedback": "No answer",
-            "not_all_audio_uploaded": "Not all audio uploaded"
-        }
+    async def analyse(test_id: int, lang_code: str, t: dict) -> dict:
         test = await Speaking.get_or_none(id=test_id)
         if not test:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Speaking test not found")
-   
+            raise HTTPException(status.HTTP_404_NOT_FOUND, t.get("speaking_test_not_found", "Speaking test not found"))
         if test.status != SpeakingStatus.COMPLETED.value:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Speaking test is not completed")
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, t.get("speaking_test_not_completed", "Speaking test is not completed"))
 
         existing = await SpeakingAnalyse.get_or_none(speaking_id=test.id)
         if existing:
@@ -46,25 +41,28 @@ class SpeakingAnalyseService:
         part3 = answers[2] if len(answers) > 2 else fake_answer
 
         chatgpt = ChatGPTSpeakingIntegration()
-        analysis = await chatgpt.generate_ielts_speaking_analyse(part1, part2, part3)
+        analysis = await chatgpt.generate_ielts_speaking_analyse(part1, part2, part3, lang_code=lang_code)
+
+        print("ANALYSIS FROM CHATGPT:", analysis)
 
         # For missing parts, set 0 and feedback
         if not getattr(part1, "text_answer", None):
             analysis["part1_score"] = 0
-            analysis["part1_feedback"] = t["no_answer_feedback"]
+            analysis["part1_feedback"] = t.get("no_answer_feedback", "No answer")
         if not getattr(part2, "text_answer", None):
             analysis["part2_score"] = 0
-            analysis["part2_feedback"] = t["no_answer_feedback"]
+            analysis["part2_feedback"] = t.get("no_answer_feedback", "No answer")
         if not getattr(part3, "text_answer", None):
             analysis["part3_score"] = 0
-            analysis["part3_feedback"] = t["no_answer_feedback"]
+            analysis["part3_feedback"] = t.get("no_answer_feedback", "No answer")
 
-        criteria_scores = []
-        for part in ["part1", "part2", "part3"]:
-            for crit in ["fluency_and_coherence_score", "lexical_resource_score", "grammatical_range_and_accuracy_score", "pronunciation_score"]:
-                val = analysis.get(f"{part}_{crit}", None)
-                if val is not None:
-                    criteria_scores.append(float(val))
+        criteria_scores = [
+            float(v) for k, v in analysis.items()
+            if k.endswith("_score")
+            and not k.startswith("part")
+            and k != "overall_band_score"
+            and isinstance(v, (int, float))
+        ]
 
         if not criteria_scores:
             overall = 1

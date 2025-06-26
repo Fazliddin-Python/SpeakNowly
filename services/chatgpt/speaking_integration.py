@@ -104,7 +104,7 @@ class ChatGPTSpeakingIntegration(BaseChatGPTIntegration):
         )
         return json.loads(response.choices[0].message.content)
 
-    async def generate_ielts_speaking_analyse(self, part1, part2, part3) -> dict:
+    async def generate_ielts_speaking_analyse(self, part1, part2, part3, lang_code: str = "en") -> dict:
         """
         Analyse a completed Speaking test using OpenAI.
 
@@ -114,15 +114,28 @@ class ChatGPTSpeakingIntegration(BaseChatGPTIntegration):
         Returns:
             dict: Analysis result in JSON format.
         """
+        lang_map = {
+            "uz": "Uzbek",
+            "ru": "Russian",
+            "en": "English",
+        }
+        language_name = lang_map.get(lang_code, "English")
         data = [
             {"title": part1.question.title, "question": part1.question.content, "user_answer": part1.text_answer},
             {"title": part2.question.title, "question": part2.question.content, "user_answer": part2.text_answer},
             {"title": part3.question.title, "question": part3.question.content, "user_answer": part3.text_answer},
         ]
+        prompt_with_lang = f"""
+{ANALYSE_PROMPT.strip()}
+
+🗣 IMPORTANT: Please return ALL feedback, scores, and explanations in this language: {language_name.upper()}.
+Only use {language_name} language. Do NOT include English explanations.
+Return ONLY a valid JSON object. Do not include any explanations, markdown, or text outside the JSON. If you understand, reply only with the JSON object.
+"""
         response = await self.async_client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": ANALYSE_PROMPT},
+                {"role": "system", "content": prompt_with_lang},
                 {"role": "user", "content": json.dumps(data, ensure_ascii=False)},
             ],
             temperature=0.3,

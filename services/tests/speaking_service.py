@@ -160,7 +160,7 @@ class SpeakingService:
 
     @staticmethod
     async def submit_answers(
-        session_id: int, user_id: int, audio_files: Dict[str, Optional[UploadFile]], t: dict
+        session_id: int, user_id: int, audio_files: Dict[str, Optional[UploadFile]], t: dict, lang_code: str = "en"
     ) -> Dict[str, Any]:
         """
         Submit audio answers and perform analysis.
@@ -174,11 +174,11 @@ class SpeakingService:
             )
 
         # Check if already completed
-        # if session.status in [SpeakingStatus.COMPLETED.value, SpeakingStatus.CANCELLED.value]:
-        #     raise HTTPException(
-        #         status_code=status.HTTP_400_BAD_REQUEST,
-        #         detail=t.get("session_already_completed_or_cancelled", "Session already completed or cancelled")
-        #     )
+        if session.status in [SpeakingStatus.COMPLETED.value, SpeakingStatus.CANCELLED.value]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=t.get("session_already_completed_or_cancelled", "Session already completed or cancelled")
+            )
 
         # Validate questions
         questions = await SpeakingQuestion.filter(speaking=session).order_by("part")
@@ -231,7 +231,7 @@ class SpeakingService:
             await session.save(update_fields=["status", "end_time"])
 
             # Get analysis
-            analyse = await SpeakingAnalyseService.analyse(session.id)
+            analyse = await SpeakingAnalyseService.analyse(session.id, lang_code=lang_code, t=t)
             if not analyse:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -294,7 +294,7 @@ class SpeakingService:
         return {"message": t.get("session_restarted", "Session restarted")}
     
     @staticmethod
-    async def get_analysis(session_id: int, user_id: int, t: dict) -> Dict[str, Any]:
+    async def get_analysis(session_id: int, user_id: int, t: dict, request=None) -> Dict[str, Any]:
         """
         Get analysis for a completed session.
         """
@@ -304,14 +304,15 @@ class SpeakingService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=t.get("session_not_found", "Session not found")
             )
-            
         if session.status != SpeakingStatus.COMPLETED.value:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=t.get("session_not_completed", "Session not completed")
             )
-            
-        analyse = await SpeakingAnalyseService.analyse(session.id)
+        lang_code = "en"
+        if request:
+            lang_code = request.headers.get("Accept-Language", "en").split(",")[0].lower()
+        analyse = await SpeakingAnalyseService.analyse(session.id, lang_code=lang_code, t=t)
         
         return {
             "analysis": {

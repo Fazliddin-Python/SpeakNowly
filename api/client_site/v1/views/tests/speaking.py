@@ -66,6 +66,7 @@ async def submit_speaking_answers(
     user=Depends(active_user),
     t: Dict[str, str] = Depends(get_translation),
     redis=Depends(get_arq_redis),
+    request: Request = None
 ):
     """
     Submit audio answers for a speaking session.
@@ -75,13 +76,16 @@ async def submit_speaking_answers(
         "part2": part2_audio if isinstance(part2_audio, UploadFile) else None,
         "part3": part3_audio if isinstance(part3_audio, UploadFile) else None,
     }
+    lang_code = "en"
+    if request:
+        lang_code = request.headers.get("accept-language", "en").split(",")[0].lower()
     result = await SpeakingService.submit_answers(
         session_id=session_id,
         user_id=user.id,
         audio_files=audio_files,
-        t=t
+        t=t,
+        lang_code=lang_code
     )
-    await redis.enqueue_job("analyse_speaking", test_id=session_id)
     return result
 
 
@@ -129,9 +133,10 @@ async def get_speaking_analysis(
     session_id: int,
     user=Depends(active_user),
     t: Dict[str, str] = Depends(get_translation),
+    request: Request = None,
 ):
     """
     Get analysis for a completed speaking session.
     """
-    result = await SpeakingService.get_analysis(session_id, user.id, t)
+    result = await SpeakingService.get_analysis(session_id, user.id, t, request)
     return result

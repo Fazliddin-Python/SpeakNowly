@@ -49,9 +49,9 @@ async def analyse_reading(ctx, reading_id: int, user_id: int):
     await ReadingAnalyseService.analyse(reading_id, user_id)
 
 
-async def analyse_speaking(ctx, test_id: int):
+async def analyse_speaking(ctx, test_id: int, lang_code: str, t: dict):
     await ensure_tortoise()
-    await SpeakingAnalyseService.analyse(test_id)
+    await SpeakingAnalyseService.analyse(test_id, lang_code=lang_code, t=t)
 
 
 async def analyse_writing(ctx, test_id: int, lang_code: str, t: dict):
