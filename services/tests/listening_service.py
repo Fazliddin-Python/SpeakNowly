@@ -111,11 +111,11 @@ class ListeningService:
             )
             
         # Check if already completed
-        # if session.status in [ListeningSessionStatus.COMPLETED.value, ListeningSessionStatus.CANCELLED.value]:
-        #     raise HTTPException(
-        #         status_code=status.HTTP_400_BAD_REQUEST,
-        #         detail=t.get("session_already_completed_or_cancelled", "Session already completed or cancelled")
-        #     )
+        if session.status in [ListeningSessionStatus.COMPLETED.value, ListeningSessionStatus.CANCELLED.value]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=t.get("session_already_completed_or_cancelled", "Session already completed or cancelled")
+            )
 
         total_score = 0
         answered_question_ids = [answer.question_id for answer in answers]
@@ -192,12 +192,22 @@ class ListeningService:
             unanswered_questions = [q for q in all_questions if q.id not in answered_question_ids]
 
             for question in unanswered_questions:
+                section = await ListeningSection.get(id=question.section_id)
+                q_type = section.question_type
+
+                if q_type in ["cloze_test", "form_completion", "sentence_completion", "choice"]:
+                    empty_answer = ""
+                elif q_type in ["multiple_answers", "matching"]:
+                    empty_answer = []
+                else:
+                    empty_answer = None
+
                 try:
                     await ListeningAnswer.create(
                         session_id=session_id,
                         user_id=user_id,
                         question_id=question.id,
-                        user_answer=[],
+                        user_answer=empty_answer,
                         is_correct=False,
                         score=0,
                     )
