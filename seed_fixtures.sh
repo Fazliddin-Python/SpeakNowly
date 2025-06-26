@@ -84,4 +84,4 @@ if [[ -f "$TARIFF_FEATURES" ]]; then
     done
 fi
 
-echo "✅ All fixtures applied
+echo "✅ All fixtures applied (upsert)."
