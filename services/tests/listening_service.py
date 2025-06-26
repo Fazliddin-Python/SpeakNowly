@@ -111,11 +111,11 @@ class ListeningService:
             )
             
         # Check if already completed
-        if session.status in [ListeningSessionStatus.COMPLETED.value, ListeningSessionStatus.CANCELLED.value]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=t.get("session_already_completed_or_cancelled", "Session already completed or cancelled")
-            )
+        # if session.status in [ListeningSessionStatus.COMPLETED.value, ListeningSessionStatus.CANCELLED.value]:
+        #     raise HTTPException(
+        #         status_code=status.HTTP_400_BAD_REQUEST,
+        #         detail=t.get("session_already_completed_or_cancelled", "Session already completed or cancelled")
+        #     )
 
         total_score = 0
         answered_question_ids = [answer.question_id for answer in answers]
@@ -124,14 +124,14 @@ class ListeningService:
         async with in_transaction():
             # Process submitted answers
             for answer in answers:
-                question = await ListeningQuestion.get_or_none(id=answer.question_id)
+                question_id = answer.question_id
+                user_answer = answer.user_answer
+                question = await ListeningQuestion.get_or_none(id=question_id)
                 if not question:
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
-                        detail=t.get("question_not_found", "Question {question_id} not found").format(question_id=answer.question_id)
+                        detail=t.get("question_not_found", f"Question {question_id} not found")
                     )
-
-                user_answer = answer.user_answer
 
                 # Determine question type for checking answer
                 section = await ListeningSection.get(id=question.section_id)
