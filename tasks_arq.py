@@ -54,9 +54,9 @@ async def analyse_speaking(ctx, test_id: int):
     await SpeakingAnalyseService.analyse(test_id)
 
 
-async def analyse_writing(ctx, test_id: int):
+async def analyse_writing(ctx, test_id: int, lang_code: str, t: dict):
     await ensure_tortoise()
-    await WritingAnalyseService.analyse(test_id)
+    await WritingAnalyseService.analyse(test_id, lang_code=lang_code, t=t)
 
 
 # === Email Tasks ===
