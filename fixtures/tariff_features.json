@@ -4,7 +4,7 @@
         "created_at": "2025-06-26 10:00:00.000000+00",
         "updated_at": "2025-06-26 10:00:00.000000+00",
         "is_included": true,
-        "feature_id": 2,
+        "feature_id": 1,
         "tariff_id": 1
     },
     {
@@ -12,39 +12,39 @@
         "created_at": "2025-06-26 10:00:00.000000+00",
         "updated_at": "2025-06-26 10:00:00.000000+00",
         "is_included": true,
-        "feature_id": 7,
+        "feature_id": 2,
         "tariff_id": 1
     },
     {
         "id": 3,
         "created_at": "2025-06-26 10:00:00.000000+00",
         "updated_at": "2025-06-26 10:00:00.000000+00",
-        "is_included": true,
-        "feature_id": 8,
+        "is_included": false,
+        "feature_id": 3,
         "tariff_id": 1
     },
     {
         "id": 4,
         "created_at": "2025-06-26 10:00:00.000000+00",
         "updated_at": "2025-06-26 10:00:00.000000+00",
-        "is_included": true,
-        "feature_id": 5,
-        "tariff_id": 2
+        "is_included": false,
+        "feature_id": 4,
+        "tariff_id": 1
     },
     {
         "id": 5,
         "created_at": "2025-06-26 10:00:00.000000+00",
         "updated_at": "2025-06-26 10:00:00.000000+00",
-        "is_included": true,
-        "feature_id": 4,
-        "tariff_id": 2
+        "is_included": false,
+        "feature_id": 5,
+        "tariff_id": 1
     },
     {
         "id": 6,
         "created_at": "2025-06-26 10:00:00.000000+00",
         "updated_at": "2025-06-26 10:00:00.000000+00",
         "is_included": true,
-        "feature_id": 6,
+        "feature_id": 1,
         "tariff_id": 2
     },
     {
@@ -52,39 +52,39 @@
         "created_at": "2025-06-26 10:00:00.000000+00",
         "updated_at": "2025-06-26 10:00:00.000000+00",
         "is_included": true,
-        "feature_id": 1,
-        "tariff_id": 3
+        "feature_id": 2,
+        "tariff_id": 2
     },
     {
         "id": 8,
         "created_at": "2025-06-26 10:00:00.000000+00",
         "updated_at": "2025-06-26 10:00:00.000000+00",
         "is_included": true,
-        "feature_id": 2,
-        "tariff_id": 3
+        "feature_id": 3,
+        "tariff_id": 2
     },
     {
         "id": 9,
         "created_at": "2025-06-26 10:00:00.000000+00",
         "updated_at": "2025-06-26 10:00:00.000000+00",
-        "is_included": true,
-        "feature_id": 3,
-        "tariff_id": 3
+        "is_included": false,
+        "feature_id": 4,
+        "tariff_id": 2
     },
     {
         "id": 10,
         "created_at": "2025-06-26 10:00:00.000000+00",
         "updated_at": "2025-06-26 10:00:00.000000+00",
-        "is_included": true,
-        "feature_id": 4,
-        "tariff_id": 3
+        "is_included": false,
+        "feature_id": 5,
+        "tariff_id": 2
     },
     {
         "id": 11,
         "created_at": "2025-06-26 10:00:00.000000+00",
         "updated_at": "2025-06-26 10:00:00.000000+00",
         "is_included": true,
-        "feature_id": 5,
+        "feature_id": 1,
         "tariff_id": 3
     },
     {
@@ -92,7 +92,31 @@
         "created_at": "2025-06-26 10:00:00.000000+00",
         "updated_at": "2025-06-26 10:00:00.000000+00",
         "is_included": true,
-        "feature_id": 6,
+        "feature_id": 2,
+        "tariff_id": 3
+    },
+    {
+        "id": 13,
+        "created_at": "2025-06-26 10:00:00.000000+00",
+        "updated_at": "2025-06-26 10:00:00.000000+00",
+        "is_included": true,
+        "feature_id": 3,
+        "tariff_id": 3
+    },
+    {
+        "id": 14,
+        "created_at": "2025-06-26 10:00:00.000000+00",
+        "updated_at": "2025-06-26 10:00:00.000000+00",
+        "is_included": true,
+        "feature_id": 4,
+        "tariff_id": 3
+    },
+    {
+        "id": 15,
+        "created_at": "2025-06-26 10:00:00.000000+00",
+        "updated_at": "2025-06-26 10:00:00.000000+00",
+        "is_included": true,
+        "feature_id": 5,
         "tariff_id": 3
     }
 ]
