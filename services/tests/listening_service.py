@@ -128,9 +128,12 @@ class ListeningService:
                 if not question:
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
-                        detail=t.get("question_not_found", f"Question {answer.question_id} not found")
+                        detail=t.get("question_not_found", "Question {question_id} not found").format(question_id=answer.question_id)
                     )
+
                 user_answer = answer.user_answer
+
+                # Determine question type for checking answer
                 section = await ListeningSection.get(id=question.section_id)
                 q_type = section.question_type
 
@@ -189,20 +192,12 @@ class ListeningService:
             unanswered_questions = [q for q in all_questions if q.id not in answered_question_ids]
 
             for question in unanswered_questions:
-                section = await ListeningSection.get(id=question.section_id)
-                q_type = section.question_type
-                if q_type in ["cloze_test", "form_completion", "sentence_completion", "choice"]:
-                    empty_answer = ""
-                elif q_type in ["multiple_answers", "matching"]:
-                    empty_answer = []
-                else:
-                    empty_answer = None
                 try:
                     await ListeningAnswer.create(
                         session_id=session_id,
                         user_id=user_id,
                         question_id=question.id,
-                        user_answer=empty_answer,
+                        user_answer=[],
                         is_correct=False,
                         score=0,
                     )
