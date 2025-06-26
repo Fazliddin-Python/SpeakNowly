@@ -8,7 +8,7 @@
         "name_en": "Business Basic",
         "name_uz": "Biznes Boshlang‘ich",
         "old_price": 1999,
-        "price": 1499,
+        "price": 0,
         "description": "Основные инструменты для бизнеса.",
         "description_uz": "Biznes uchun asosiy vositalar.",
         "description_ru": "Основные инструменты для бизнеса.",
@@ -16,7 +16,7 @@
         "tokens": 2000,
         "duration": 30,
         "is_active": true,
-        "is_default": false,
+        "is_default": true,
         "category_id": 1
     },
     {
