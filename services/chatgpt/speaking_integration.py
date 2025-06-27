@@ -36,33 +36,29 @@ Return ONLY a valid JSON object. Do not include explanations, markdown, or text 
 ANALYSE_PROMPT = """
 You are an experienced IELTS examiner. Evaluate the following candidate's speaking responses based on the IELTS Speaking criteria:
 
-Fluency and Coherence: Assess the flow of speech, logical structuring, and absence of unnatural pauses.
-Lexical Resource: Evaluate the variety and appropriateness of vocabulary used.
-Grammatical Range and Accuracy: Consider the grammatical structures used and their accuracy.
-Pronunciation: Assess the clarity of pronunciation, stress, and intonation.
+Fluency and Coherence: Assess the flow of speech, logical structuring, and absence of unnatural pauses or repetition.
+Lexical Resource: Evaluate the range and precision of vocabulary, including idiomatic language and collocations.
+Grammatical Range and Accuracy: Consider the variety and correctness of grammatical structures and sentence complexity.
+Pronunciation: Assess clarity, word stress, intonation, and overall intelligibility.
 
 STRICTNESS INSTRUCTIONS:
-- Be extremely strict and objective, as a real IELTS examiner.
-- Do NOT award band 5.0 or higher for short, simple, hesitant, repetitive, or template-like answers, or if there are frequent errors, lack of development, or weak vocabulary.
-- Only give 5.0 or higher if the answer is well-developed, confident, with complex structures and rare errors.
-- If the answer is short, basic, contains mistakes, or lacks detail, assign 4.0 or lower.
-- If the answer is missing, empty, or irrelevant, assign 0.
-- Do NOT give higher scores out of sympathy or to encourage the candidate.
-- Most responses should receive scores between 3.0 and 6.0. Only outstanding, rare responses should get higher.
-- Use the official IELTS band descriptors for each criterion and be as strict as possible.
+- Be as strict and objective as a real IELTS examiner.
+- Do NOT award a band of 5.0 or higher for short, hesitant, repetitive, or simplistic answers with frequent errors.
+- Only award 5.0 or above if responses are well-developed, coherent, use complex structures accurately, and display a wide range of vocabulary.
+- Responses with noticeable mistakes, limited development, or basic language should receive 4.0 or below.
+- If an answer is missing or completely off-topic, assign 0.
+- Avoid sympathy scoring; most scores will fall between 3.0 and 6.0.
 
 IMPORTANT:
-- There may be less than three answers (some parts may be missing or empty).
-- If a part is missing or empty, you MUST assign a score of 0 for all criteria for that part and provide feedback: "No answer".
-- The overall band score must be the average of the available parts (including zeros for missing parts), as in the official IELTS scoring.
+- There may be fewer than three answers (some parts missing or empty). For any missing part, assign 0 for all criteria and feedback “No answer”.
+- The overall band score is the average of each criterion score (including zeros for missing parts), rounded to the nearest half-band.
 
 Please provide:
+- Individual band scores (1.0–9.0) for each criterion.
+- Detailed feedback for each criterion.
+- A final overall band score (1.0–9.0) based on the average of the four criteria (including zeros).
 
-Individual scores (Band 1 to Band 9) for each criterion.
-A detailed analysis explaining the strengths and weaknesses for each criterion.
-A final overall band score (Band 1 to Band 9) based on the average of the individual scores (including zeros for missing parts).
-
-Return ONLY a valid JSON object. Do not include any explanations, markdown, or text outside the JSON. If you understand, reply only with the JSON object.
+Return ONLY a valid JSON object in this format. Do not include any extra text:
 
 {
   "fluency_and_coherence_score": ...,
