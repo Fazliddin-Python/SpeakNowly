@@ -16,6 +16,14 @@ Part 3: Give argumentative questions related to Part 2. Total 3-6 questions.
 
 All "question" fields must be arrays of strings.
 
+IMPORTANT:
+- You MUST use the provided seed, user_id, and date to generate questions that are unique for each combination.
+- Do NOT repeat questions or topics from previous generations, even if only the seed changes.
+- The questions must be different every time, even for the same user, if the seed or date changes.
+- Use the seed to randomize topics, wording, and order.
+- Never generate the same set of questions twice.
+- If the seed changes even by 1, all questions must be new.
+
 Return ONLY a valid JSON object. Do not include explanations, markdown, or text outside the JSON.
 
 {
@@ -34,11 +42,14 @@ Grammatical Range and Accuracy: Consider the grammatical structures used and the
 Pronunciation: Assess the clarity of pronunciation, stress, and intonation.
 
 STRICTNESS INSTRUCTIONS:
-- Be strict and objective, as a real IELTS examiner.
-- Do NOT award band 8.0 or higher unless the speaking is truly exceptional, nearly native-like, with very few errors, highly sophisticated vocabulary, and complex structures.
-- If there are frequent errors, hesitation, lack of complexity, or awkward phrasing, do NOT give more than 7.0.
-- Use the official IELTS band descriptors for each criterion.
-- Most responses should receive scores between 5.0 and 7.0. Only outstanding, rare responses should get higher.
+- Be extremely strict and objective, as a real IELTS examiner.
+- Do NOT award band 5.0 or higher for short, simple, hesitant, repetitive, or template-like answers, or if there are frequent errors, lack of development, or weak vocabulary.
+- Only give 5.0 or higher if the answer is well-developed, confident, with complex structures and rare errors.
+- If the answer is short, basic, contains mistakes, or lacks detail, assign 4.0 or lower.
+- If the answer is missing, empty, or irrelevant, assign 0.
+- Do NOT give higher scores out of sympathy or to encourage the candidate.
+- Most responses should receive scores between 3.0 and 6.0. Only outstanding, rare responses should get higher.
+- Use the official IELTS band descriptors for each criterion and be as strict as possible.
 
 IMPORTANT:
 - There may be less than three answers (some parts may be missing or empty).
@@ -90,17 +101,19 @@ class ChatGPTSpeakingIntegration(BaseChatGPTIntegration):
         """
         seed = random.randint(1, 1_000_000)
         now = datetime.now().isoformat()
-        prompt = (
-            QUESTIONS_PROMPT
-            + f"\n\n# Seed: {seed}\n"
-            + f"# User ID: {user_id}\n"
-            + f"# Date: {now}\n"
-            + "Please use the above seed, user ID, and date to make the questions unique."
-        )
+        prompt = QUESTIONS_PROMPT
+        user_content = json.dumps({
+            "seed": seed,
+            "user_id": user_id,
+            "date": now
+        })
         response = await self.async_client.chat.completions.create(
             model="gpt-4o",
-            messages=[{"role": "system", "content": prompt}],
-            temperature=0.3,
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": user_content}
+            ],
+            temperature=0.9,
         )
         return json.loads(response.choices[0].message.content)
 
@@ -138,7 +151,7 @@ Return ONLY a valid JSON object. Do not include any explanations, markdown, or t
                 {"role": "system", "content": prompt_with_lang},
                 {"role": "user", "content": json.dumps(data, ensure_ascii=False)},
             ],
-            temperature=0.3,
+            temperature=0.0,
             max_tokens=6000
         )
         raw = response.choices[0].message.content
