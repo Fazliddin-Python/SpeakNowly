@@ -70,3 +70,6 @@ REFRESH_TOKEN_EXPIRE = timedelta(days=90)
 GOOGLE_CLIENT_ID = config("GOOGLE_CLIENT_ID", default="")
 GOOGLE_CLIENT_SECRET = config("GOOGLE_CLIENT_SECRET", default="https://maps.googleapis.com/maps/api/place/autocomplete/json")
 OPENAI_API_KEY = config("OPENAI_API_KEY", default="")
+
+# === Telegram bot settings ===
+TELEGRAM_BOT_TOKEN = config("TELEGRAM_BOT_TOKEN", default="")
