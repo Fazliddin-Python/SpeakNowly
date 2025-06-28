@@ -20,7 +20,6 @@ class User(BaseModel):
     is_staff = fields.BooleanField(default=False, description="Staff")
     is_superuser = fields.BooleanField(default=False, description="Superuser")
     last_login = fields.DatetimeField(null=True, description="Last Login")
-    username = fields.CharField(max_length=255, unique=True, null=True)
 
     class Meta:
         table = "users"
