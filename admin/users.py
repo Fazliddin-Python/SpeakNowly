@@ -23,7 +23,7 @@ class UserAdmin(TortoiseModelAdmin):
         "first_name":  (WidgetType.Input, {}),
         "last_name":   (WidgetType.Input, {}),
         "age":         (WidgetType.InputNumber, {}),
-        "photo":       (WidgetType.UrlInput, {}),
+        "photo":       (WidgetType.Input, {}),
         "password":    (WidgetType.PasswordInput, {"passwordModalForm": True}),
         "tariff":      (WidgetType.AsyncSelect, {}),
         "tokens":      (WidgetType.InputNumber, {}),
