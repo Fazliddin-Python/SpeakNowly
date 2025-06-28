@@ -25,7 +25,6 @@ aiofiles = "*"
 matplotlib = "*"
 arq = "*"
 piccolo-admin = "*"
-aiogram = "*"
 
 [dev-packages]
 pytest-asyncio = "*"

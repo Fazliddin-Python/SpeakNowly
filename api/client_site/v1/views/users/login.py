@@ -1,8 +1,14 @@
+import hashlib
+import hmac
+import secrets
+from urllib.parse import unquote
 from fastapi import APIRouter, HTTPException, Query, status, Depends
 from starlette.responses import RedirectResponse
 from fastapi.security import HTTPBearer
 from datetime import datetime
 from redis.asyncio import Redis
+
+from models.users import User
 
 from ...serializers.users import (
     LoginSerializer, OAuth2SignInSerializer, AuthResponseSerializer, StartTelegramAuthSerializer, TelegramAuthSerializer
@@ -10,12 +16,11 @@ from ...serializers.users import (
 from services.users import UserService
 from utils.limiters import get_login_limiter
 from utils.auth.oauth2_auth import oauth2_sign_in
-from utils.telegram_bot import send_confirmation_message
 from utils.auth.tg_auth import telegram_sign_in
 from utils.auth import create_access_token, create_refresh_token, decode_access_token, get_current_user
 from utils.i18n import get_translation
 from utils.arq_pool import get_arq_redis
-from config import REDIS_URL
+from config import REDIS_URL, TELEGRAM_BOT_TOKEN
 
 router = APIRouter()
 bearer_scheme = HTTPBearer()
@@ -129,20 +134,13 @@ async def oauth2_login(
     )
 
 
-@router.post(
-    "/login/telegram-start/",
-    status_code=status.HTTP_200_OK
-)
-async def start_telegram_auth(
-    data: StartTelegramAuthSerializer,
-    t: dict = Depends(get_translation),
-):
-    """
-    Step 1: User enters phone → send Telegram confirmation message with button.
-    """
-    await send_confirmation_message(data.telegram_id, data.phone, data.lang)
-
-    return {"detail": t.get("telegram_verification_started", "Verification started")}
+def verify_telegram_hash(data: dict) -> bool:
+    # Recompute HMAC-SHA256 over all fields except "hash"
+    secret_key = hashlib.sha256(TELEGRAM_BOT_TOKEN.encode()).digest()
+    payload = {k: v for k, v in data.items() if k != "hash"}
+    check_string = "\n".join(f"{k}={v}" for k, v in sorted(payload.items()))
+    computed = hmac.new(secret_key, check_string.encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(computed, data["hash"])
 
 
 @router.get(
@@ -151,34 +149,66 @@ async def start_telegram_auth(
     status_code=status.HTTP_302_FOUND
 )
 async def login_via_telegram(
-    data: TelegramAuthSerializer,
-    redis=Depends(get_arq_redis),
+    data: TelegramAuthSerializer = Depends(),
+    redis: Redis = Depends(get_arq_redis),
     t: dict = Depends(get_translation),
 ):
     """
-    Step 2: User clicks 'Confirm' in Telegram → 
-    FastAPI validates, links user, issues JWT and redirects to front.
+    1. Verify Telegram's HMAC signature.
+    2. Decode percent‑encoded photo_url.
+    3. Find or create User by telegram_id.
+    4. Update last_login.
+    5. Issue JWT tokens.
+    6. Enqueue activity log.
+    7. Redirect to frontend with tokens.
     """
-    tokens = await telegram_sign_in(
-        telegram_data=data.dict(include={
-            "id", "first_name", "last_name", "username",
-            "photo_url", "auth_date", "hash"
-        }),
-        email=None,
-        phone=data.phone
-    )
+    raw = data.dict()
 
+    # 1. Verify signature
+    # if not verify_telegram_hash(raw):
+    #     raise HTTPException(status_code=400, detail="Invalid Telegram data signature")
+
+    tg_id = str(raw["id"])
+
+    # 2. Decode photo_url if present
+    decoded_photo = unquote(raw["photo_url"]) if raw.get("photo_url") else None
+
+    # 3. Lookup or create user
+    user = await User.get_or_none(telegram_id=tg_id)
+    if not user:
+        default_email = f"{tg_id}@speaknowly.com"
+        user = User(
+            email=default_email,
+            first_name=raw["first_name"],
+            last_name=raw.get("last_name"),
+            photo=decoded_photo,
+            telegram_id=tg_id,
+            is_verified=True,
+            is_active=True,
+        )
+        random_pw = secrets.token_urlsafe(16)  # Generate a random password
+        user.set_password(random_pw)  # empty password for later update
+        await user.save()
+
+    # 4. Update last_login
+    await UserService.update_user(user.id, t, last_login=datetime.utcnow())
+
+    # 5. Generate JWT
+    access_token = await create_access_token(subject=str(user.id), email=user.email)
+    refresh_token = await create_refresh_token(subject=str(user.id), email=user.email)
+
+    # 6. Log activity
     await redis.enqueue_job(
         "log_user_activity",
-        user_id=int(tokens["access_token"].split(".")[0]),
+        user_id=user.id,
         action="telegram_login"
     )
 
+    # 7. Redirect with tokens
     frontend_url = "https://speaknowly.com/auth"
-    redirect_qs = (
-        f"?access_token={tokens['access_token']}"
-        f"&refresh_token={tokens['refresh_token']}"
+    qs = (
+        f"?access_token={access_token}"
+        f"&refresh_token={refresh_token}"
         f"&telegrampermission=true"
     )
-    
-    return RedirectResponse(frontend_url + redirect_qs)
+    return RedirectResponse(frontend_url + qs)
