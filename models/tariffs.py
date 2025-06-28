@@ -18,6 +18,9 @@ class TariffCategory(BaseModel):
 
     def __str__(self):
         return self.name
+    
+    async def __str__(self):
+        return f"{self.name} ({self.sale}%)"
 
 
 class Tariff(BaseModel):
@@ -51,7 +54,10 @@ class Tariff(BaseModel):
         verbose_name_plural = "Tariffs"
 
     def __str__(self):
-        return f"{self.name} - ${self.price}"
+        return f"{self.name} - {self.price}"
+    
+    async def __str__(self):
+        return f"{self.name} - {self.price}"
 
 
 class Feature(BaseModel):
@@ -72,6 +78,9 @@ class Feature(BaseModel):
 
     def __str__(self):
         return self.name
+    
+    async def __str__(self):
+        return f"{self.name}"
 
 
 class TariffFeature(BaseModel):
@@ -85,6 +94,10 @@ class TariffFeature(BaseModel):
         verbose_name_plural = "Tariff Features"
 
     def __str__(self):
+        return f"{self.tariff.name} - {self.feature.name}"
+
+    async def __str__(self):
+        await self.fetch_related("tariff", "feature")
         return f"{self.tariff.name} - {self.feature.name}"
 
 
@@ -103,4 +116,7 @@ class Sale(BaseModel):
         verbose_name_plural = "Sales"
 
     def __str__(self):
+        return f"Sale {self.percent}% for {self.tariff.name}"
+    
+    async def __str__(self):
         return f"Sale {self.percent}% for {self.tariff.name}"

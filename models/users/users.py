@@ -28,6 +28,9 @@ class User(BaseModel):
 
     def __str__(self):
         return self.email
+    
+    async def __str__(self):
+        return self.email
 
     def set_password(self, raw_password: str):
         """Hashes the password before saving."""
@@ -60,4 +63,8 @@ class UserActivityLog(BaseModel):
         verbose_name_plural = "User Activity Logs"
 
     def __str__(self):
+        return f"{self.user.email} - {self.action}"
+    
+    async def __str__(self):
+        await self.fetch_related('user')
         return f"{self.user.email} - {self.action}"

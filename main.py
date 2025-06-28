@@ -3,7 +3,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from tortoise.contrib.fastapi import register_tortoise
-from config import DATABASE_CONFIG, ALLOWED_HOSTS
+from config import (
+    DATABASE_CONFIG, ALLOWED_HOSTS, ADMIN_SECRET_KEY
+)
 from api.client_site.v1 import router as client_site_v1_router
 
 # === Logging configuration ===
@@ -45,6 +47,11 @@ register_tortoise(
     add_exception_handlers=True,
 )
 
+import admin
+
+from fastadmin import fastapi_app as admin_app
+
+app.mount("/admin", admin_app, name="admin")
 # === Root endpoint ===
 @app.get("/")
 def read_root():

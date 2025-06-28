@@ -31,8 +31,13 @@ DATABASE_CONFIG = {
     "apps": {
         "models": {
             "models": [
-                "models.users",
-                "models.tests",
+                "models.users.users",
+                "models.users.verification_codes",
+                "models.tests.listening",
+                "models.tests.reading",
+                "models.tests.speaking",
+                "models.tests.writing",
+                "models.tests.test_type",
                 "models.analyses",
                 "models.comments",
                 "models.notifications",
@@ -73,3 +78,7 @@ OPENAI_API_KEY = config("OPENAI_API_KEY", default="")
 
 # === Telegram bot settings ===
 TELEGRAM_BOT_TOKEN = config("TELEGRAM_BOT_TOKEN", default="")
+
+ADMIN_USER_MODEL = config("ADMIN_USER_MODEL")
+ADMIN_USER_MODEL_USERNAME_FIELD = config("ADMIN_USER_MODEL_USERNAME_FIELD")
+ADMIN_SECRET_KEY = config("ADMIN_SECRET_KEY")

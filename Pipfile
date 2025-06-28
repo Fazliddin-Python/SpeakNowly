@@ -25,6 +25,8 @@ aiofiles = "*"
 matplotlib = "*"
 arq = "*"
 piccolo-admin = "*"
+fastadmin = {extras = ["tortoise-orm", "fastapi"], version = "*"}
+bcrypt = "*"
 
 [dev-packages]
 pytest-asyncio = "*"

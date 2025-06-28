@@ -23,7 +23,8 @@ async def ensure_tortoise():
             db_url=DATABASE_URL,
             modules={
                 "models": [
-                    "models.users",
+                    "models.users.users",
+                    "models.users.verification_codes",
                     "models.tests",
                     "models.analyses",
                     "models.payments",
@@ -175,8 +176,13 @@ class WorkerSettings:
                 db_url=DATABASE_URL,
                 modules={
                     "models": [
-                        "models.users",
-                        "models.tests",
+                        "models.users.users",
+                        "models.users.verification_codes",
+                        "models.tests.listening",
+                        "models.tests.reading",
+                        "models.tests.speaking",
+                        "models.tests.writing",
+                        "models.tests.test_type",
                         "models.analyses",
                         "models.payments",
                         "models.tariffs",
