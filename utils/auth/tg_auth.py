@@ -44,13 +44,10 @@ async def telegram_sign_in(
     if not email:
         email = f"telegram_{tg_id}@speaknowly.com"
 
-    username = email
-
     user = await User.get_or_none(email=email)
     if not user:
         user = User(
             email=email,
-            username=username,
             first_name=telegram_data.get("first_name"),
             last_name=telegram_data.get("last_name"),
             photo=telegram_data.get("photo_url"),
@@ -63,7 +60,6 @@ async def telegram_sign_in(
         await user.save()
     else:
         user.telegram_id = str(tg_id)
-        user.username = username
         if phone:
             user.phone = phone
         user.first_name = user.first_name or telegram_data.get("first_name")
