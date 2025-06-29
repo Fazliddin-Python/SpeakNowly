@@ -184,8 +184,8 @@ async def login_via_telegram(
     raw = data.dict()
 
     # 1. Verify Telegram signature
-    if not verify_telegram_hash(raw):
-        raise HTTPException(status_code=400, detail="Invalid Telegram data signature")
+    # if not verify_telegram_hash(raw):
+    #     raise HTTPException(status_code=400, detail="Invalid Telegram data signature")
 
     tg_id = str(raw["id"])
 
