@@ -79,6 +79,7 @@ OPENAI_API_KEY = config("OPENAI_API_KEY", default="")
 # === Telegram bot settings ===
 TELEGRAM_BOT_TOKEN = config("TELEGRAM_BOT_TOKEN", default="")
 
+# === Admin settings ===
 ADMIN_USER_MODEL = config("ADMIN_USER_MODEL")
 ADMIN_USER_MODEL_USERNAME_FIELD = config("ADMIN_USER_MODEL_USERNAME_FIELD")
 ADMIN_SECRET_KEY = config("ADMIN_SECRET_KEY")

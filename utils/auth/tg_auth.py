@@ -7,7 +7,6 @@ from utils.auth.auth import create_access_token, create_refresh_token
 from models.users.users import User
 from config import TELEGRAM_BOT_TOKEN
 
-
 async def telegram_sign_in(
     telegram_data: Dict[str, Any],
     email: str | None,

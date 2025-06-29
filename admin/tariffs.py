@@ -1,4 +1,6 @@
-from fastadmin import TortoiseModelAdmin, register, fastapi_app as admin_app, WidgetType
+from fastadmin import TortoiseModelAdmin, register, WidgetType
+from tortoise.exceptions import ValidationError as TortoiseValidationError
+from fastadmin.api.exceptions import AdminApiException
 from models.tariffs import TariffCategory, Tariff, Feature, TariffFeature, Sale
 
 
@@ -20,6 +22,18 @@ class TariffCategoryAdmin(TortoiseModelAdmin):
         "is_active": (WidgetType.Switch, {}),
     }
 
+    async def save_model(self, id: int | None, payload: dict) -> dict:
+        try:
+            return await super().save_model(id, payload)
+        except TortoiseValidationError as e:
+            errors: dict[str, str] = {}
+            for msg in e.args:
+                if isinstance(msg, str) and ':' in msg:
+                    fld, text = msg.split(':', 1)
+                    errors[fld.strip()] = text.strip()
+            detail = "; ".join(f"{k}: {v}" for k, v in errors.items())
+            raise AdminApiException(status_code=400, detail=detail)
+
 
 @register(Tariff)
 class TariffAdmin(TortoiseModelAdmin):
@@ -28,7 +42,7 @@ class TariffAdmin(TortoiseModelAdmin):
         "old_price", "price", "price_in_stars", "tokens", "duration",
         "is_active", "is_default", "created_at",
     )
-    list_filter = ("is_active", "is_default")
+    list_filter = ("is_active", "is_default", "category")
     search_fields = ("name", "name_uz", "name_ru", "name_en")
     list_select_related = ("category",)
 
@@ -53,9 +67,23 @@ class TariffAdmin(TortoiseModelAdmin):
     async def get_formfield_override(self, field_name: str):
         if field_name == "category":
             cats = await TariffCategory.all().values("id", "name")
-            opts = [{"label": c["name"], "value": c["id"]} for c in cats]
-            return (WidgetType.Select, {"options": opts})
+            return (
+                WidgetType.Select,
+                {"options": [{"label": c["name"], "value": c["id"]} for c in cats]}
+            )
         return await super().get_formfield_override(field_name)
+
+    async def save_model(self, id: int | None, payload: dict) -> dict:
+        try:
+            return await super().save_model(id, payload)
+        except TortoiseValidationError as e:
+            errors: dict[str, str] = {}
+            for msg in e.args:
+                if isinstance(msg, str) and ':' in msg:
+                    fld, text = msg.split(':', 1)
+                    errors[fld.strip()] = text.strip()
+            detail = "; ".join(f"{k}: {v}" for k, v in errors.items())
+            raise AdminApiException(status_code=400, detail=detail)
 
 
 @register(Feature)
@@ -78,13 +106,25 @@ class FeatureAdmin(TortoiseModelAdmin):
         "description_en": (WidgetType.TextArea, {}),
     }
 
+    async def save_model(self, id: int | None, payload: dict) -> dict:
+        try:
+            return await super().save_model(id, payload)
+        except TortoiseValidationError as e:
+            errors: dict[str, str] = {}
+            for msg in e.args:
+                if isinstance(msg, str) and ':' in msg:
+                    fld, text = msg.split(':', 1)
+                    errors[fld.strip()] = text.strip()
+            detail = "; ".join(f"{k}: {v}" for k, v in errors.items())
+            raise AdminApiException(status_code=400, detail=detail)
+
 
 @register(TariffFeature)
 class TariffFeatureAdmin(TortoiseModelAdmin):
     list_display = (
         "id", "tariff", "feature", "is_included", "created_at",
     )
-    list_filter = ("is_included",)
+    list_filter = ("is_included", "tariff", "feature")
     search_fields = ("tariff", "feature")
     list_select_related = ("tariff", "feature")
 
@@ -94,14 +134,30 @@ class TariffFeatureAdmin(TortoiseModelAdmin):
 
     async def get_formfield_override(self, field_name: str):
         if field_name == "tariff":
-            tfs = await Tariff.all().values("id", "name")
-            opts = [{"label": t["name"], "value": t["id"]} for t in tfs]
-            return (WidgetType.Select, {"options": opts})
+            items = await Tariff.all().values("id", "name")
+            return (
+                WidgetType.Select,
+                {"options": [{"label": t["name"], "value": t["id"]} for t in items]}
+            )
         if field_name == "feature":
-            fts = await Feature.all().values("id", "name")
-            opts = [{"label": f["name"], "value": f["id"]} for f in fts]
-            return (WidgetType.Select, {"options": opts})
+            items = await Feature.all().values("id", "name")
+            return (
+                WidgetType.Select,
+                {"options": [{"label": f["name"], "value": f["id"]} for f in items]}
+            )
         return await super().get_formfield_override(field_name)
+
+    async def save_model(self, id: int | None, payload: dict) -> dict:
+        try:
+            return await super().save_model(id, payload)
+        except TortoiseValidationError as e:
+            errors: dict[str, str] = {}
+            for msg in e.args:
+                if isinstance(msg, str) and ':' in msg:
+                    fld, text = msg.split(':', 1)
+                    errors[fld.strip()] = text.strip()
+            detail = "; ".join(f"{k}: {v}" for k, v in errors.items())
+            raise AdminApiException(status_code=400, detail=detail)
 
 
 @register(Sale)
@@ -112,7 +168,7 @@ class SaleAdmin(TortoiseModelAdmin):
         "end_date", "end_time",
         "is_active", "created_at",
     )
-    list_filter = ("is_active",)
+    list_filter = ("is_active", "tariff")
     search_fields = ("tariff",)
     list_select_related = ("tariff",)
 
@@ -127,7 +183,21 @@ class SaleAdmin(TortoiseModelAdmin):
 
     async def get_formfield_override(self, field_name: str):
         if field_name == "tariff":
-            sales = await Tariff.all().values("id", "name")
-            opts = [{"label": s["name"], "value": s["id"]} for s in sales]
-            return (WidgetType.Select, {"options": opts})
+            items = await Tariff.all().values("id", "name")
+            return (
+                WidgetType.Select,
+                {"options": [{"label": t["name"], "value": t["id"]} for t in items]}
+            )
         return await super().get_formfield_override(field_name)
+
+    async def save_model(self, id: int | None, payload: dict) -> dict:
+        try:
+            return await super().save_model(id, payload)
+        except TortoiseValidationError as e:
+            errors: dict[str, str] = {}
+            for msg in e.args:
+                if isinstance(msg, str) and ':' in msg:
+                    fld, text = msg.split(':', 1)
+                    errors[fld.strip()] = text.strip()
+            detail = "; ".join(f"{k}: {v}" for k, v in errors.items())
+            raise AdminApiException(status_code=400, detail=detail)

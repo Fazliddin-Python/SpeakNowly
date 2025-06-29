@@ -1,6 +1,7 @@
-from fastadmin import TortoiseModelAdmin, register, fastapi_app as admin_app, WidgetType, action
+from fastadmin import TortoiseModelAdmin, register, WidgetType, action
+from tortoise.exceptions import ValidationError as TortoiseValidationError
+from fastadmin.api.exceptions import AdminApiException
 from models.users.users import User, UserActivityLog
-from models.tariffs import Tariff
 
 
 @register(User)
@@ -25,7 +26,6 @@ class UserAdmin(TortoiseModelAdmin):
         "age":         (WidgetType.InputNumber, {}),
         "photo":       (WidgetType.Input, {}),
         "password":    (WidgetType.PasswordInput, {"passwordModalForm": True}),
-        "tariff":      (WidgetType.AsyncSelect, {}),
         "tokens":      (WidgetType.InputNumber, {}),
         "last_login":  (WidgetType.DateTimePicker, {}),
         "is_verified": (WidgetType.Switch, {}),
@@ -55,13 +55,6 @@ class UserAdmin(TortoiseModelAdmin):
         tariff = await obj.tariff
         return tariff.name if tariff else "-"
 
-    async def get_formfield_override(self, field_name: str):
-        override = await super().get_formfield_override(field_name)
-        if field_name == "tariff":
-            tariffs = await Tariff.all().values("id", "name")
-            return (WidgetType.AsyncSelect, {"options": [{"label": t["name"], "value": t["id"]} for t in tariffs]})
-        return override
-
     @action(description="Activate selected users")
     async def activate(self, ids: list[int]) -> None:
         await self.model_cls.filter(id__in=ids).update(is_active=True)
@@ -69,6 +62,18 @@ class UserAdmin(TortoiseModelAdmin):
     @action(description="Deactivate selected users")
     async def deactivate(self, ids: list[int]) -> None:
         await self.model_cls.filter(id__in=ids).update(is_active=False)
+
+    async def save_model(self, id: int | None, payload: dict) -> dict:
+        try:
+            return await super(UserAdmin, self).save_model(id, payload)
+        except TortoiseValidationError as e:
+            errors: dict[str, str] = {}
+            for msg in e.args:
+                if isinstance(msg, str) and ':' in msg:
+                    fld, text = msg.split(':', 1)
+                    errors[fld.strip()] = text.strip()
+            msg = "; ".join([f"{k}: {v}" for k, v in errors.items()])
+            raise AdminApiException(status_code=400, detail=msg)
 
 
 @register(UserActivityLog)
@@ -78,11 +83,10 @@ class UserActivityLogAdmin(TortoiseModelAdmin):
     )
     list_select_related = ("user",)
     list_display_links = ("id",)
-    list_filter = ("action", "timestamp")
+    list_filter = ("action", "timestamp", "user")
     search_fields = ("action",)
 
     formfield_overrides = {
-        "user": (WidgetType.Select, {}),
         "action": (WidgetType.Input, {}),
         "timestamp": (WidgetType.DateTimePicker, {}),
     }
@@ -91,8 +95,14 @@ class UserActivityLogAdmin(TortoiseModelAdmin):
     can_edit = False
     can_delete = False
 
-    async def get_formfield_override(self, field_name: str):
-        if field_name == "user":
-            users = await self.model._meta.apps.get_model("models.User").all().values("id", "email")
-            return (WidgetType.Select, {"options": [{"label": u["email"], "value": u["id"]} for u in users]})
-        return await super().get_formfield_override(field_name)
+    async def save_model(self, id: int | None, payload: dict) -> dict:
+        try:
+            return await super(UserActivityLogAdmin, self).save_model(id, payload)
+        except TortoiseValidationError as e:
+            errors: dict[str, str] = {}
+            for msg in e.args:
+                if isinstance(msg, str) and ':' in msg:
+                    fld, text = msg.split(':', 1)
+                    errors[fld.strip()] = text.strip()
+            msg = "; ".join([f"{k}: {v}" for k, v in errors.items()])
+            raise AdminApiException(status_code=400, detail=msg)

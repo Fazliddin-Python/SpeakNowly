@@ -71,7 +71,7 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "invalid_passage": "Invalid passage",
         "session_completed_successfully": "Reading session completed successfully",
         "session_restarted_successfully": "Reading session restarted successfully",
-        "transaction_description": "Tokens deducted for reading test: {price}",
+        "transaction_description": "Tokens deducted for test: {price}",
 
         # --- Tests / Writing ---
         "no_writing_tests": "No writing tests available",
@@ -195,7 +195,7 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "invalid_passage": "Неверный отрывок",
         "session_completed_successfully": "Сессия чтения успешно завершена",
         "session_restarted_successfully": "Сессия чтения успешно перезапущена",
-        "transaction_description": "Списаны токены за тест чтения: {price}",
+        "transaction_description": "Списаны токены за тест: {price}",
 
         # --- Tests / Writing ---
         "no_writing_tests": "Нет доступных тестов по письму",
@@ -319,7 +319,7 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "invalid_passage": "Noto'g'ri parcha",
         "session_completed_successfully": "O'qish sessiyasi muvaffaqiyatli yakunlandi",
         "session_restarted_successfully": "O'qish sessiyasi muvaffaqiyatli qayta boshlandi",
-        "transaction_description": "O'qish testi uchun tokenlar yechib olindi: {price}",
+        "transaction_description": "Test uchun tokenlar yechib olindi: {price}",
 
         # --- Tests / Writing ---
         "no_writing_tests": "Yozish testlari mavjud emas",

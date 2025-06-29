@@ -75,7 +75,7 @@ class WritingService:
                 transaction_type=TransactionType.TEST_WRITING,
                 amount=price,
                 balance_after_transaction=user.tokens,
-                description=t.get("transaction_description", f"Writing test (-{price} tokens)"),
+                description=t.get("transaction_description", f"Writing test (-{price} tokens)").format(price=price),
             )
 
             # Create writing session
