@@ -45,6 +45,12 @@ async def login(
     """
     email = data.email.lower().strip()
 
+    if not data.password or not data.password.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=t.get("empty_password", "Password must not be empty")
+        )
+
     # Rate limit check
     if await login_limiter.is_blocked(email):
         raise HTTPException(
@@ -86,7 +92,8 @@ async def login(
 async def oauth2_login(
     data: OAuth2SignInSerializer,
     t: dict = Depends(get_translation),
-    redis=Depends(get_arq_redis)
+    redis=Depends(get_arq_redis),
+    request=None  # Add request to get headers
 ) -> AuthResponseSerializer:
     """
     Authenticate via OAuth2 and issue JWT tokens:
@@ -95,10 +102,16 @@ async def oauth2_login(
     - Update last login
     - Enqueue activity log
     """
+    # Get language from Accept-Language header, fallback to 'en'
+    lang = "en"
+    if request and hasattr(request, "headers"):
+        lang = (request.headers.get("Accept-Language", "en").split(",")[0].split("-")[0])[:2]
+
     result = await oauth2_sign_in(
         token=data.token,
         auth_type=data.auth_type,
-        client_id=data.client_id
+        client_id=data.client_id,
+        lang=lang  # Pass language to OAuth2 sign-in
     )
     access_token = result["access_token"]
     refresh_token = result["refresh_token"]
@@ -155,18 +168,22 @@ async def login_via_telegram(
     t: dict = Depends(get_translation),
 ):
     """
+    Authenticate user via Telegram and issue JWT tokens.
+
+    Steps:
     1. Verify Telegram's HMAC signature.
-    2. Decode percent‑encoded photo_url.
+    2. Decode percent-encoded photo_url.
     3. Find or create User by telegram_id.
-    4. Send welcome email if newly registered.
+    4. If user is new, create a multilingual welcome notification.
     5. Update last_login via UserService.
     6. Issue JWT tokens.
     7. Enqueue activity log.
     8. Redirect to frontend with tokens.
     """
+    # Parse Telegram data
     raw = data.dict()
 
-    # 1. Verify signature
+    # 1. Verify Telegram signature
     if not verify_telegram_hash(raw):
         raise HTTPException(status_code=400, detail="Invalid Telegram data signature")
 
@@ -175,14 +192,11 @@ async def login_via_telegram(
     # 2. Decode photo_url if present
     decoded_photo = unquote(raw["photo_url"]) if raw.get("photo_url") else None
 
-    # 3. Lookup or create user
+    # 3. Find or create user by telegram_id
     user = await User.get_or_none(telegram_id=tg_id)
     newly_created = False
     if not user:
         default_email = f"{tg_id}@speaknowly.com"
-        # create user with empty (random) password
-        import secrets
-        random_pw = secrets.token_urlsafe(32)
         user = User(
             email=default_email,
             first_name=raw["first_name"],
@@ -192,32 +206,45 @@ async def login_via_telegram(
             is_verified=True,
             is_active=True,
         )
-        user.set_password(random_pw)
+        user.set_password("")  # Set empty password hash for OAuth users
         await user.save()
         newly_created = True
 
-    # 4. Вместо email — создать одно Message на трёх языках в одном сообщении
+    # 4. If user is new, create a beautiful multilingual welcome notification
     if newly_created:
         from models.notifications import Message, MessageType
 
-        # Титул на трёх языках
-        title = "Salom | Привет | Welcome"
-
-        # Короткое описание на трёх языках
+        title = "🎉 Xush kelibsiz | Добро пожаловать | Welcome"
         description = (
-            "🎁 Telegram bonuslar! | 🎁 Получай бонусы в Telegram! | 🎁 Get bonuses in Telegram!"
+            "🎁 Telegram bonuslari! | 🎁 Получай бонусы в Telegram! | 🎁 Get Telegram bonuses!"
         )
-
-        # Контент на трёх языках (HTML)
         content = """
 <div>
-  <p>🇺🇿 <b>Kanalimizga obuna bo‘ling va promokodlar, IELTS materiallar va yangiliklarni birinchi bo‘lib oling!</b></p>
-  <p>🇷🇺 <b>Подпишись на канал и получай промокоды, материалы по IELTS и новости первым!</b></p>
-  <p>🇬🇧 <b>Subscribe to our channel for promo codes, IELTS tips, and updates first!</b></p>
+  <p>🇺🇿 <b>Kanalimizga obuna bo‘ling va birinchi bo‘lib quyidagilarga ega bo‘ling:</b></p>
+  <ul>
+    <li>✅ Chegirmalar va bepul obunalar uchun promokodlar</li>
+    <li>✅ IELTS bo‘yicha eksklyuziv materiallar va maslahatlar</li>
+    <li>✅ Yangi funksiyalar va tanlovlar haqida xabarnomalar</li>
+  </ul>
+  <p>🇷🇺 <b>Подпишись на наш Telegram-канал и первым получай:</b></p>
+  <ul>
+    <li>✅ Промокоды на скидки и бесплатные подписки</li>
+    <li>✅ Эксклюзивные материалы и советы по IELTS</li>
+    <li>✅ Оповещения о новых функциях и конкурсах</li>
+  </ul>
+  <p>🇬🇧 <b>Subscribe to our Telegram channel and be the first to get:</b></p>
+  <ul>
+    <li>✅ Promo codes for discounts and free subscriptions</li>
+    <li>✅ Exclusive IELTS materials and tips</li>
+    <li>✅ Notifications about new features and contests</li>
+  </ul>
   <p style="margin-top:16px;">
     <a href="https://t.me/SpeakNowly" target="_blank" style="color:#4F6AFC;font-weight:bold;text-decoration:none;">
-      t.me/SpeakNowly
+      👉 t.me/SpeakNowly
     </a>
+  </p>
+  <p style="margin-top:12px; font-size: 13px; color: #888;">
+    Don't miss your chance to save and boost your English even faster!
   </p>
 </div>
 """
@@ -229,10 +256,11 @@ async def login_via_telegram(
             description=description,
             content=content,
         )
+
     # 5. Update last_login
     await UserService.update_user(user.id, t, last_login=datetime.utcnow())
 
-    # 6. Generate JWT
+    # 6. Generate JWT tokens
     access_token = await create_access_token(subject=str(user.id), email=user.email)
     refresh_token = await create_refresh_token(subject=str(user.id), email=user.email)
 
@@ -241,7 +269,7 @@ async def login_via_telegram(
         "log_user_activity", user_id=user.id, action="telegram_login"
     )
 
-    # 8. Redirect with tokens
+    # 8. Redirect to frontend with tokens
     frontend_url = "https://speaknowly.com/auth"
     qs = (
         f"?access_token={access_token}"
