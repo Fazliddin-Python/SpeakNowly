@@ -70,6 +70,10 @@ async def oauth2_sign_in(
         await user.save()
         created = True
 
+        # Assign default tariff
+        from services.users import UserService
+        await UserService.assign_default_tariff(user)
+
     # Create a welcome message in user's language for Google/Apple registration
     if created and auth_type in ("google", "apple"):
         titles = {

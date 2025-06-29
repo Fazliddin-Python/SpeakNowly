@@ -210,6 +210,10 @@ async def login_via_telegram(
         await user.save()
         newly_created = True
 
+        # Assign default tariff
+        from services.users import UserService
+        await UserService.assign_default_tariff(user)
+
     # 4. If user is new, create a beautiful multilingual welcome notification
     if newly_created:
         from models.notifications import Message, MessageType

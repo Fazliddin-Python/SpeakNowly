@@ -302,3 +302,22 @@ class UserService:
         # 3. Save and return created user
         await user.save()
         return user
+
+    @staticmethod
+    async def assign_default_tariff(user: User):
+        """
+        Assign default tariff and tokens to a user if not already assigned.
+        """
+        if not user.tariff_id:
+            default_tariff = await Tariff.get_default_tariff()
+            if default_tariff:
+                user.tariff = default_tariff
+                user.tokens = default_tariff.tokens
+                await user.save()
+                await TokenTransaction.create(
+                    user=user,
+                    transaction_type=TransactionType.DAILY_BONUS,
+                    amount=default_tariff.tokens,
+                    balance_after_transaction=user.tokens,
+                    description=f"Daily bonus for {default_tariff.name}",
+                )
