@@ -1,5 +1,5 @@
 from typing import Literal
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 from utils.auth.apple_auth import decode_apple_id_token
@@ -8,10 +8,12 @@ from models.users.users import User
 from config import GOOGLE_CLIENT_ID
 from models.notifications import Message, MessageType
 import asyncio
+import json
 
 async def oauth2_sign_in(
     token: str,
     auth_type: Literal["google", "apple"],
+    request: Request = None,
     client_id: str = None,
     lang: str = "en"
 ) -> dict:
@@ -39,6 +41,8 @@ async def oauth2_sign_in(
             raise HTTPException(status_code=403, detail="Invalid Google ID token")
 
     elif auth_type == "apple":
+        if request is None:
+            raise HTTPException(status_code=400, detail="Require request to parse Apple 'user' field")
         try:
             payload = await asyncio.get_event_loop().run_in_executor(
                 None,
@@ -47,6 +51,18 @@ async def oauth2_sign_in(
             email = payload.get("email")
             if not email:
                 raise HTTPException(status_code=403, detail="Email not provided by Apple token")
+
+            form = await request.form()
+            user_json = form.get("user")
+            if user_json:
+                try:
+                    user_data = json.loads(user_json)
+                    name = user_data.get("name", {})
+                    first_name = name.get("firstName")
+                    last_name = name.get("lastName")
+                except json.JSONDecodeError:
+                    pass
+
         except HTTPException:
             raise
         except Exception:
@@ -66,21 +82,16 @@ async def oauth2_sign_in(
             last_name=last_name,
             photo=photo,
         )
-        user.set_password("")  # Set empty password hash
+        user.set_password("")  # Empty password for OAuth users
         await user.save()
         created = True
 
-        # Assign default tariff
         from services.users import UserService
         await UserService.assign_default_tariff(user)
 
-    # Create a welcome message in user's language for Google/Apple registration
-    if created and auth_type in ("google", "apple"):
-        titles = {
-            "en": "Welcome",
-            "ru": "Добро пожаловать",
-            "uz": "Xush kelibsiz"
-        }
+    # Welcome message
+    if created:
+        titles = {"en": "Welcome", "ru": "Добро пожаловать", "uz": "Xush kelibsiz"}
         descriptions = {
             "en": "Please update your email and password in your profile.",
             "ru": "Пожалуйста, обновите email и пароль в профиле.",

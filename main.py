@@ -28,11 +28,10 @@ app = FastAPI(
 # === CORS middleware ===
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_HOSTS,
-    allow_credentials=False,
+    allow_origins=["https://speaknowly.com"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
 )
 
 # === Routers and static files ===
