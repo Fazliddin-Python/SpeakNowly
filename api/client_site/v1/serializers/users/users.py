@@ -19,10 +19,10 @@ class UserBaseSerializer(BaseModel):
     def validate_photo(cls, v):
         if v is None:
             return v
-        if v.startswith("/media/"):
+        if v.startswith("/media/") or v.startswith("http://") or v.startswith("https://"):
             return v
-        raise ValueError("Photo URL must start with /media/")
-
+        raise ValueError("Photo URL must start with /media/ or be a full http(s) URL")
+    
 
 class UserCreateSerializer(BaseModel):
     """Serializer for creating a new user (admin only)."""
@@ -55,9 +55,10 @@ class UserCreateSerializer(BaseModel):
     def validate_photo(cls, v):
         if v is None:
             return v
-        if v.startswith("/media/"):
+        if v.startswith("/media/") or v.startswith("http://") or v.startswith("https://"):
             return v
-        raise ValueError("Photo URL must start with /media/")
+        raise ValueError("Photo URL must start with /media/ or be a full http(s) URL")
+    
 
 
 class UserUpdateSerializer(BaseModel):
@@ -77,9 +78,10 @@ class UserUpdateSerializer(BaseModel):
     def validate_photo(cls, v):
         if v is None:
             return v
-        if v.startswith("/media/"):
+        if v.startswith("/media/") or v.startswith("http://") or v.startswith("https://"):
             return v
-        raise ValueError("Photo URL must start with /media/")
+        raise ValueError("Photo URL must start with /media/ or be a full http(s) URL")
+    
 
 
 class UserResponseSerializer(UserBaseSerializer):

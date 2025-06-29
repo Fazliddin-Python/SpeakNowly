@@ -18,9 +18,9 @@ class ProfileSerializer(BaseModel):
     def validate_photo(cls, v):
         if v is None:
             return v
-        if v.startswith("/media/"):
+        if v.startswith("/media/") or v.startswith("http://") or v.startswith("https://"):
             return v
-        raise ValueError("Photo URL must start with /media/")
+        raise ValueError("Photo URL must start with /media/ or be a full http(s) URL")
     
     model_config = {"from_attributes": True}
 
@@ -33,12 +33,12 @@ class ProfileUpdateSerializer(BaseModel):
 
     @field_validator("photo")
     @classmethod
-    def validate_photo_url(cls, value: Optional[str]) -> Optional[str]:
-        if value is None:
-            return value
-        if value.startswith("/media/"):
-            return value
-        raise ValueError("Photo URL must start with /media/")
+    def validate_photo(cls, v):
+        if v is None:
+            return v
+        if v.startswith("/media/") or v.startswith("http://") or v.startswith("https://"):
+            return v
+        raise ValueError("Photo URL must start with /media/ or be a full http(s) URL")
     
     model_config = {"from_attributes": True}
 
