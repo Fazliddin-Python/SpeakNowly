@@ -2,6 +2,7 @@ from typing import Literal
 from fastapi import HTTPException, Request
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
+from services.users import UserService
 from utils.auth.apple_auth import decode_apple_id_token
 from utils.auth.auth import create_access_token, create_refresh_token
 from models.users.users import User
@@ -86,7 +87,6 @@ async def oauth2_sign_in(
         await user.save()
         created = True
 
-        from services.users import UserService
         await UserService.assign_default_tariff(user)
 
     # Welcome message
