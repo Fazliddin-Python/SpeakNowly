@@ -12,7 +12,7 @@ from ...serializers.users import (
     LoginSerializer, OAuth2SignInSerializer, AuthResponseSerializer, StartTelegramAuthSerializer, TelegramAuthSerializer
 )
 from services.users import UserService, EmailService
-from models.users import User
+from models import User, Message, MessageType
 from utils.arq_pool import get_arq_redis
 from utils.limiters import get_login_limiter
 from utils.auth.oauth2_auth import oauth2_sign_in
@@ -211,13 +211,10 @@ async def login_via_telegram(
         newly_created = True
 
         # Assign default tariff
-        from services.users import UserService
         await UserService.assign_default_tariff(user)
 
     # 4. If user is new, create a beautiful multilingual welcome notification
     if newly_created:
-        from models.notifications import Message, MessageType
-
         title = "🎉 Xush kelibsiz | Добро пожаловать | Welcome"
         description = (
             "🎁 Telegram bonuslari! | 🎁 Получай бонусы в Telegram! | 🎁 Get Telegram bonuses!"
