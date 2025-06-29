@@ -23,7 +23,6 @@ class Message(BaseModel):
 class ReadStatus(BaseModel):
     message = fields.ForeignKeyField("models.Message", related_name="read_statuses", description="Message")
     user = fields.ForeignKeyField("models.User", related_name="read_statuses", description="User")
-    read_at = fields.DatetimeField(null=True, description="Read at")
 
     class Meta:
         table = "read_statuses"

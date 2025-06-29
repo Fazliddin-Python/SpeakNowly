@@ -29,7 +29,6 @@ class TelegramAuthSerializer(BaseModel):
     photo_url: str | None = Field(None, description="Profile photo URL")
     auth_date: int = Field(..., description="Auth date timestamp")
     hash: str = Field(..., description="Telegram data signature")
-    phone: str = Field(..., description="Phone number used to initiate auth")
 
 
 class AuthResponseSerializer(BaseModel):

@@ -196,22 +196,39 @@ async def login_via_telegram(
         await user.save()
         newly_created = True
 
-    # 4. Send welcome email if just registered
+    # 4. Вместо email — создать одно Message на трёх языках в одном сообщении
     if newly_created:
-        subject = "Welcome to SpeakNowly!"
-        html_body = f"""
-        <p>Hi {user.first_name or 'there'},</p>
-        <p>Congratulations! Your account has been successfully created via Telegram.</p>
-        <p>Your temporary email is <b>{user.email}</b>. Please <a href="https://speaknowly.com/profile">update your email and set a new password</a> in your profile. You can set the password directly without providing an old one.</p>
-        <p>Enjoy using SpeakNowly!</p>
-        """
-        # send_email is async
-        await EmailService.send_email(
-            subject=subject,
-            recipients=[user.email],
-            html_body=html_body
+        from models.notifications import Message, MessageType
+
+        # Титул на трёх языках
+        title = "Salom | Привет | Welcome"
+
+        # Короткое описание на трёх языках
+        description = (
+            "🎁 Telegram bonuslar! | 🎁 Получай бонусы в Telegram! | 🎁 Get bonuses in Telegram!"
         )
 
+        # Контент на трёх языках (HTML)
+        content = """
+<div>
+  <p>🇺🇿 <b>Kanalimizga obuna bo‘ling va promokodlar, IELTS materiallar va yangiliklarni birinchi bo‘lib oling!</b></p>
+  <p>🇷🇺 <b>Подпишись на канал и получай промокоды, материалы по IELTS и новости первым!</b></p>
+  <p>🇬🇧 <b>Subscribe to our channel for promo codes, IELTS tips, and updates first!</b></p>
+  <p style="margin-top:16px;">
+    <a href="https://t.me/SpeakNowly" target="_blank" style="color:#4F6AFC;font-weight:bold;text-decoration:none;">
+      t.me/SpeakNowly
+    </a>
+  </p>
+</div>
+"""
+
+        await Message.create(
+            user=user,
+            type=MessageType.SITE,
+            title=title,
+            description=description,
+            content=content,
+        )
     # 5. Update last_login
     await UserService.update_user(user.id, t, last_login=datetime.utcnow())
 

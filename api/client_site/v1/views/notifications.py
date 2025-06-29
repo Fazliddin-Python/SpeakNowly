@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Request
 from typing import List
+from datetime import datetime
 
 from ..serializers.notifications import MessageListSerializer, MessageDetailSerializer
 from models import Message, ReadStatus
@@ -20,7 +21,7 @@ async def list_notifications(
 ):
     """List all notifications for current user."""
     lang = (request.headers.get("Accept-Language", "en").split(",")[0].split("-")[0]).lower()
-    messages = await Message.filter(user_id=user.id).order_by("-created_at")
+    messages = await Message.filter(user_id=user.id).exclude(type="mail").order_by("-created_at")
     result = []
     for msg in messages:
         title = _translate(msg, "title", lang)
@@ -44,10 +45,14 @@ async def notification_detail(
 ):
     """Get notification detail and mark as read."""
     lang = (request.headers.get("Accept-Language", "en").split(",")[0].split("-")[0]).lower()
-    msg = await Message.get_or_none(id=id, user_id=user.id)
+    msg = await Message.get_or_none(id=id, user_id=user.id).exclude(type="mail")
     if not msg:
         raise HTTPException(status_code=404, detail=t.get("notification_not_found", "Notification not found"))
-    await ReadStatus.get_or_create(message_id=msg.id, user_id=user.id)
+    read_status = await ReadStatus.get_or_none(message_id=msg.id, user_id=user.id)
+    if not read_status:
+        await ReadStatus.create(message_id=msg.id, user_id=user.id)
+    else:
+        await read_status.save()
     return MessageDetailSerializer(
         id=msg.id,
         title=_translate(msg, "title", lang),
